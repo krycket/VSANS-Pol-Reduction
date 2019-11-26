@@ -9,7 +9,8 @@ import datetime
 from numpy.linalg import inv
 from uncertainties import unumpy
 #from ConfinedSkyrmions_6June2019 import *
-from MnFe2O4NPs_March2019 import *
+#from MnFe2O4NPs_March2019 import *
+from EuSe_Nov2019 import *
 
 #This program is set to reduce VSANS data using middle and front detectors - umnpol, fullpol available.
 #To do: BS shadow, deadtime corr., check abs. scaling, uncertainty propagation through , choice of 2 cross-section empty files, half-pol
@@ -163,14 +164,24 @@ def SortData(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues, start_numbe
             Attenuation = f['entry/DAS_logs/attenuator/attenuator'][0]
             Wavelength = f['entry/DAS_logs/wavelength/wavelength'][0]
             Config = Unique_Config_ID(filenumber)
-            ID = str(f['entry/sample/group_id'][0])
             FrontPolDirection = f['entry/DAS_logs/frontPolarization/direction'][()]
+            if Use_Adam4021 > 0:
+                Voltage = int(f['entry/DAS_logs/adam4021/voltage'][(0)]*100)
+                Voltage = Voltage / 100
+            else:
+                Voltage = NA
+            if Use_Lakeshore340 > 0:
+                Desired_Temp = f['entry/DAS_logs/temp/desiredPrimaryNode'][0]
+            else:
+                Desired_Temp = NA
 
             if filenumber == start_number:
                 Scatt_ConfigIDs[Config] = {'Example_File' : [filenumber]}
 
             if ID in Desired_GroupIDs or Select_GroupIDs == 0:
                 if ID not in Undesired_GroupIDs:
+
+                    ID = ID + '_' + str(Voltage) + 'V_' + str(Desired_Temp) + 'K'
 
                     if "backPolarization" in f['entry/DAS_logs/']:
                         BackPolDirection = f['entry/DAS_logs/backPolarization/direction'][()]
@@ -1240,7 +1251,7 @@ def AbsScaleAndPolarizationCorrectData(GroupID, configuration, Pol_Trans, Pol_Sc
                     for dshort in short_detectors:
                         data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)]) #- BlockBeam_Scatt[configuration][dshort]*Count_time
                         unc = np.sqrt(data)
-                        data = data - BB[dshort]
+                        #data = data - BB[dshort]
                         Scaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*data.flatten()
                         UncScaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*unc.flatten()
                         Det_Index += 1
@@ -1251,9 +1262,8 @@ def AbsScaleAndPolarizationCorrectData(GroupID, configuration, Pol_Trans, Pol_Sc
                     for dshort in short_detectors:
                         data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)]) #- BlockBeam_Scatt[configuration][dshort]*Count_time
                         unc = np.sqrt(data)
-                        data = data - BB[dshort]
+                        #data = data - BB[dshort]
                         Scaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*data.flatten()
-                        #unc = np.sqrt(data)
                         UncScaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*unc.flatten()
                         Det_Index += 1
                 elif type == "S_DD_files":
@@ -1263,9 +1273,8 @@ def AbsScaleAndPolarizationCorrectData(GroupID, configuration, Pol_Trans, Pol_Sc
                     for dshort in short_detectors:
                         data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)]) #- BlockBeam_Scatt[configuration][dshort]*Count_time
                         unc = np.sqrt(data)
-                        data = data - BB[dshort]
+                        #data = data - BB[dshort]
                         Scaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*data.flatten()
-                        #unc = np.sqrt(data)
                         UncScaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*unc.flatten()
                         Det_Index += 1
                 elif type == "S_UD_files":
@@ -1275,9 +1284,8 @@ def AbsScaleAndPolarizationCorrectData(GroupID, configuration, Pol_Trans, Pol_Sc
                     for dshort in short_detectors:
                         data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)]) #- BlockBeam_Scatt[configuration][dshort]*Count_time
                         unc = np.sqrt(data)
-                        data = data - BB[dshort]
+                        #data = data - BB[dshort]
                         Scaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*data.flatten()
-                        #unc = np.sqrt(data)
                         UncScaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*unc.flatten()
                         Det_Index += 1
     PolCorr_AllDetectors = {}
@@ -1376,6 +1384,8 @@ BlockBeam_Trans, BlockBeam_ScattPerPixel = BlockedBeam_Averaged(BlockedBeamFiles
 
 Unpol_Trans, Unpol_Scatt, HE3_Trans, Pol_Trans, Pol_Scatt, Scatt_ConfigIDs = SortData(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues, start_number, end_number)
 
+print(Pol_Scatt)
+
 dim_All = {} #dim_All[ConfigID][X or Y][dshort]
 Solid_Angle_All = {} #Solid_Angle_All[ConfigID][dshort]
 Geometric_Masks = {} #Masks_Geometric[ConfigID][dshort]
@@ -1412,30 +1422,22 @@ DataType = 'Unpol'
 if UnpolYesNo == 1:            
     UnpolToSubtract_AllDetectors = {}            
     for ID in Unpol_Scatt:
-        if ID in Empty_IDs:
-            for Config_ID in Unpol_Scatt[ID]:
-                EmptyData_AllDetectors, Unc_EmptyData_AllDetectors = AbsScale(ID, Config_ID, Unpol_Trans, Unpol_Scatt)#UnPolData_AllDetectors[dshort][128 x 48 = 6144]
+        for Config_ID in Unpol_Scatt[ID]:
+            UnpolData_AllDetectors, Unc_UnpolData_AllDetectors = AbsScale(ID, Config_ID, Unpol_Trans, Unpol_Scatt)#UnPolData_AllDetectors[dshort][128 x 48 = 6144]
+            for dshort in short_detectors:
+                Unc_UnpolData_AllDetectors[dshort] = Unc_UnpolData_AllDetectors[dshort]/(Solid_Angle_All[Config_ID][dshort]*Plex[dshort])
+                if Config_ID in UnpolToSubtract_AllDetectors:
+                    UnpolData_AllDetectors[dshort] = UnpolData_AllDetectors[dshort]/(Solid_Angle_All[Config_ID][dshort]*Plex[dshort]) - UnpolToSubtract_AllDetectors[Config_ID][dshort]
+                else:
+                    UnpolData_AllDetectors[dshort] = UnpolData_AllDetectors[dshort]/(Solid_Angle_All[Config_ID][dshort]*Plex[dshort])
+            PlotYesNo = 1 #1 means yes
+            for Key in Unpol_Key_list:
+                Trunc_mask['label'] = Key
                 for dshort in short_detectors:
-                    EmptyData_AllDetectors[dshort] = EmptyData_AllDetectors[dshort]/(Solid_Angle_All[Config_ID][dshort]*Plex[dshort])
-                UnpolToSubtract_AllDetectors[Config_ID] = EmptyData_AllDetectors #UnpolToSubtract_AllDetectors[Config_ID][dshort][128 x 48 = 6144]
-    for ID in Unpol_Scatt:
-        if ID not in Empty_IDs:
-            for Config_ID in Unpol_Scatt[ID]:
-                UnpolData_AllDetectors, Unc_UnpolData_AllDetectors = AbsScale(ID, Config_ID, Unpol_Trans, Unpol_Scatt)#UnPolData_AllDetectors[dshort][128 x 48 = 6144]
-                for dshort in short_detectors:
-                    Unc_UnpolData_AllDetectors[dshort] = Unc_UnpolData_AllDetectors[dshort]/(Solid_Angle_All[Config_ID][dshort]*Plex[dshort])
-                    if Config_ID in UnpolToSubtract_AllDetectors:
-                        UnpolData_AllDetectors[dshort] = UnpolData_AllDetectors[dshort]/(Solid_Angle_All[Config_ID][dshort]*Plex[dshort]) - UnpolToSubtract_AllDetectors[Config_ID][dshort]
-                    else:
-                        UnpolData_AllDetectors[dshort] = UnpolData_AllDetectors[dshort]/(Solid_Angle_All[Config_ID][dshort]*Plex[dshort])
-                PlotYesNo = 1 #1 means yes
-                for Key in Unpol_Key_list:
-                    Trunc_mask['label'] = Key
-                    for dshort in short_detectors:
-                        Trunc_mask[dshort] = Masks_All[Config_ID][Key][dshort]
-                    QQ, QM, Intensity = SliceDataUnpolData(Q_min, Q_max, Q_bins, QValues_All[Config_ID], Trunc_mask, UnpolData_AllDetectors, Unc_UnpolData_AllDetectors, dim_All[Config_ID]['X'], dim_All[Config_ID]['Y'], ID, Config_ID, PlotYesNo)
-            if Print_ASCII == 1:
-                ASCIIlike_Output(DataType, ID, Config_ID, UnpolData_AllDetectors, Unc_UnpolData_AllDetectors, QValues_All[Config_ID]) #QX, QY, QZ, Q_perp_unc, Q_parl_unc)
+                    Trunc_mask[dshort] = Masks_All[Config_ID][Key][dshort]
+                QQ, QM, Intensity = SliceDataUnpolData(Q_min, Q_max, Q_bins, QValues_All[Config_ID], Trunc_mask, UnpolData_AllDetectors, Unc_UnpolData_AllDetectors, dim_All[Config_ID]['X'], dim_All[Config_ID]['Y'], ID, Config_ID, PlotYesNo)
+        if Print_ASCII == 1:
+            ASCIIlike_Output(DataType, ID, Config_ID, UnpolData_AllDetectors, Unc_UnpolData_AllDetectors, QValues_All[Config_ID]) #QX, QY, QZ, Q_perp_unc, Q_parl_unc)
 
 DataType = 'Fullpol'
 FullPolResults = {}
@@ -1446,32 +1448,24 @@ if FullPolYeseNo == 1:
 
     PolToSubtract_AllDetectors = {}            
     for ID in Pol_Scatt:
-        if ID in Empty_IDs:
-            for Config_ID in Pol_Scatt[ID]:
-                EmptyPolData_AllDetectors, Unc_EmptyPolData_AllDetectors = AbsScaleAndPolarizationCorrectData(ID, Config_ID, Pol_Trans, Pol_Scatt) #EmptyPolData_AllDetectors[dshort][0-3 cross-section][128 x 48 = 6144]
+        for Config_ID in Pol_Scatt[ID]:
+            PolData_AllDetectors, Unc_PolData_AllDetectors = AbsScaleAndPolarizationCorrectData(ID, Config_ID, Pol_Trans, Pol_Scatt)#PolData_AllDetectors[dshort][0-3 cross-section][128 x 48 = 6144]
+            for dshort in short_detectors:
+                Unc_PolData_AllDetectors[dshort] = Unc_PolData_AllDetectors[dshort]/(Solid_Angle_All[Config_ID][dshort]*Plex[dshort])
+                if Config_ID in PolToSubtract_AllDetectors:
+                    PolData_AllDetectors[dshort] = PolData_AllDetectors[dshort]/(Solid_Angle_All[Config_ID][dshort]*Plex[dshort]) - PolToSubtract_AllDetectors[Config_ID][dshort]
+                else:
+                    PolData_AllDetectors[dshort] = PolData_AllDetectors[dshort]/(Solid_Angle_All[Config_ID][dshort]*Plex[dshort])
+            PlotYesNo = 1 #1 means yes
+            for Key in FullPol_Key_list:
+                Trunc_mask['label'] = Key
                 for dshort in short_detectors:
-                    EmptyPolData_AllDetectors[dshort] = EmptyPolData_AllDetectors[dshort]/(Solid_Angle_All[Config_ID][dshort]*Plex[dshort])
-                PolToSubtract_AllDetectors[Config_ID] = EmptyPolData_AllDetectors
-    for ID in Pol_Scatt:
-        if ID not in Empty_IDs:
-            for Config_ID in Pol_Scatt[ID]:
-                PolData_AllDetectors, Unc_PolData_AllDetectors = AbsScaleAndPolarizationCorrectData(ID, Config_ID, Pol_Trans, Pol_Scatt)#PolData_AllDetectors[dshort][0-3 cross-section][128 x 48 = 6144]
-                for dshort in short_detectors:
-                    Unc_PolData_AllDetectors[dshort] = Unc_PolData_AllDetectors[dshort]/(Solid_Angle_All[Config_ID][dshort]*Plex[dshort])
-                    if Config_ID in PolToSubtract_AllDetectors:
-                        PolData_AllDetectors[dshort] = PolData_AllDetectors[dshort]/(Solid_Angle_All[Config_ID][dshort]*Plex[dshort]) - PolToSubtract_AllDetectors[Config_ID][dshort]
-                    else:
-                        PolData_AllDetectors[dshort] = PolData_AllDetectors[dshort]/(Solid_Angle_All[Config_ID][dshort]*Plex[dshort])
-                PlotYesNo = 1 #1 means yes
-                for Key in FullPol_Key_list:
-                    Trunc_mask['label'] = Key
-                    for dshort in short_detectors:
-                        Trunc_mask[dshort] = Masks_All[Config_ID][Key][dshort]
-                    FullPolResults[Key] = SliceDataPolData(Q_min, Q_max, Q_bins, QValues_All[Config_ID], Trunc_mask, PolData_AllDetectors, Unc_PolData_AllDetectors, dimXX, dimYY, ID, Config_ID, PlotYesNo)
-                    #Q_Common, Q_Mean, SF, SF_Unc, NSF, NSFDiff, NSF_Unc, Q_Uncertainty, Q_Mean, Shadow
-                    
-            if Print_ASCII == 1:
-                ASCIIlike_Output(DataType, ID, Config_ID, PolData_AllDetectors, Unc_PolData_AllDetectors, QValues_All[Config_ID])
+                    Trunc_mask[dshort] = Masks_All[Config_ID][Key][dshort]
+                FullPolResults[Key] = SliceDataPolData(Q_min, Q_max, Q_bins, QValues_All[Config_ID], Trunc_mask, PolData_AllDetectors, Unc_PolData_AllDetectors, dimXX, dimYY, ID, Config_ID, PlotYesNo)
+                #Q_Common, Q_Mean, SF, SF_Unc, NSF, NSFDiff, NSF_Unc, Q_Uncertainty, Q_Mean, Shadow
+                
+        if Print_ASCII == 1:
+            ASCIIlike_Output(DataType, ID, Config_ID, PolData_AllDetectors, Unc_PolData_AllDetectors, QValues_All[Config_ID])
 
                 
 #*************************************************
