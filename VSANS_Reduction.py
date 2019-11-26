@@ -8,8 +8,10 @@ import dateutil
 import datetime
 from numpy.linalg import inv
 from uncertainties import unumpy
-from Specifics import *
+#from ConfinedSkyrmions_6June2019 import *
+from MnFe2O4NPs_March2019 import *
 
+#This program is set to reduce VSANS data using middle and front detectors - umnpol, fullpol available.
 #To do: BS shadow, deadtime corr., check abs. scaling, uncertainty propagation through , choice of 2 cross-section empty files, half-pol
 
 short_detectors = ["MT", "MB", "ML", "MR", "FT", "FB", "FL", "FR"]
@@ -55,11 +57,30 @@ def Plex_File(filenumber):
             
     return PlexData
 
-def BlockedBeam_Averaged(BlockedBeamFiles, masks):
-    #Uses function, Unique_Config_ID, and list, BlockedBeamFiles
+def Make_Mask_From_File(mask_number, Front_threshold, Middle_threshold):
+    #Returns measured_masks[dshort], usually based on a glassy carbon file
+    measured_masks = {}
+    long_name = path + "sans" + str(filenumber) + ".nxs.ngv"
+    config = Path(long_name)
+    if config.is_file():
+        print('Reading in mask file number:', filenumber)
+        f = h5py.File(long_name)
+        for dshort in short_detectors:
+            measured_mask_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
+            measured_masks[dshort] = np.zeros_like(measured_mask_data)
+            position_key = dshort[0]
+            if position_key == 'F':
+                measured_masks[dshort][measured_mask_data >= Front_threshold] = 1.0
+            if position_key == 'M':
+                measured_masks[dshort][measured_mask_data >= Middle_threshold] = 1.0
+                
+    return measured_masks
+
+def BlockedBeam_Averaged(BlockedBeamFiles, MeasMasks):
 
     BlockBeam_Trans = {}
     BlockBeam_ScattPerPixel = {}
+    masks = {}
 
     for filenumber in BlockedBeamFiles:
         filename = path + "sans" + str(filenumber) + ".nxs.ngv"
@@ -68,6 +89,7 @@ def BlockedBeam_Averaged(BlockedBeamFiles, masks):
             print('Reading in block beam file number:', filenumber)
             f = h5py.File(filename)
             Config_ID = Unique_Config_ID(filenumber) #int(f['entry/DAS_logs/carriage2Trans/desiredSoftPosition'][0]) #int(f['entry/instrument/detector_{ds}/distance'.format(ds=TransPanel)][0])
+
             Purpose = f['entry/reduction/file_purpose'][()]
             Count_time = f['entry/collection_time'][0]
             if str(Purpose).find("TRANS") != -1 or str(Purpose).find("HE3") != -1:
@@ -80,6 +102,10 @@ def BlockedBeam_Averaged(BlockedBeamFiles, masks):
                 BlockBeam_ScattPerPixel[Config_ID] = {'File' : filenumber}
                 for dshort in short_detectors:
                     Holder = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
+                    if Config_ID in MeasMasks:
+                        masks = MeasMasks[Config_ID]
+                    else:
+                        masks[dshort] = np.ones_like(Holder)
                     Sum = np.sum(Holder[masks[dshort] > 0])
                     Pixels = np.sum(masks[dshort])
                     Unc = np.sqrt(Sum)/Pixels
@@ -102,65 +128,6 @@ def BlockedBeam_Averaged(BlockedBeamFiles, masks):
                 
     return BlockBeam_Trans, BlockBeam_ScattPerPixel
 
-def BlockedBeams(BlockedBeamFiles):
-    #Uses function, Unique_Config_ID, and list, BlockedBeamFiles
-
-    BlockBeam_Trans = {}
-    BlockBeam_Scatt = {}
-
-    for filenumber in BlockedBeamFiles:
-        filename = path + "sans" + str(filenumber) + ".nxs.ngv"
-        config = Path(filename)
-        if config.is_file():
-            print('Reading in block beam file number:', filenumber)
-            f = h5py.File(filename)
-            Config_ID = Unique_Config_ID(filenumber) #int(f['entry/DAS_logs/carriage2Trans/desiredSoftPosition'][0]) #int(f['entry/instrument/detector_{ds}/distance'.format(ds=TransPanel)][0])
-            Purpose = f['entry/reduction/file_purpose'][()]
-            Count_time = f['entry/collection_time'][0]
-            if str(Purpose).find("TRANS") != -1 or str(Purpose).find("HE3") != -1:
-                
-                Trans_Counts = f['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
-                BlockBeam_Trans[Config_ID] = {'File' : filenumber,
-                                                             'CountsPerSecond' : Trans_Counts/Count_time}
-            if str(Purpose).find("SCATT") != -1:
-                print('BB scattering number is ', filenumber)
-                BlockBeam_Scatt[Config_ID] = {'File' : filenumber}
-                for dshort in short_detectors:
-                    BlockBeam_Scatt[Config_ID][dshort] = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])/Count_time
-
-    for CF_ID in BlockBeam_Trans:
-        if CF_ID not in BlockBeam_Scatt:
-            filenumber = BlockBeam_Trans[CF_ID]['File']
-            filename = path + "sans" + str(filenumber) + ".nxs.ngv"
-            config = Path(filename)
-            if config.is_file():
-                f = h5py.File(filename)
-                Count_time = f['entry/collection_time'][0]
-                BlockBeam_Scatt[CF_ID] = {'AltFile' : filenumber}
-                for dshort in short_detectors:
-                    BlockBeam_Scatt[CF_ID][dshort] = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])/Count_time
-                
-    return BlockBeam_Trans, BlockBeam_Scatt
-
-def Make_Mask_From_File(mask_number, Front_threshold, Middle_threshold):
-    #Returns measured_masks[dshort], usually based on a glassy carbon file
-    measured_masks = {}
-    long_name = path + "sans" + str(filenumber) + ".nxs.ngv"
-    config = Path(long_name)
-    if config.is_file():
-        print('Reading in mask file number:', filenumber)
-        f = h5py.File(long_name)
-        for dshort in short_detectors:
-            measured_mask_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
-            measured_masks[dshort] = np.zeros_like(measured_mask_data)
-            position_key = dshort[0]
-            if position_key == 'F':
-                measured_masks[dshort][measured_mask_data >= Front_threshold] = 1.0
-            if position_key == 'M':
-                measured_masks[dshort][measured_mask_data >= Middle_threshold] = 1.0
-                
-    return measured_masks
-
 def SortData(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues, start_number, end_number):
 
     Unpol_Trans = {}
@@ -171,7 +138,7 @@ def SortData(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues, start_numbe
     Pol_Trans = {}
     Pol_Scatt = {}
     Scatt_ConfigIDs = {}
-    CellTimeIdentifier = 0
+    CellIdentifier = 0
     Recent_T_SM = {}
     HE3OUT_config = -1
     HE3OUT_attenuators = -1
@@ -342,10 +309,13 @@ def SortData(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues, start_numbe
             if str(Purpose).find("HE3") != -1:
                 if YesNoManualHe3Entry == 1:
                     if filenumber in New_HE3_Files:
-                        ScaledOpacity = MuValues[CellTimeIdentifier]
-                        TE = TeValues[CellTimeIdentifier]
-                        CellTimeIdentifier += 1
+                        ScaledOpacity = MuValues[CellIdentifier]
+                        TE = TeValues[CellIdentifier]
+                        #HE3Insert_Time = (End_time.timestamp() - Count_time)/3600.0
+                        CellTimeIdentifier = (End_time.timestamp() - Count_time)/3600.0
+                        #f['/entry/DAS_logs/backPolarization/timestamp'][0]/3600000 #milliseconds to hours
                         HE3Insert_Time = (End_time.timestamp() - Count_time)/3600.0
+                        CellIdentifier += 1
                         
                 else: #i.e. YesNoManualHe3Entry != 1
                     CellTimeIdentifier = f['/entry/DAS_logs/backPolarization/timestamp'][0]/3600000 #milliseconds to hours
@@ -496,12 +466,6 @@ def QCalculationAndMasks_AllDetectors(representative_filenumber, AngleWidth):
             #SampleApToSourceAp = f['/entry/DAS_logs/geometry/sourceApertureToSampleAperture'][0] #1383.7; "Calculated distance between sample aperture and source aperture" in cm
             #Note gate valve to source aperture distances are based on the number of guides used:
             #0=2441; 1=2157; 2=1976; 3=1782; 4=1582; 5=1381; 6=1181; 7=980; 8=780; 9=579 in form of # guides=distance in cm
-
-            #print(dshort, " " , x_pixel_size, " " , y_pixel_size)
-
-            #deltaQ_geometry = (2.0*np.pi/(Wavelength*L2))*np.sqrt( np.power((L2*R1)/(4*L1),2) + np.power((L1+L2)/(4*L1*R1),2)+ np.power( (Pix/2.0),(2.0/3.0)) )
-            #deltaQ_wavelength = Wavelength_spread/np.sqrt(6.0)
-            #deltaQ_gravity = 0.0
 
             if dshort == 'MT' or dshort == 'MB' or dshort == 'FT' or dshort == 'FB':
                 setback = f['entry/instrument/detector_{ds}/setback'.format(ds=dshort)][0]
@@ -715,10 +679,6 @@ def SliceDataUnpolData(Q_min, Q_max, Q_bins, QGridPerDetector, masks, Data_AllDe
             Q_tot_modified = Q_tot
             Q_tot_modified[Q_tot > Q_max] = Q_max
             Q_tot_modified[Q_tot < Q_min] = Q_min
-            if testmode == 1:
-                Unpol = np.random.randint(900, 1101, size=(dimX, dimY))
-                Unpol[masks[dshort] <= 0] = 0.1
-                Unpol_Unc = np.sqrt(Unpol)
             inds = np.digitize(Q_tot_modified, Exp_bins, right=True) - 1
             carriage_key = dshort[0]
             if carriage_key == 'F':
@@ -757,13 +717,13 @@ def SliceDataUnpolData(Q_min, Q_max, Q_bins, QGridPerDetector, masks, Data_AllDe
         plt.ylabel('Intensity')
         plt.title('Unpol {keyword} Cuts for ID = {idnum} and Config = {cf}'.format(keyword=Key, idnum=GroupID, cf = Config))
         plt.legend()
-        fig.savefig('Unpol_{keyword}Cuts_ID{idnum}_CF{cf}.png'.format(keyword=Key, idnum=GroupID, cf = Config))
+        fig.savefig('{keyword}Unpol_Cuts_ID{idnum}_CF{cf}.png'.format(keyword=Key, idnum=GroupID, cf = Config))
         plt.show()
 
         #QQ, QM, UU, DU, DD, UD = SliceDataPolData(Q_min, Q_max, Q_bins, Q_total, ChosenMasks, PolCorr_AllDetectors, dimXX, dimYY, GroupID, PlotYesNo)
         text_output = np.array([Q_Common, Unpol, Sigma, Q_Uncertainty, Q_Mean, Shadow])
         text_output = text_output.T
-        np.savetxt('Unpol_{key}_ID={idnum}Config={cf}.txt'.format(key=Key, idnum=ID, cf = Config), text_output, header='Q, I, DI, DQ, MeanQ, Shadow', fmt='%1.4e')
+        np.savetxt('{key}Unpol_ID={idnum}Config={cf}.txt'.format(key=Key, idnum=ID, cf = Config), text_output, header='Q, I, DI, DQ, MeanQ, Shadow', fmt='%1.4e')
     
     return Q_Common, Q_Mean, Unpol
 
@@ -799,7 +759,6 @@ def SliceDataPolData(Q_min, Q_max, Q_bins, QGridPerDetector, masks, PolCorr_AllD
     for dshort in short_detectors:
         dimX = dimXX[dshort]
         dimY = dimYY[dshort]
-        #Q_tot = QGridPerDetector[dshort][:][:]
         Q_tot = QGridPerDetector['Q_total'][dshort][:][:]
         Q_unc = np.sqrt(np.power(QGridPerDetector['Q_perp_unc'][dshort][:][:],2) + np.power(QGridPerDetector['Q_parl_unc'][dshort][:][:],2))
         UU = PolCorr_AllDetectors[dshort][0][:][:]
@@ -818,20 +777,6 @@ def SliceDataPolData(Q_min, Q_max, Q_bins, QGridPerDetector, masks, PolCorr_AllD
         DD_Unc = DD_Unc.reshape((dimX, dimY))
         UD_Unc = Unc_PolCorr_AllDetectors[dshort][3][:][:]
         UD_Unc = UD_Unc.reshape((dimX, dimY))
-        
-        if testmode == 1:
-            UU = np.random.randint(900, 1101, size=(dimX, dimY))
-            DU = np.random.randint(80, 110, size=(dimX, dimY))
-            DD = np.random.randint(900, 1101, size=(dimX, dimY))
-            UD = np.random.randint(80, 110, size=(dimX, dimY))
-            UU[masks[dshort] <= 0] = 0.1
-            DU[masks[dshort] <= 0] = 0.1
-            DD[masks[dshort] <= 0] = 0.1
-            UD[masks[dshort] <= 0] = 0.1
-            UU_Unc = np.sqrt(UU)
-            DU_Unc = np.sqrt(DU)
-            DD_Unc = np.sqrt(DD)
-            UD_Unc = np.sqrt(UD)
 
         Exp_bins = np.linspace(Q_min, Q_max + Q_step, Q_bins + 1, endpoint=True)
         countsUU, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=UU[masks[dshort] > 0])
@@ -913,7 +858,7 @@ def SliceDataPolData(Q_min, Q_max, Q_bins, QGridPerDetector, masks, PolCorr_AllD
         MiddleDU_DiffSqrd = np.zeros_like(Q_Values)
         MiddleDD_DiffSqrd = np.zeros_like(Q_Values)
         MiddleUD_DiffSqrd = np.zeros_like(Q_Values)
-        #Calculate average intensity per Q_bin
+        '''Calculate average intensity per Q_bin'''
         FrontPixels_Modified = FrontPixels
         FrontPixels_Modified[FrontPixels <= 0] = 1
         MiddlePixels_Modified = MiddlePixels
@@ -942,19 +887,6 @@ def SliceDataPolData(Q_min, Q_max, Q_bins, QGridPerDetector, masks, PolCorr_AllD
             Q_tot_modified = Q_tot
             Q_tot_modified[Q_tot > Q_max] = Q_max
             Q_tot_modified[Q_tot < Q_min] = Q_min
-            if testmode == 1:
-                UU = np.random.randint(900, 1101, size=(dimX, dimY))
-                DU = np.random.randint(80, 110, size=(dimX, dimY))
-                DD = np.random.randint(900, 1101, size=(dimX, dimY))
-                UD = np.random.randint(80, 110, size=(dimX, dimY))
-                UU[masks[dshort] <= 0] = 0.1
-                DU[masks[dshort] <= 0] = 0.1
-                DD[masks[dshort] <= 0] = 0.1
-                UD[masks[dshort] <= 0] = 0.1
-                UU_Unc = np.sqrt(UU)
-                DU_Unc = np.sqrt(DU)
-                DD_Unc = np.sqrt(DD)
-                UD_Unc = np.sqrt(UD)
             inds = np.digitize(Q_tot_modified, Exp_bins, right=True) - 1
             carriage_key = dshort[0]
             if carriage_key == 'F':
@@ -1005,6 +937,7 @@ def SliceDataPolData(Q_min, Q_max, Q_bins, QGridPerDetector, masks, PolCorr_AllD
 
     if PlotYesNo == 1:
         fig = plt.figure()
+        '''If don't want to plot error bars, use something like plt.loglog(Q_Front, UUF, 'b*', label='Front, UU')'''
         ax = plt.axes()
         ax.set_xscale("log")
         ax.set_yscale("log")
@@ -1016,30 +949,66 @@ def SliceDataPolData(Q_min, Q_max, Q_bins, QGridPerDetector, masks, PolCorr_AllD
         ax.errorbar(Q_Middle, DUM, yerr=Sigma_DUM, fmt = 'm.', label='Middle, DU')
         ax.errorbar(Q_Front, UDF, yerr=Sigma_UDF, fmt = 'y.', label='Front, UD')
         ax.errorbar(Q_Middle, UDM, yerr=Sigma_UDM, fmt = 'b.', label='Middle, UD') 
-        '''
-        #If don't want to plot error bars:
-        plt.loglog(Q_Front, UUF, 'b*', label='Front, UU')
-        plt.loglog(Q_Middle, UUM, 'g*', label='Middle, UU')
-        plt.loglog(Q_Middle, DDM, 'm*', label='Middle, DD')
-        plt.loglog(Q_Front, DDF, 'r*', label='Front, DD')
-        plt.loglog(Q_Middle, DUM, 'c.', label='Middle, DU')
-        plt.loglog(Q_Front, DUF, 'm.', label='Front, DU')
-        plt.loglog(Q_Middle, UDM, 'y.', label='Middle, UD')
-        plt.loglog(Q_Front, UDF, 'b.', label='Front, UD')
-        '''
         plt.xlabel('Q')
         plt.ylabel('Intensity')
-        plt.title('FullPol_{keyword} Cuts for ID = {idnum} and Config = {cf}'.format(keyword=Key, idnum=ID, cf = Config))
+        plt.title('FullPol_{keyword}Cuts for ID = {idnum} and Config = {cf}'.format(keyword=Key, idnum=ID, cf = Config))
         plt.legend()
-        fig.savefig('FullPol_{keyword}Cuts_ID{idnum}_CF{cf}.png'.format(keyword=Key, idnum=ID, cf = Config))
+        fig.savefig('{keyword}FullPol_Cuts_ID{idnum}_CF{cf}.png'.format(keyword=Key, idnum=ID, cf = Config))
         plt.show()
 
-        #QQ, QM, UU, DU, DD, UD = SliceDataPolData(Q_min, Q_max, Q_bins, Q_total, ChosenMasks, PolCorr_AllDetectors, dimXX, dimYY, GroupID, PlotYesNo)
+        SFF = DUF + DUF
+        Sigma_SFF = np.sqrt(np.power(Sigma_DUF,2) + np.power(Sigma_UDF,2))
+        SFM = DUM + DUM
+        Sigma_SFM = np.sqrt(np.power(Sigma_DUM,2) + np.power(Sigma_UDM,2))
+
+        NSFF = UUF + DDF
+        Sigma_NSFF = np.sqrt(np.power(Sigma_UUF,2) + np.power(Sigma_DDF,2))
+        NSFM = UUM + DDM
+        Sigma_NSFM = np.sqrt(np.power(Sigma_UUM,2) + np.power(Sigma_DDM,2))
+
+        fig = plt.figure()
+        '''If don't want to plot error bars, use something like plt.loglog(Q_Front, UUF, 'b*', label='Front, UU')'''
+        ax = plt.axes()
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.errorbar(Q_Middle, NSFM, yerr=Sigma_NSFM, fmt = 'm*', label='Middle, UU + DD')
+        ax.errorbar(Q_Front, NSFF, yerr=Sigma_NSFF, fmt = 'r*', label='Front, UU + DD')
+        ax.errorbar(Q_Middle, SFM, yerr=Sigma_SFM, fmt = 'b*', label='Middle, UD + DU')
+        ax.errorbar(Q_Front, SFF, yerr=Sigma_SFF, fmt = 'g*', label='Front, UD + DU')
+        plt.xlabel('Q')
+        plt.ylabel('Intensity')
+        plt.title('FullPol_{keyword}Cuts for ID = {idnum} and Config = {cf}'.format(keyword=Key, idnum=ID, cf = Config))
+        plt.legend()
+        fig.savefig('{keyword}FullPol_Combined_ID{idnum}_CF{cf}.png'.format(keyword=Key, idnum=ID, cf = Config))
+        plt.show()
+
+        SF = UD + DU
+        SF_Unc = np.sqrt(np.power(SigmaDU,2) + np.power(SigmaUD,2))
+        NSF = UU + DD
+        NSF_Unc = np.sqrt(np.power(SigmaUU,2) + np.power(SigmaDD,2))
+        NSFDiff = DD - UU
+
         text_output = np.array([Q_Common, UU, SigmaUU, DU, SigmaDU, DD, SigmaDD, UD, SigmaUD, Q_Uncertainty, Q_Mean, Shadow])
         text_output = text_output.T
-        np.savetxt('FullPol_{key}_ID={idnum}Config={cf}.txt'.format(key=Key, idnum=ID, cf = Config), text_output, header='Q, UU, DelUU, DU, DelUD, DD, DelDD, UD, DelUD, DQ, MeanQ, Shadow', fmt='%1.4e')
-    
-    return Q_Common, Q_Mean, UU, DU, DD, UD
+        np.savetxt('{key}FullPol_ID={idnum}Config={cf}.txt'.format(key=Key, idnum=ID, cf = Config), text_output, header='Q, UU, DelUU, DU, DelUD, DD, DelDD, UD, DelUD, DQ, MeanQ, Shadow', fmt='%1.4e')
+
+        text_output2 = np.array([Q_Common, SF, SF_Unc, NSF, NSF_Unc, NSFDiff, Q_Uncertainty, Q_Mean, Shadow])
+        text_output2 = text_output2.T
+        np.savetxt('{key}FullPol_ID={idnum}Config={cf}.txt'.format(key=Key, idnum=ID, cf = Config), text_output2, header='Q, SF, DelSF, NSF, DelNSF, NSFDiff, DelQ, MeanQ, Shadow', fmt='%1.4e')
+
+        Output = {}
+        Output['Q_Common'] = Q_Common
+        Output['Q_Mean'] = Q_Mean
+        Output['SF'] = SF
+        Output['SF_Unc'] = SF_Unc
+        Output['NSF'] = NSF
+        Output['NSFDiff'] = NSFDiff
+        Output['NSF_Unc'] = NSF_Unc
+        Output['Q_Uncertainty'] = Q_Uncertainty
+        Output['Q_Mean'] = Q_Mean
+        Output['Shadow'] = Shadow
+     
+    return Output
 
 def He3Decay_func(t, p, gamma):
     return p * np.exp(-t / gamma)
@@ -1104,7 +1073,7 @@ def HE3_DecayCurves(HE3_Trans):
         print('P0: ', P0, ' Gamma: ', gamma)
         print('     ')
 
-        return HE3_Cell_Summary
+    return HE3_Cell_Summary
 
 def Pol_SuppermirrorAndFlipper(Pol_Trans):
     #Uses time of measurement from Pol_Trans,
@@ -1388,10 +1357,6 @@ def ASCIIlike_Output(Type, ID, Config, Data_AllDetectors, Unc_Data_AllDetectors,
     return
 
 #*************************************************
-#***        End of Function Definitions        ***
-#*************************************************
-
-#*************************************************
 #***        Start of 'The Program'             ***
 #*************************************************
 
@@ -1407,8 +1372,7 @@ for filenumber in Mask_Files:
     Measured_Masks[Config_ID] = MM
     threshold_counter += 1
 
-BlockBeam_Trans, BlockBeam_ScattPerPixel = BlockedBeam_Averaged(BlockedBeamFiles, MM)
-BlockBeam_Trans, BlockBeam_Scatt = BlockedBeams(BlockedBeamFiles)
+BlockBeam_Trans, BlockBeam_ScattPerPixel = BlockedBeam_Averaged(BlockedBeamFiles, Measured_Masks)
 
 Unpol_Trans, Unpol_Scatt, HE3_Trans, Pol_Trans, Pol_Scatt, Scatt_ConfigIDs = SortData(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues, start_number, end_number)
 
@@ -1465,7 +1429,7 @@ if UnpolYesNo == 1:
                     else:
                         UnpolData_AllDetectors[dshort] = UnpolData_AllDetectors[dshort]/(Solid_Angle_All[Config_ID][dshort]*Plex[dshort])
                 PlotYesNo = 1 #1 means yes
-                for Key in Key_list:
+                for Key in Unpol_Key_list:
                     Trunc_mask['label'] = Key
                     for dshort in short_detectors:
                         Trunc_mask[dshort] = Masks_All[Config_ID][Key][dshort]
@@ -1474,6 +1438,7 @@ if UnpolYesNo == 1:
                 ASCIIlike_Output(DataType, ID, Config_ID, UnpolData_AllDetectors, Unc_UnpolData_AllDetectors, QValues_All[Config_ID]) #QX, QY, QZ, Q_perp_unc, Q_parl_unc)
 
 DataType = 'Fullpol'
+FullPolResults = {}
 if FullPolYeseNo == 1:
     HE3_Cell_Summary = HE3_DecayCurves(HE3_Trans)
 
@@ -1498,13 +1463,16 @@ if FullPolYeseNo == 1:
                     else:
                         PolData_AllDetectors[dshort] = PolData_AllDetectors[dshort]/(Solid_Angle_All[Config_ID][dshort]*Plex[dshort])
                 PlotYesNo = 1 #1 means yes
-                for Key in Key_list:
+                for Key in FullPol_Key_list:
                     Trunc_mask['label'] = Key
                     for dshort in short_detectors:
                         Trunc_mask[dshort] = Masks_All[Config_ID][Key][dshort]
-                    QQ, QM, UU, DU, DD, UD = SliceDataPolData(Q_min, Q_max, Q_bins, QValues_All[Config_ID], Trunc_mask, PolData_AllDetectors, Unc_PolData_AllDetectors, dimXX, dimYY, ID, Config_ID, PlotYesNo)
+                    FullPolResults[Key] = SliceDataPolData(Q_min, Q_max, Q_bins, QValues_All[Config_ID], Trunc_mask, PolData_AllDetectors, Unc_PolData_AllDetectors, dimXX, dimYY, ID, Config_ID, PlotYesNo)
+                    #Q_Common, Q_Mean, SF, SF_Unc, NSF, NSFDiff, NSF_Unc, Q_Uncertainty, Q_Mean, Shadow
+                    
             if Print_ASCII == 1:
                 ASCIIlike_Output(DataType, ID, Config_ID, PolData_AllDetectors, Unc_PolData_AllDetectors, QValues_All[Config_ID])
+
                 
 #*************************************************
 #***           End of 'The Program'            ***
