@@ -8,82 +8,11 @@ import dateutil
 import datetime
 from numpy.linalg import inv
 from uncertainties import unumpy
+from Specifics import *
 
-#To do: Plex, gravity/delta_Q, deadtime corr., check abs. scaling, uncertainty propagation, 2 or 4 cross-section empty files, ability to automatically remove empty scattering files, unpol/half.
+#To do: BS shadow, deadtime corr., check abs. scaling, uncertainty propagation through , choice of 2 cross-section empty files, half-pol
 
-#*************************************************
-#***           User Defined Details            ***
-#*************************************************
-UncertaintyMode = 1 #1 = Sigma of summed counts; 0 = Varience of pixels (to match IGOR)
-testmode = 0
-UsePolCorr = 0 #1 = usual; 0 means to turn the supermirror and flipper corrections off, but retain the 3He absorption correction
-path = 'C:/Users/kkrycka/Desktop/ConfinedSkyrmions_MnSiNPs/VSANS_21June2019/'
-start_number = 37602 #37544 #37602
-end_number = 37602 #37623 #37602
-Excluded_Files = [37534, 37535, 37536, 37537, 37538]
-Select_GroupIDs = 1 #0 = No (use all IDs, except those listed as undesired), 1 = Yes (process selected IDs only)
-Desired_GroupIDs = ['25.0'] #'25.0', '27.0'
-Undesired_GroupIDs = []
-Empty_IDs = [] #This can be empty
-SectorCutAngles = 15.0
-BlockedBeamFiles = [37493, 37622] #can be empty (no correction) or can list in multiple configurations if desired; automaticaly matched to files of interest based on detector distance
-Mask_Files = [37461]
-Mask_Thresholds_Front = [20]
-Mask_Thresholds_Middle = [7]
-Q_min = 0.001
-Q_max = 0.15
-Q_bins = 150
-Q_middle_max = Q_max  #For shaping front and middle detector joined data sets
-Q_front_min = Q_min #    For shaping front and middle detector joined data sets
-TransPanel = 'MR' #Default is 'MR'
-
-Key_list = ['Circ']#['Horz','Vert','Diag','Circ']
-
-FullPolYeseNo = 0
-UnpolYesNo = 1
-
-LowQ_Offset_Unpol =  1.0 #will subtract this amount; might be required if forgot to get a good blocked beam
-LowQ_Offset_SF = 0.2 #2.3
-LowQ_Offset_NSF = 1.0 #3
-
-YesNoManualHe3Entry = 0
-New_HE3_Files = [34875] #For manual declaration of 3He cell and parameters (should not be needed from July 2019 onward)
-MuValues = [3.374] #[3.374, 3.105]=[Fras, Bur]; For manual declaration of 3He cell and parameters (should not be needed from July 2019 onward)
-TeValues = [0.86] #[0.86, 0.86]=[Fras, Bur]; For manual declaration of 3He cell and parameters (should not be needed from July 2019 onward)
-
-Print_ASCII = 1 #1 = yes; otherwise no
-
-#*************************************************
-#***            Defined Functions              ***
-#*************************************************
 short_detectors = ["MT", "MB", "ML", "MR", "FT", "FB", "FL", "FR"]
-
-def Read_User_Inputs():
-
-    myfile = open('TestFile.txt', 'r') 
-    holder = myfile.readlines()
-    myfile.close()
-
-    start_number = int(holder[1])
-    end_number = int(holder[3])
-    Excluded_Files = [int(i) for i in holder[5].split()]
-    Desired_GroupIDs = holder[7].split()
-    Empty_IDs = holder[9].split()
-    for ID in Empty_IDs:
-        if ID not in Desired_GroupIDs:
-            Desired_GroupIDs.append(ID)
-    SectorCutAngles = float(holder[11])
-    BlockedBeamFiles = [int(i) for i in holder[13].split()]
-    Mask_Files = [int(i) for i in holder[15].split()]
-    Mask_Thresholds = [float(i) for i in holder[17].split()]
-    LowQ_Offset = float(holder[19])
-    Q_min = float(holder[21])
-    Q_max = float(holder[23])
-    Q_bins = int(holder[25])
-    Q_middle_max = Q_max
-    Q_front_min = Q_min
-
-    return
 
 def Unique_Config_ID(filenumber):
     
@@ -98,6 +27,33 @@ def Unique_Config_ID(filenumber):
         Configuration_ID = str(Guides) + "Gd" + str(Desired_FrontCarriage_Distance) + "cmF" + str(Desired_MiddleCarriage_Distance) + "cmM" + str(Wavelength) + "Ang"
         
     return Configuration_ID
+
+def Plex_File(filenumber):
+
+    PlexData = {}
+    
+    filename = path + "PLEX_" + str(filenumber) + "_VSANS_DIV.h5"
+    config = Path(filename)
+    if config.is_file():
+        f = h5py.File(filename)
+        for dshort in short_detectors:
+            data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
+            PlexData[dshort] = data.flatten()
+    else:
+        filenumber = start_number
+        while filenumber < end_number + 1:
+            filename = path + "sans" + str(filenumber) + ".nxs.ngv"
+            config = Path(filename)
+            if config.is_file():
+                f = h5py.File(filename)
+                for dshort in short_detectors:
+                    data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
+                    PlexData[dshort] = np.ones_like(data).flatten()
+                filenumber = end_number + 1
+            filenumber += 1
+        print('Plex file not found; populated with ones instead')   
+            
+    return PlexData
 
 def BlockedBeam_Averaged(BlockedBeamFiles, masks):
     #Uses function, Unique_Config_ID, and list, BlockedBeamFiles
@@ -488,6 +444,7 @@ def SolidAngle_AllDetectors(representative_filenumber):
             
 def QCalculationAndMasks_AllDetectors(representative_filenumber, AngleWidth):
 
+    BeamStopShadow = {}
     Mask_Right = {}
     Mask_Left = {}
     Mask_Top = {}
@@ -520,6 +477,7 @@ def QCalculationAndMasks_AllDetectors(representative_filenumber, AngleWidth):
             dimYY[dshort] = f['entry/instrument/detector_{ds}/pixel_num_y'.format(ds=dshort)][0]
             beam_center_x = f['entry/instrument/detector_{ds}/beam_center_x'.format(ds=dshort)][0]
             beam_center_y = f['entry/instrument/detector_{ds}/beam_center_y'.format(ds=dshort)][0]
+            beamstop_diameter = f['/entry/DAS_logs/C2BeamStop/diameter'][0]/10.0 #beam stop in cm; sits right in front of middle detector?
             detector_distance = f['entry/instrument/detector_{ds}/distance'.format(ds=dshort)][0]
             x_pixel_size = f['entry/instrument/detector_{ds}/x_pixel_size'.format(ds=dshort)][0]/10.0
             y_pixel_size = f['entry/instrument/detector_{ds}/y_pixel_size'.format(ds=dshort)][0]/10.0
@@ -571,10 +529,12 @@ def QCalculationAndMasks_AllDetectors(representative_filenumber, AngleWidth):
                 realDistY =  coeffs
 
             X, Y = np.indices(data.shape)
-            unity_matrix = np.ones_like(data.shape)
+            BSS = np.ones_like(data)
             x0_pos =  realDistX - beam_center_x + (X)*x_pixel_size 
             y0_pos =  realDistY - beam_center_y + (Y)*y_pixel_size
             InPlane0_pos = np.sqrt(x0_pos**2 + y0_pos**2)
+            BSS[InPlane0_pos < beamstop_diameter/2.0] = 0.0
+            BeamStopShadow[dshort] = BSS
             twotheta = np.arctan2(InPlane0_pos,realDistZ)
             phi = np.arctan2(y0_pos,x0_pos)
 
@@ -667,7 +627,7 @@ def QCalculationAndMasks_AllDetectors(representative_filenumber, AngleWidth):
             else:
                 Mask_User_Defined[dshort] = Shadow
 
-    return Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, dimXX, dimYY, Mask_Right, Mask_Top, Mask_Left, Mask_Bottom, Mask_DiagonalCW, Mask_DiagonalCCW, Mask_None, Mask_User_Defined
+    return Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, dimXX, dimYY, Mask_Right, Mask_Top, Mask_Left, Mask_Bottom, Mask_DiagonalCW, Mask_DiagonalCCW, Mask_None, Mask_User_Defined, BeamStopShadow
 
 def SliceDataUnpolData(Q_min, Q_max, Q_bins, QGridPerDetector, masks, Data_AllDetectors, Unc_Data_AllDetectors, dimXX, dimYY, ID, Config, PlotYesNo):
 
@@ -1435,6 +1395,8 @@ def ASCIIlike_Output(Type, ID, Config, Data_AllDetectors, Unc_Data_AllDetectors,
 #***        Start of 'The Program'             ***
 #*************************************************
 
+Plex = Plex_File(Plex_number)
+
 Measured_Masks = {} #Measured_Masks[ConfigID][dshort][1 and 0 mask]
 threshold_counter = 0
 for filenumber in Mask_Files:
@@ -1457,18 +1419,20 @@ QValues_All = {} #Masks_Geometric[ConfigID][dshort]
 for Config_ID in Scatt_ConfigIDs:
     for filenumber in Scatt_ConfigIDs[Config_ID]['Example_File']:
         Solid_Angle_All[Config_ID] = SolidAngle_AllDetectors(filenumber)
-        QX, QY, QZ, Q_total, Q_perp_unc, Q_parl_unc, dimXX, dimYY, Right_mask, Top_mask, Left_mask, Bottom_mask, DiagCW_mask, DiagCCW_mask, No_mask, Mask_User_Defined = QCalculationAndMasks_AllDetectors(filenumber, SectorCutAngles)
+        QX, QY, QZ, Q_total, Q_perp_unc, Q_parl_unc, dimXX, dimYY, Right_mask, Top_mask, Left_mask, Bottom_mask, DiagCW_mask, DiagCCW_mask, No_mask, Mask_User_Definedm, Shadow = QCalculationAndMasks_AllDetectors(filenumber, SectorCutAngles)
         dim_All[Config_ID] = {'X' : dimXX, 'Y' : dimYY}
+        Shadow_mask = {}
         Circ_mask = {}
         Horz_mask = {}
         Vert_mask = {}
         Diag_mask = {}
         for dshort in short_detectors:
+            Shadow_mask[dshort] = Shadow[dshort]
             Circ_mask[dshort] = No_mask[dshort] #*Mask_User_Defined[dshort]
             Horz_mask[dshort] = (Right_mask[dshort] + Left_mask[dshort]) #*Mask_User_Defined[dshort]
             Vert_mask[dshort] = (Top_mask[dshort] + Bottom_mask[dshort]) #*Mask_User_Defined[dshort]
             Diag_mask[dshort] = (DiagCW_mask[dshort] + DiagCCW_mask[dshort]) #*Mask_User_Defined[dshort]
-        Geometric_Masks[Config_ID] = {'Horz': Horz_mask,'Vert':Vert_mask,'Diag':Diag_mask,'Circ':Circ_mask}
+        Geometric_Masks[Config_ID] = {'Horz': Horz_mask,'Vert':Vert_mask,'Diag':Diag_mask,'Circ':Circ_mask,'Shadow':Shadow_mask}
         QValues_All[Config_ID] = {'QX':QX,'QY':QY,'QZ':QZ,'Q_total':Q_total,'Q_perp_unc':Q_perp_unc,'Q_parl_unc':Q_parl_unc}
 
 Masks_All = Geometric_Masks
@@ -1488,18 +1452,18 @@ if UnpolYesNo == 1:
             for Config_ID in Unpol_Scatt[ID]:
                 EmptyData_AllDetectors, Unc_EmptyData_AllDetectors = AbsScale(ID, Config_ID, Unpol_Trans, Unpol_Scatt)#UnPolData_AllDetectors[dshort][128 x 48 = 6144]
                 for dshort in short_detectors:
-                    EmptyData_AllDetectors[dshort] = EmptyData_AllDetectors[dshort]/Solid_Angle_All[Config_ID][dshort]
+                    EmptyData_AllDetectors[dshort] = EmptyData_AllDetectors[dshort]/(Solid_Angle_All[Config_ID][dshort]*Plex[dshort])
                 UnpolToSubtract_AllDetectors[Config_ID] = EmptyData_AllDetectors #UnpolToSubtract_AllDetectors[Config_ID][dshort][128 x 48 = 6144]
     for ID in Unpol_Scatt:
         if ID not in Empty_IDs:
             for Config_ID in Unpol_Scatt[ID]:
                 UnpolData_AllDetectors, Unc_UnpolData_AllDetectors = AbsScale(ID, Config_ID, Unpol_Trans, Unpol_Scatt)#UnPolData_AllDetectors[dshort][128 x 48 = 6144]
                 for dshort in short_detectors:
-                    Unc_UnpolData_AllDetectors[dshort] = Unc_UnpolData_AllDetectors[dshort]/Solid_Angle_All[Config_ID][dshort]
+                    Unc_UnpolData_AllDetectors[dshort] = Unc_UnpolData_AllDetectors[dshort]/(Solid_Angle_All[Config_ID][dshort]*Plex[dshort])
                     if Config_ID in UnpolToSubtract_AllDetectors:
-                        UnpolData_AllDetectors[dshort] = UnpolData_AllDetectors[dshort]/Solid_Angle_All[Config_ID][dshort] - UnpolToSubtract_AllDetectors[Config_ID][dshort]
+                        UnpolData_AllDetectors[dshort] = UnpolData_AllDetectors[dshort]/(Solid_Angle_All[Config_ID][dshort]*Plex[dshort]) - UnpolToSubtract_AllDetectors[Config_ID][dshort]
                     else:
-                        UnpolData_AllDetectors[dshort] = UnpolData_AllDetectors[dshort]/Solid_Angle_All[Config_ID][dshort]
+                        UnpolData_AllDetectors[dshort] = UnpolData_AllDetectors[dshort]/(Solid_Angle_All[Config_ID][dshort]*Plex[dshort])
                 PlotYesNo = 1 #1 means yes
                 for Key in Key_list:
                     Trunc_mask['label'] = Key
@@ -1521,18 +1485,18 @@ if FullPolYeseNo == 1:
             for Config_ID in Pol_Scatt[ID]:
                 EmptyPolData_AllDetectors, Unc_EmptyPolData_AllDetectors = AbsScaleAndPolarizationCorrectData(ID, Config_ID, Pol_Trans, Pol_Scatt) #EmptyPolData_AllDetectors[dshort][0-3 cross-section][128 x 48 = 6144]
                 for dshort in short_detectors:
-                    EmptyPolData_AllDetectors[dshort] = EmptyPolData_AllDetectors[dshort]/Solid_Angle_All[Config_ID][dshort]
+                    EmptyPolData_AllDetectors[dshort] = EmptyPolData_AllDetectors[dshort]/(Solid_Angle_All[Config_ID][dshort]*Plex[dshort])
                 PolToSubtract_AllDetectors[Config_ID] = EmptyPolData_AllDetectors
     for ID in Pol_Scatt:
         if ID not in Empty_IDs:
             for Config_ID in Pol_Scatt[ID]:
                 PolData_AllDetectors, Unc_PolData_AllDetectors = AbsScaleAndPolarizationCorrectData(ID, Config_ID, Pol_Trans, Pol_Scatt)#PolData_AllDetectors[dshort][0-3 cross-section][128 x 48 = 6144]
                 for dshort in short_detectors:
-                    Unc_PolData_AllDetectors[dshort] = Unc_PolData_AllDetectors[dshort]/Solid_Angle_All[Config_ID][dshort]
+                    Unc_PolData_AllDetectors[dshort] = Unc_PolData_AllDetectors[dshort]/(Solid_Angle_All[Config_ID][dshort]*Plex[dshort])
                     if Config_ID in PolToSubtract_AllDetectors:
-                        PolData_AllDetectors[dshort] = PolData_AllDetectors[dshort]/Solid_Angle_All[Config_ID][dshort] - PolToSubtract_AllDetectors[Config_ID][dshort]
+                        PolData_AllDetectors[dshort] = PolData_AllDetectors[dshort]/(Solid_Angle_All[Config_ID][dshort]*Plex[dshort]) - PolToSubtract_AllDetectors[Config_ID][dshort]
                     else:
-                        PolData_AllDetectors[dshort] = PolData_AllDetectors[dshort]/Solid_Angle_All[Config_ID][dshort]
+                        PolData_AllDetectors[dshort] = PolData_AllDetectors[dshort]/(Solid_Angle_All[Config_ID][dshort]*Plex[dshort])
                 PlotYesNo = 1 #1 means yes
                 for Key in Key_list:
                     Trunc_mask['label'] = Key
