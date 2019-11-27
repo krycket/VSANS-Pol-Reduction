@@ -10,7 +10,44 @@ from numpy.linalg import inv
 from uncertainties import unumpy
 #from ConfinedSkyrmions_6June2019 import *
 #from MnFe2O4NPs_March2019 import *
-from EuSe_Nov2019 import *
+#from Fe3O4Cal_Nov2019 import *
+#The following is from Fe3O4Cal_Nov2019.py:
+
+UncertaintyMode = 1 #1 = Sigma of summed counts; 0 = Varience of pixels (to match IGOR)
+UsePolCorr = 1 #1 = usual; 0 means to turn the supermirror and flipper corrections off, but retain the 3He absorption correction
+#path = 'D:\Projects_Current\MnFe2O4PureNPs\Ijiri_March2019_VSANSdata/'
+path = ''
+TransMask = 'PolTrans_MASK.h5'
+Plex_number = 20190524
+start_number = 51277 #51276
+end_number = 51360
+Excluded_Files = [51279, 51289]
+Select_GroupIDs = 0 #0 = No (use all IDs, except those listed as undesired), 1 = Yes (process selected IDs only)
+Desired_GroupIDs = []
+Undesired_GroupIDs = ['29.0']
+BlockedBeamFiles = [51279] #can be empty (no correction) or can list in multiple configurations if desired; automaticaly matched to files of interest based on detector distance
+Mask_Files = [51282]
+Mask_Thresholds_Front = [4]
+Mask_Thresholds_Middle = [1]
+Q_min = 0.001
+Q_max = 0.13
+Q_bins = 120
+TransPanel = 'MR' #Default is 'MR'
+SectorCutAngles = 10.0
+Use_Adam4021 = 1 #0 = no; 1 = yes
+Use_Lakeshore340 = 1 #0 = no; 1 = yes
+Unpol_Key_list = ['Vert']#['Horz','Vert','Diag','Circ']
+FullPol_Key_list = ['Horz','Vert']#['Horz','Vert','Diag','Circ']
+FullPolYeseNo = 1
+UnpolYesNo = 0
+LowQ_Offset_Unpol =  0.0 #will subtract this amount; might be required if forgot to get a good blocked beam
+LowQ_Offset_SF = 0.0 #2.3
+LowQ_Offset_NSF = 0.0 #3
+YesNoManualHe3Entry = 0 #1 for yes; 0 for no (default)
+New_HE3_Files = [28422, 28498, 28577, 28673, 28755, 28869] #For manual declaration of 3He cell and parameters (should not be needed from July 2019 onward)
+MuValues = [3.374, 3.105, 3.374, 3.105, 3.374, 3.105] #[3.374, 3.105]=[Fras, Bur]; For manual declaration of 3He cell and parameters (should not be needed from July 2019 onward)
+TeValues = [0.86, 0.86, 0.86, 0.86, 0.86, 0.86] #[0.86, 0.86]=[Fras, Bur]; For manual declaration of 3He cell and parameters (should not be needed from July 2019 onward)
+Print_ASCII = 0 #1 = yes; otherwise no
 
 #This program is set to reduce VSANS data using middle and front detectors - umnpol, fullpol available.
 #To do: BS shadow, deadtime corr., check abs. scaling, uncertainty propagation through , choice of 2 cross-section empty files, half-pol
@@ -61,6 +98,8 @@ def Plex_File(filenumber):
 def Make_Mask_From_File(mask_number, Front_threshold, Middle_threshold):
     #Returns measured_masks[dshort], usually based on a glassy carbon file
     measured_masks = {}
+
+    
     long_name = path + "sans" + str(filenumber) + ".nxs.ngv"
     config = Path(long_name)
     if config.is_file():
@@ -74,10 +113,39 @@ def Make_Mask_From_File(mask_number, Front_threshold, Middle_threshold):
                 measured_masks[dshort][measured_mask_data >= Front_threshold] = 1.0
             if position_key == 'M':
                 measured_masks[dshort][measured_mask_data >= Middle_threshold] = 1.0
+    
+    '''
+    filename = path + "VSANS_SOLENOID_MASK.h5"
+    config = Path(filename)
+    if config.is_file():
+        f = h5py.File(filename)
+        for dshort in short_detectors:
+            mask_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
+            #need to reverse zeros and ones
+            measured_masks[dshort] = np.zeros_like(mask_data)
+            measured_masks[dshort][mask_data == 0] = 1.0
+    '''
                 
     return measured_masks
 
-def BlockedBeam_Averaged(BlockedBeamFiles, MeasMasks):
+def Trans_Mask():
+
+    trans_masks = {}
+
+    #filename = path + "PolTrans_MASK.h5"
+    filename = TransMask
+    config = Path(filename)
+    if config.is_file():
+        f = h5py.File(filename)
+        for dshort in short_detectors:
+            trans_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
+            #need to reverse zeros and ones
+            trans_masks[dshort] = np.zeros_like(trans_data)
+            trans_masks[dshort][trans_data == 0] = 1.0
+                
+    return trans_masks
+
+def BlockedBeam_Averaged(BlockedBeamFiles, MeasMasks, Trans_masks):
 
     BlockBeam_Trans = {}
     BlockBeam_ScattPerPixel = {}
@@ -95,10 +163,17 @@ def BlockedBeam_Averaged(BlockedBeamFiles, MeasMasks):
             Count_time = f['entry/collection_time'][0]
             if str(Purpose).find("TRANS") != -1 or str(Purpose).find("HE3") != -1:
                 
-                Trans_Counts = f['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
+                #Trans_Counts = f['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
+                
+                trans_mask = Trans_masks['MR']
+                trans_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
+                trans_data = trans_data*trans_mask
+                Trans_Counts = trans_data.sum()
+                
                 BlockBeam_Trans[Config_ID] = {'File' : filenumber,
                                                              'CountsPerSecond' : Trans_Counts/Count_time}
-            if str(Purpose).find("SCATT") != -1:
+            #if str(Purpose).find("SCATT") != -1:
+            if str(Purpose).find("TRANS") != -1 or str(Purpose).find("HE3") != -1:
                 print('BB scattering number is ', filenumber)
                 BlockBeam_ScattPerPixel[Config_ID] = {'File' : filenumber}
                 for dshort in short_detectors:
@@ -158,7 +233,11 @@ def SortData(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues, start_numbe
             ID = str(f['entry/sample/group_id'][0])
             End_time = dateutil.parser.parse(f['entry/end_time'][0])
             Count_time = f['entry/collection_time'][0]
-            Trans_Counts = f['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
+            #Trans_Counts = f['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
+            trans_mask = Trans_masks['MR']
+            trans_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
+            trans_data = trans_data*trans_mask
+            Trans_Counts = trans_data.sum()
             MonCounts = f['entry/control/monitor_counts'][0]
             Trans_Distance = f['entry/instrument/detector_{ds}/distance'.format(ds=TransPanel)][0]
             Attenuation = f['entry/DAS_logs/attenuator/attenuator'][0]
@@ -206,22 +285,22 @@ def SortData(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues, start_numbe
                                 Pol_Scatt[ID] = {Config : {'S_UU_files' : [-1], 'S_DU_files' : [-1], 'S_DD_files' : [-1], 'S_UD_files' : [-1]}}
                             if Config not in Pol_Scatt[ID]:
                                 Pol_Scatt[ID][Config] = {'S_UU_files' : [-1], 'S_DU_files' : [-1], 'S_DD_files' : [-1], 'S_UD_files' : [-1]}
-                            if Type[-6:-2] == 'S_UU' and str(BackPolDirection).find("UP") != -1: #and str(FrontPolDirection).find("UP") != -1     
+                            if Type[-6:-2] == 'S_UU': # and str(BackPolDirection).find("UP") != -1: #and str(FrontPolDirection).find("UP") != -1     
                                 if Pol_Scatt[ID][Config]['S_UU_files'] == [-1]:
                                     Pol_Scatt[ID][Config]['S_UU_files'] = [filenumber]
                                 else:
                                     Pol_Scatt[ID][Config]['S_UU_files'].append(filenumber)        
-                            if Type[-6:-2] == 'S_DU' and str(BackPolDirection).find("UP") != -1: #and str(FrontPolDirection).find("DOWN") != -1
+                            if Type[-6:-2] == 'S_DU': # and str(BackPolDirection).find("UP") != -1: #and str(FrontPolDirection).find("DOWN") != -1
                                 if Pol_Scatt[ID][Config]['S_DU_files'] == [-1]:
                                     Pol_Scatt[ID][Config]['S_DU_files'] = [filenumber]
                                 else:
                                     Pol_Scatt[ID][Config]['S_DU_files'].append(filenumber)
-                            if Type[-6:-2] == 'S_DD' and str(BackPolDirection).find("DOWN") != -1: #and str(FrontPolDirection).find("DOWN") != -1
+                            if Type[-6:-2] == 'S_DD': # and str(BackPolDirection).find("DOWN") != -1: #and str(FrontPolDirection).find("DOWN") != -1
                                 if Pol_Scatt[ID][Config]['S_DD_files'] == [-1]:
                                     Pol_Scatt[ID][Config]['S_DD_files'] = [filenumber]
                                 else:
                                     Pol_Scatt[ID][Config]['S_DD_files'].append(filenumber)
-                            if Type[-6:-2] == 'S_UD' and str(BackPolDirection).find("DOWN") != -1: #and str(FrontPolDirection).find("UP") != -1
+                            if Type[-6:-2] == 'S_UD': # and str(BackPolDirection).find("DOWN") != -1: #and str(FrontPolDirection).find("UP") != -1
                                 if Pol_Scatt[ID][Config]['S_UD_files'] == [-1]:
                                     Pol_Scatt[ID][Config]['S_UD_files'] = [filenumber]
                                 else:
@@ -977,8 +1056,9 @@ def SliceDataPolData(Q_min, Q_max, Q_bins, QGridPerDetector, masks, PolCorr_AllD
         NSFM = UUM + DDM
         Sigma_NSFM = np.sqrt(np.power(Sigma_UUM,2) + np.power(Sigma_DDM,2))
 
+        
         fig = plt.figure()
-        '''If don't want to plot error bars, use something like plt.loglog(Q_Front, UUF, 'b*', label='Front, UU')'''
+        #If don't want to plot error bars, use something like plt.loglog(Q_Front, UUF, 'b*', label='Front, UU')
         ax = plt.axes()
         ax.set_xscale("log")
         ax.set_yscale("log")
@@ -992,6 +1072,7 @@ def SliceDataPolData(Q_min, Q_max, Q_bins, QGridPerDetector, masks, PolCorr_AllD
         plt.legend()
         fig.savefig('{keyword}FullPol_Combined_ID{idnum}_CF{cf}.png'.format(keyword=Key, idnum=ID, cf = Config))
         plt.show()
+        
 
         SF = UD + DU
         SF_Unc = np.sqrt(np.power(SigmaDU,2) + np.power(SigmaUD,2))
@@ -1003,10 +1084,12 @@ def SliceDataPolData(Q_min, Q_max, Q_bins, QGridPerDetector, masks, PolCorr_AllD
         text_output = text_output.T
         np.savetxt('{key}FullPol_ID={idnum}Config={cf}.txt'.format(key=Key, idnum=ID, cf = Config), text_output, header='Q, UU, DelUU, DU, DelUD, DD, DelDD, UD, DelUD, DQ, MeanQ, Shadow', fmt='%1.4e')
 
+        '''
         text_output2 = np.array([Q_Common, SF, SF_Unc, NSF, NSF_Unc, NSFDiff, Q_Uncertainty, Q_Mean, Shadow])
         text_output2 = text_output2.T
         np.savetxt('{key}FullPol_ID={idnum}Config={cf}.txt'.format(key=Key, idnum=ID, cf = Config), text_output2, header='Q, SF, DelSF, NSF, DelNSF, NSFDiff, DelQ, MeanQ, Shadow', fmt='%1.4e')
-
+        '''
+        
         Output = {}
         Output['Q_Common'] = Q_Common
         Output['Q_Mean'] = Q_Mean
@@ -1151,9 +1234,33 @@ def Pol_SuppermirrorAndFlipper(Pol_Trans):
         PSMPF = (DD/DD_UnpolHe3Trans - DU/DU_UnpolHe3Trans)/(DD_NeutronPol+DU_NeutronPol)
 
         PF = PSMPF / PSM
-        print('filenumber_TUU', Pol_Trans[ID]['T_UU']['File'])
+        '''
+        if str(ID).find("101") != -1:
+            PF = 1.00
+            PSM = 0.99
+        '''
+
+        '''
+        PSMPC = (UU/UD - 1)/(UU/UD + 1)
+        PF = (DD/DU - 1)/(DD/DU + 1)/PSMPC
+        PSM = PSMPC / DD_NeutronPol
+        '''
+
+        
+        PF = 1.00
+        PSM1 = (DD/DD_UnpolHe3Trans - DU/DU_UnpolHe3Trans)/((DD_NeutronPol+DU_NeutronPol)*PF)
+        PSM2 = (UU/UU_UnpolHe3Trans - UD/UD_UnpolHe3Trans)/(UU_NeutronPol+UD_NeutronPol)
+        PSM = (PSM1 + PSM2)/ 2.0
+        
+        
+        
+        
+            
+        #print('filenumber_TUU', Pol_Trans[ID]['T_UU']['File'])
         print('ID', ID)
-        print('PSM', PSM, ' Average: ', np.average(PSM))
+        print('PSM1', PSM1)
+        print('PSM2', PSM2)
+        print('PSM', 'Average: ', np.average(PSM))
         print('PF', PF, ' Average: ', np.average(PF))
 
         Pol_Trans[ID]['P_SM'] = np.average(PSM)
@@ -1243,26 +1350,28 @@ def AbsScaleAndPolarizationCorrectData(GroupID, configuration, Pol_Trans, Pol_Sc
                 
                 End_time = dateutil.parser.parse(f['entry/end_time'][0])
                 entry = (End_time.timestamp() - Count_time/2)/3600.0
-                NP, UT = HE3_Pol_AtGivenTime(entry, HE3_Cell_Summary)                            
+                NP, UT = HE3_Pol_AtGivenTime(entry, HE3_Cell_Summary)
                 if type == "S_UU_files":
                     CrossSection_Index = 0
-                    Pol_Efficiency[CrossSection_Index][:] += [0.25*((1.0 + PSM)*(1.0 + NP)*UT), 0.25*((1.0 - PSM)*(1.0 + NP)*UT), 0.25*((1.0 - PSM)*(1.0 - NP)*UT), 0.25*((1.0 + PSM)*(1.0 - NP)*UT)]
+                    Pol_Efficiency[CrossSection_Index][:] += [0.25*UT*(1.0 + PSM)*(1.0 + NP), 0.25*UT*(1.0 - PSM)*(1.0 + NP), 0.25*UT*(1.0 - PSM)*(1.0 - NP), 0.25*UT*(1.0 + PSM)*(1.0 - NP)]
                     Det_Index = 0
                     for dshort in short_detectors:
                         data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)]) #- BlockBeam_Scatt[configuration][dshort]*Count_time
                         unc = np.sqrt(data)
-                        #data = data - BB[dshort]
+                        data = data - BB[dshort]
                         Scaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*data.flatten()
                         UncScaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*unc.flatten()
                         Det_Index += 1
                 elif type == "S_DU_files":
+                    #Note these seem to be the S_UD files by counts and behaviour
                     CrossSection_Index = 1
-                    Pol_Efficiency[CrossSection_Index][:] += [0.25*((1.0 - PSM*PF)*(1.0 + NP)*UT), 0.25*((1.0 + PSM*PF)*(1.0 + NP)*UT), 0.25*((1.0 + PSM*PF)*(1.0 - NP)*UT), 0.25*((1.0 - PSM*PF)*(1.0 - NP)*UT)]
+                    #Pol_Efficiency[CrossSection_Index][:] += [0.25*UT*(1.0 - PSM*PF)*(1.0 + NP), 0.25*UT*(1.0 + PSM*PF)*(1.0 + NP), 0.25*UT*(1.0 + PSM*PF)*(1.0 - NP), 0.25*UT*(1.0 - PSM*PF)*(1.0 - NP)]   
+                    Pol_Efficiency[CrossSection_Index][:] += [0.25*((1.0 + PSM)*(1.0 - NP)*UT),0.25*((1.0 - PSM)*(1.0 - NP)*UT),0.25*((1.0 - PSM)*(1.0 + NP)*UT),0.25*((1.0 + PSM)*(1.0 + NP)*UT)]
                     Det_Index = 0
                     for dshort in short_detectors:
                         data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)]) #- BlockBeam_Scatt[configuration][dshort]*Count_time
                         unc = np.sqrt(data)
-                        #data = data - BB[dshort]
+                        data = data - BB[dshort]
                         Scaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*data.flatten()
                         UncScaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*unc.flatten()
                         Det_Index += 1
@@ -1273,28 +1382,37 @@ def AbsScaleAndPolarizationCorrectData(GroupID, configuration, Pol_Trans, Pol_Sc
                     for dshort in short_detectors:
                         data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)]) #- BlockBeam_Scatt[configuration][dshort]*Count_time
                         unc = np.sqrt(data)
-                        #data = data - BB[dshort]
+                        data = data - BB[dshort]
                         Scaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*data.flatten()
                         UncScaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*unc.flatten()
                         Det_Index += 1
                 elif type == "S_UD_files":
+                    #Note these seem to be the S_DU files by counts and behaviour
                     CrossSection_Index = 3
-                    Pol_Efficiency[CrossSection_Index][:] += [0.25*((1.0 + PSM)*(1.0 - NP)*UT),0.25*((1.0 - PSM)*(1.0 - NP)*UT),0.25*((1.0 - PSM)*(1.0 + NP)*UT),0.25*((1.0 + PSM)*(1.0 + NP)*UT)]
+                    #Pol_Efficiency[CrossSection_Index][:] += [0.25*((1.0 + PSM)*(1.0 - NP)*UT),0.25*((1.0 - PSM)*(1.0 - NP)*UT),0.25*((1.0 - PSM)*(1.0 + NP)*UT),0.25*((1.0 + PSM)*(1.0 + NP)*UT)]
+                    Pol_Efficiency[CrossSection_Index][:] += [0.25*UT*(1.0 - PSM*PF)*(1.0 + NP), 0.25*UT*(1.0 + PSM*PF)*(1.0 + NP), 0.25*UT*(1.0 + PSM*PF)*(1.0 - NP), 0.25*UT*(1.0 - PSM*PF)*(1.0 - NP)]
                     Det_Index = 0
                     for dshort in short_detectors:
                         data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)]) #- BlockBeam_Scatt[configuration][dshort]*Count_time
                         unc = np.sqrt(data)
-                        #data = data - BB[dshort]
+                        data = data - BB[dshort]
                         Scaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*data.flatten()
                         UncScaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*unc.flatten()
                         Det_Index += 1
     PolCorr_AllDetectors = {}
     Uncertainty_PolCorr_AllDetectors = {}
+    print('Pol_Efficiency', Pol_Efficiency)
     Prefactor = inv(Pol_Efficiency)
+    print('Prefactor', Prefactor)
     Det_Index = 0
     for dshort in short_detectors:
         UncData_Per_Detector = UncScaled_Data[Det_Index][:][:]
         Data_Per_Detector = Scaled_Data[Det_Index][:][:]
+        if dshort == 'FL':
+            print('UU Sum', Scaled_Data[Det_Index][0][3000])
+            print('DU Sum', Scaled_Data[Det_Index][1][3000])
+            print('DD Sum', Scaled_Data[Det_Index][2][3000])
+            print('UD Sum', Scaled_Data[Det_Index][3][3000])
         PolCorr_Data = np.dot(Prefactor, Data_Per_Detector)
         #Below is the code that allows true matrix error propagation, but it takes a while...so may want to optimize more before impleneting.
         #Also will need to uncomment from uncertainties import unumpy (top).
@@ -1304,7 +1422,7 @@ def AbsScaleAndPolarizationCorrectData(GroupID, configuration, Pol_Trans, Pol_Sc
         #PolCorr_Unc = unumpy.std_devs(PolCorr_Data2)
         PolCorr_AllDetectors[dshort] = PolCorr_Data
         Uncertainty_PolCorr_AllDetectors[dshort] = UncData_Per_Detector
-        Det_Index += 1 
+        Det_Index += 1
 
     return PolCorr_AllDetectors, Uncertainty_PolCorr_AllDetectors
 
@@ -1369,6 +1487,7 @@ def ASCIIlike_Output(Type, ID, Config, Data_AllDetectors, Unc_Data_AllDetectors,
 #*************************************************
 
 Plex = Plex_File(Plex_number)
+Trans_masks = Trans_Mask()
 
 Measured_Masks = {} #Measured_Masks[ConfigID][dshort][1 and 0 mask]
 threshold_counter = 0
@@ -1380,11 +1499,11 @@ for filenumber in Mask_Files:
     Measured_Masks[Config_ID] = MM
     threshold_counter += 1
 
-BlockBeam_Trans, BlockBeam_ScattPerPixel = BlockedBeam_Averaged(BlockedBeamFiles, Measured_Masks)
+BlockBeam_Trans, BlockBeam_ScattPerPixel = BlockedBeam_Averaged(BlockedBeamFiles, Measured_Masks, Trans_masks)
 
 Unpol_Trans, Unpol_Scatt, HE3_Trans, Pol_Trans, Pol_Scatt, Scatt_ConfigIDs = SortData(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues, start_number, end_number)
 
-print(Pol_Scatt)
+print(HE3_Trans)
 
 dim_All = {} #dim_All[ConfigID][X or Y][dshort]
 Solid_Angle_All = {} #Solid_Angle_All[ConfigID][dshort]
