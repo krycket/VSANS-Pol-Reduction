@@ -8,6 +8,7 @@ import dateutil
 import datetime
 from numpy.linalg import inv
 from uncertainties import unumpy
+import os
 #from ConfinedSkyrmions_6June2019 import *
 #from MnFe2O4NPs_March2019 import *
 #from Fe3O4Cal_Nov2019 import *
@@ -18,7 +19,6 @@ UsePolCorr = 1 #1 = usual; 0 means to turn the supermirror and flipper correctio
 #path = 'D:\Projects_Current\MnFe2O4PureNPs\Ijiri_March2019_VSANSdata/'
 path = ''
 TransMask = 'PolTrans_MASK.h5'
-Plex_number = 20190524
 start_number = 51277 #51276
 end_number = 51360
 Excluded_Files = [51279, 51289]
@@ -68,11 +68,11 @@ def Unique_Config_ID(filenumber):
         
     return Configuration_ID
 
-def Plex_File(filenumber):
+def Plex_File(filename):
 
     PlexData = {}
     
-    filename = path + "PLEX_" + str(filenumber) + "_VSANS_DIV.h5"
+    #filename = path + "PLEX_" + str(filenumber) + "_VSANS_DIV.h5"
     config = Path(filename)
     if config.is_file():
         f = h5py.File(filename)
@@ -225,12 +225,22 @@ def SortData(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues, start_numbe
         fn = str(filenumber)
         if config.is_file() and filenumber not in Excluded_Files and filenumber not in BlockedBeamFiles and filenumber not in Mask_Files:
             f = h5py.File(filename)
-            print('Reading in file number:', filenumber)
-        
-            #Common parameters of interest:
+            Listed_Config = str(f['entry/DAS_logs/configuration/key'][0])
+            Listed_Config = Listed_Config[2:]
+            Listed_Config = Listed_Config[:-1]
+            Descrip = str(f['entry/sample/description'][0])
+            Descrip = Descrip[2:]
+            Descrip = Descrip[:-1]
+            print('Reading in file number:', filenumber, '  ', Descrip)
+            Sample_Name = Descrip.replace(Listed_Config, '')
+            Not_Sample = ['T_UU', 'T_DU', 'T_DD', 'T_UD', 'T_SM', 'HeIN', 'HeOUT', 'S_UU', 'S_DU', 'S_DD', 'S_UD', 'T_NP', 'S_NP']
+            for i in Not_Sample:
+                Sample_Name = Sample_Name.replace(i, '')
+            
             Purpose = f['entry/reduction/file_purpose'][()]
             Intent = f['entry/reduction/intent'][()]
-            ID = str(f['entry/sample/group_id'][0])
+            #ID = str(f['entry/sample/group_id'][0])
+            ID = Sample_Name
             End_time = dateutil.parser.parse(f['entry/end_time'][0])
             Count_time = f['entry/collection_time'][0]
             #Trans_Counts = f['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
@@ -290,7 +300,7 @@ def SortData(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues, start_numbe
                                     Pol_Scatt[ID][Config]['S_UU_files'] = [filenumber]
                                 else:
                                     Pol_Scatt[ID][Config]['S_UU_files'].append(filenumber)        
-                            if Type[-6:-2] == 'S_DU': # and str(BackPolDirection).find("UP") != -1: #and str(FrontPolDirection).find("DOWN") != -1
+                            if Type[-6:-2] == 'S_UD': # and str(BackPolDirection).find("UP") != -1: #and str(FrontPolDirection).find("DOWN") != -1
                                 if Pol_Scatt[ID][Config]['S_DU_files'] == [-1]:
                                     Pol_Scatt[ID][Config]['S_DU_files'] = [filenumber]
                                 else:
@@ -300,7 +310,7 @@ def SortData(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues, start_numbe
                                     Pol_Scatt[ID][Config]['S_DD_files'] = [filenumber]
                                 else:
                                     Pol_Scatt[ID][Config]['S_DD_files'].append(filenumber)
-                            if Type[-6:-2] == 'S_UD': # and str(BackPolDirection).find("DOWN") != -1: #and str(FrontPolDirection).find("UP") != -1
+                            if Type[-6:-2] == 'S_DU': # and str(BackPolDirection).find("DOWN") != -1: #and str(FrontPolDirection).find("UP") != -1
                                 if Pol_Scatt[ID][Config]['S_UD_files'] == [-1]:
                                     Pol_Scatt[ID][Config]['S_UD_files'] = [filenumber]
                                 else:
@@ -1129,8 +1139,10 @@ def HE3_Pol_AtGivenTime(entry_time, HE3_Cell_Summary):
     AtomicPol = P0 * np.exp(-delta_time / gamma)
     NeutronPol = np.tanh(Mu * AtomicPol)
     UnpolHE3Trans = Te * np.exp(-Mu)*np.cosh(Mu * AtomicPol)
+    T_MAJ = Te * np.exp(-Mu*(1.0 - AtomicPol))
+    T_MIN = Te * np.exp(-Mu*(1.0 + AtomicPol))
         
-    return NeutronPol, UnpolHE3Trans 
+    return NeutronPol, UnpolHE3Trans, T_MAJ, T_MIN
 
 def HE3_DecayCurves(HE3_Trans):
     #Uses predefined He3Decay_func
@@ -1176,7 +1188,13 @@ def Pol_SuppermirrorAndFlipper(Pol_Trans):
     
     for ID in Pol_Trans:
         for Time in Pol_Trans[ID]['T_UU']['Meas_Time']:
-            NP, UT = HE3_Pol_AtGivenTime(Time, HE3_Cell_Summary)
+            NP, UT, T_MAJ, T_MIN = HE3_Pol_AtGivenTime(Time, HE3_Cell_Summary)
+
+            Max_Factor = UT*(1+NP)
+            Min_Factor = UT*(1-NP)
+            
+            print('Max factor ', Max_Factor, '  ', T_MAJ)
+            print('Min factor ', Min_Factor, '  ', T_MIN)
             if 'Neutron_Pol' not in Pol_Trans[ID]['T_UU']:
                 Pol_Trans[ID]['T_UU']['Neutron_Pol'] = [NP]
                 Pol_Trans[ID]['T_UU']['Unpol_Trans'] = [UT]
@@ -1185,7 +1203,7 @@ def Pol_SuppermirrorAndFlipper(Pol_Trans):
                 Pol_Trans[ID]['T_UU']['Unpol_Trans'].append(UT)
             
         for Time in Pol_Trans[ID]['T_DU']['Meas_Time']:
-            NP, UT = HE3_Pol_AtGivenTime(Time, HE3_Cell_Summary)
+            NP, UT, T_MAJ, T_MIN = HE3_Pol_AtGivenTime(Time, HE3_Cell_Summary)
             if 'Neutron_Pol' not in Pol_Trans[ID]['T_DU']:
                 Pol_Trans[ID]['T_DU']['Neutron_Pol'] = [NP]
                 Pol_Trans[ID]['T_DU']['Unpol_Trans'] = [UT]
@@ -1194,7 +1212,7 @@ def Pol_SuppermirrorAndFlipper(Pol_Trans):
                 Pol_Trans[ID]['T_DU']['Unpol_Trans'].append(UT)
             
         for Time in Pol_Trans[ID]['T_DD']['Meas_Time']:
-            NP, UT = HE3_Pol_AtGivenTime(Time, HE3_Cell_Summary)
+            NP, UT, T_MAJ, T_MIN = HE3_Pol_AtGivenTime(Time, HE3_Cell_Summary)
             if 'Neutron_Pol' not in Pol_Trans[ID]['T_DD']:
                 Pol_Trans[ID]['T_DD']['Neutron_Pol'] = [NP]
                 Pol_Trans[ID]['T_DD']['Unpol_Trans'] = [UT]
@@ -1203,7 +1221,7 @@ def Pol_SuppermirrorAndFlipper(Pol_Trans):
                 Pol_Trans[ID]['T_DD']['Unpol_Trans'].append(UT)
                 
         for Time in Pol_Trans[ID]['T_UD']['Meas_Time']:
-            NP, UT = HE3_Pol_AtGivenTime(Time, HE3_Cell_Summary)
+            NP, UT,T_MAJ, T_MIN = HE3_Pol_AtGivenTime(Time, HE3_Cell_Summary)
             if 'Neutron_Pol' not in Pol_Trans[ID]['T_UD']:
                 Pol_Trans[ID]['T_UD']['Neutron_Pol'] = [NP]
                 Pol_Trans[ID]['T_UD']['Unpol_Trans'] = [UT]
@@ -1350,10 +1368,11 @@ def AbsScaleAndPolarizationCorrectData(GroupID, configuration, Pol_Trans, Pol_Sc
                 
                 End_time = dateutil.parser.parse(f['entry/end_time'][0])
                 entry = (End_time.timestamp() - Count_time/2)/3600.0
-                NP, UT = HE3_Pol_AtGivenTime(entry, HE3_Cell_Summary)
+                NP, UT, T_MAJ, T_MIN = HE3_Pol_AtGivenTime(entry, HE3_Cell_Summary)
                 if type == "S_UU_files":
                     CrossSection_Index = 0
-                    Pol_Efficiency[CrossSection_Index][:] += [0.25*UT*(1.0 + PSM)*(1.0 + NP), 0.25*UT*(1.0 - PSM)*(1.0 + NP), 0.25*UT*(1.0 - PSM)*(1.0 - NP), 0.25*UT*(1.0 + PSM)*(1.0 - NP)]
+                    #Pol_Efficiency[CrossSection_Index][:] += [0.25*UT*(1.0 + PSM)*(1.0 + NP), 0.25*UT*(1.0 - PSM)*(1.0 + NP), 0.25*UT*(1.0 - PSM)*(1.0 - NP), 0.25*UT*(1.0 + PSM)*(1.0 - NP)]
+                    Pol_Efficiency[CrossSection_Index][:] += [0.25*(1.0 + PSM)*(T_MAJ), 0.25*(1.0 - PSM)*(T_MAJ), 0.25*(1.0 - PSM)*(T_MIN), 0.25*(1.0 + PSM)*(T_MIN)]
                     Det_Index = 0
                     for dshort in short_detectors:
                         data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)]) #- BlockBeam_Scatt[configuration][dshort]*Count_time
@@ -1365,8 +1384,9 @@ def AbsScaleAndPolarizationCorrectData(GroupID, configuration, Pol_Trans, Pol_Sc
                 elif type == "S_DU_files":
                     #Note these seem to be the S_UD files by counts and behaviour
                     CrossSection_Index = 1
-                    #Pol_Efficiency[CrossSection_Index][:] += [0.25*UT*(1.0 - PSM*PF)*(1.0 + NP), 0.25*UT*(1.0 + PSM*PF)*(1.0 + NP), 0.25*UT*(1.0 + PSM*PF)*(1.0 - NP), 0.25*UT*(1.0 - PSM*PF)*(1.0 - NP)]   
-                    Pol_Efficiency[CrossSection_Index][:] += [0.25*((1.0 + PSM)*(1.0 - NP)*UT),0.25*((1.0 - PSM)*(1.0 - NP)*UT),0.25*((1.0 - PSM)*(1.0 + NP)*UT),0.25*((1.0 + PSM)*(1.0 + NP)*UT)]
+                    Pol_Efficiency[CrossSection_Index][:] += [0.25*UT*(1.0 - PSM*PF)*(1.0 + NP), 0.25*UT*(1.0 + PSM*PF)*(1.0 + NP), 0.25*UT*(1.0 + PSM*PF)*(1.0 - NP), 0.25*UT*(1.0 - PSM*PF)*(1.0 - NP)]   
+                    #Pol_Efficiency[CrossSection_Index][:] += [0.25*((1.0 + PSM)*(1.0 - NP)*UT),0.25*((1.0 - PSM)*(1.0 - NP)*UT),0.25*((1.0 - PSM)*(1.0 + NP)*UT),0.25*((1.0 + PSM)*(1.0 + NP)*UT)]
+                    #Pol_Efficiency[CrossSection_Index][:] += [0.25*((1.0 + PSM)*(T_MIN)),0.25*((1.0 - PSM)*(T_MIN)),0.25*((1.0 - PSM)*(T_MAJ)),0.25*((1.0 + PSM)*(T_MAJ))]   
                     Det_Index = 0
                     for dshort in short_detectors:
                         data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)]) #- BlockBeam_Scatt[configuration][dshort]*Count_time
@@ -1377,7 +1397,8 @@ def AbsScaleAndPolarizationCorrectData(GroupID, configuration, Pol_Trans, Pol_Sc
                         Det_Index += 1
                 elif type == "S_DD_files":
                     CrossSection_Index = 2
-                    Pol_Efficiency[CrossSection_Index][:] += [0.25*((1.0 - PSM*PF)*(1.0 - NP)*UT),0.25*((1.0 + PSM*PF)*(1.0 - NP)*UT),0.25*((1.0 + PSM*PF)*(1.0 + NP)*UT), 0.25*((1.0 - PSM*PF)*(1.0 + NP)*UT)]
+                    #Pol_Efficiency[CrossSection_Index][:] += [0.25*((1.0 - PSM*PF)*(1.0 - NP)*UT),0.25*((1.0 + PSM*PF)*(1.0 - NP)*UT),0.25*((1.0 + PSM*PF)*(1.0 + NP)*UT), 0.25*((1.0 - PSM*PF)*(1.0 + NP)*UT)]
+                    Pol_Efficiency[CrossSection_Index][:] += [0.25*((1.0 - PSM*PF)*(T_MIN)),0.25*((1.0 + PSM*PF)*(T_MIN)),0.25*((1.0 + PSM*PF)*(T_MAJ)), 0.25*((1.0 - PSM*PF)*(T_MAJ))]
                     Det_Index = 0
                     for dshort in short_detectors:
                         data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)]) #- BlockBeam_Scatt[configuration][dshort]*Count_time
@@ -1389,8 +1410,9 @@ def AbsScaleAndPolarizationCorrectData(GroupID, configuration, Pol_Trans, Pol_Sc
                 elif type == "S_UD_files":
                     #Note these seem to be the S_DU files by counts and behaviour
                     CrossSection_Index = 3
-                    #Pol_Efficiency[CrossSection_Index][:] += [0.25*((1.0 + PSM)*(1.0 - NP)*UT),0.25*((1.0 - PSM)*(1.0 - NP)*UT),0.25*((1.0 - PSM)*(1.0 + NP)*UT),0.25*((1.0 + PSM)*(1.0 + NP)*UT)]
-                    Pol_Efficiency[CrossSection_Index][:] += [0.25*UT*(1.0 - PSM*PF)*(1.0 + NP), 0.25*UT*(1.0 + PSM*PF)*(1.0 + NP), 0.25*UT*(1.0 + PSM*PF)*(1.0 - NP), 0.25*UT*(1.0 - PSM*PF)*(1.0 - NP)]
+                    Pol_Efficiency[CrossSection_Index][:] += [0.25*((1.0 + PSM)*(1.0 - NP)*UT),0.25*((1.0 - PSM)*(1.0 - NP)*UT),0.25*((1.0 - PSM)*(1.0 + NP)*UT),0.25*((1.0 + PSM)*(1.0 + NP)*UT)]
+                    #Pol_Efficiency[CrossSection_Index][:] += [0.25*UT*(1.0 - PSM*PF)*(1.0 + NP), 0.25*UT*(1.0 + PSM*PF)*(1.0 + NP), 0.25*UT*(1.0 + PSM*PF)*(1.0 - NP), 0.25*UT*(1.0 - PSM*PF)*(1.0 - NP)]
+                    #Pol_Efficiency[CrossSection_Index][:] += [0.25*(1.0 - PSM*PF)*(T_MAJ), 0.25*(1.0 + PSM*PF)*(T_MAJ), 0.25*(1.0 + PSM*PF)*(T_MIN), 0.25*(1.0 - PSM*PF)*(T_MIN)]   
                     Det_Index = 0
                     for dshort in short_detectors:
                         data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)]) #- BlockBeam_Scatt[configuration][dshort]*Count_time
@@ -1485,8 +1507,16 @@ def ASCIIlike_Output(Type, ID, Config, Data_AllDetectors, Unc_Data_AllDetectors,
 #*************************************************
 #***        Start of 'The Program'             ***
 #*************************************************
+Plex_file = [fn for fn in os.listdir("./") if fn.startswith("PLEX")]
+print(Plex_file[0])
+Plex = Plex_File(str(Plex_file[0]))
 
-Plex = Plex_File(Plex_number)
+filenames = [fn for fn in os.listdir("./") if fn.endswith(".nxs.ngv")]
+#filenames = [fn for fn in os.listdir("./") if os.path.isfile(fn)]
+for name in filenames:
+    file_to_open = str(name)
+    print(file_to_open)
+
 Trans_masks = Trans_Mask()
 
 Measured_Masks = {} #Measured_Masks[ConfigID][dshort][1 and 0 mask]
