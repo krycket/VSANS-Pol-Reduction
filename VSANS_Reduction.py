@@ -68,13 +68,18 @@ def Unique_Config_ID(filenumber):
         
     return Configuration_ID
 
-def Plex_File(filename):
+def Plex_File(start_number):
 
     PlexData = {}
-    
+
+    filename = '0'
+    Plex_file = [fn for fn in os.listdir("./") if fn.startswith("PLEX")]
+    if len(Plex_file) >= 1:
+        filename = str(Plex_file[0])
     #filename = path + "PLEX_" + str(filenumber) + "_VSANS_DIV.h5"
     config = Path(filename)
     if config.is_file():
+        print('Reading in ', filename)
         f = h5py.File(filename)
         for dshort in short_detectors:
             data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
@@ -203,6 +208,64 @@ def BlockedBeam_Averaged(BlockedBeamFiles, MeasMasks, Trans_masks):
     '''
                 
     return BlockBeam_Trans, BlockBeam_ScattPerPixel
+
+def SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues):
+
+    filenames = '0'
+    record_adam4021 = 0
+    record_temp = 0
+    filelist = [fn for fn in os.listdir("./") if fn.endswith(".nxs.ngv")] #or filenames = [fn for fn in os.listdir("./") if os.path.isfile(fn)]
+    if len(filelist) >= 1:
+        for name in filelist:
+            filename = str(name)
+            filenumber = filename[4:9]
+            config = Path(filename)
+            if config.is_file():
+                f = h5py.File(filename)
+                Listed_Config = str(f['entry/DAS_logs/configuration/key'][0])
+                Listed_Config = Listed_Config[2:]
+                Listed_Config = Listed_Config[:-1]
+                Descrip = str(f['entry/sample/description'][0])
+                Descrip = Descrip[2:]
+                Descrip = Descrip[:-1]
+                
+                Sample_Name = Descrip.replace(Listed_Config, '')
+                Not_Sample = ['T_UU', 'T_DU', 'T_DD', 'T_UD', 'T_SM', 'HeIN', 'HeOUT', 'S_UU', 'S_DU', 'S_DD', 'S_UD', 'T_NP', 'S_NP']
+                for i in Not_Sample:
+                    Sample_Name = Sample_Name.replace(i, '')
+
+                Desired_Temp = 'unlisted'
+                if "temp" in f['entry/DAS_logs/']:
+                    Desired_Temp = str(f['entry/DAS_logs/temp/desiredPrimaryNode'][(0)])
+                    record_temp = 1 
+                    
+                Voltage = 'unlisted'
+                if "adam4021" in f['entry/DAS_logs/']:
+                    Voltage = str(f['entry/DAS_logs/adam4021/voltage'][(0)])
+                    record_adam4021 = 1
+
+                DT5 = Desired_Temp + " K,"
+                DT4 = Desired_Temp + " K"
+                DT3 = Desired_Temp + "K,"
+                DT2 = Desired_Temp + "K"
+                DT1 = Desired_Temp
+                V5 = Voltage + " V,"
+                V4 = Voltage + " V"
+                V3 = Voltage + "V,"
+                V2 = Voltage + "V"
+                V1 = Voltage
+                Not_Sample = [DT5, DT4, DT3, DT2, DT1, V5, V4, V3, V2, V1]
+                for i in Not_Sample:
+                    Sample_Name = Sample_Name.replace(i, '')
+
+                Sample_Name = Sample_Name.replace(' ', '')
+
+                print('Reading:', filenumber, ' ', Descrip)
+                
+
+
+
+    return
 
 def SortData(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues, start_number, end_number):
 
@@ -1507,15 +1570,11 @@ def ASCIIlike_Output(Type, ID, Config, Data_AllDetectors, Unc_Data_AllDetectors,
 #*************************************************
 #***        Start of 'The Program'             ***
 #*************************************************
-Plex_file = [fn for fn in os.listdir("./") if fn.startswith("PLEX")]
-print(Plex_file[0])
-Plex = Plex_File(str(Plex_file[0]))
+Plex = Plex_File(start_number)
 
-filenames = [fn for fn in os.listdir("./") if fn.endswith(".nxs.ngv")]
-#filenames = [fn for fn in os.listdir("./") if os.path.isfile(fn)]
-for name in filenames:
-    file_to_open = str(name)
-    print(file_to_open)
+'''
+SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues)
+'''
 
 Trans_masks = Trans_Mask()
 
@@ -1615,7 +1674,6 @@ if FullPolYeseNo == 1:
                 
         if Print_ASCII == 1:
             ASCIIlike_Output(DataType, ID, Config_ID, PolData_AllDetectors, Unc_PolData_AllDetectors, QValues_All[Config_ID])
-
                 
 #*************************************************
 #***           End of 'The Program'            ***
