@@ -211,61 +211,263 @@ def BlockedBeam_Averaged(BlockedBeamFiles, MeasMasks, Trans_masks):
 
 def SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues):
 
+    BlockBeam = {}
+    Configs = {}
+    Sample_Names = {}
+    Scatt = {}
+    Trans = {}
+    HE3_Trans = {}
+
+    UU_filenumber = -10
+    DU_filenumber = -10
+    DD_filenumber = -10
+    UD_filenumber = -10
     filenames = '0'
     record_adam4021 = 0
     record_temp = 0
+    CellIdentifier = 0
+    HE3OUT_filenumber = -10
+    
     filelist = [fn for fn in os.listdir("./") if fn.endswith(".nxs.ngv")] #or filenames = [fn for fn in os.listdir("./") if os.path.isfile(fn)]
     if len(filelist) >= 1:
         for name in filelist:
             filename = str(name)
-            filenumber = filename[4:9]
+            filenumber = int(filename[4:9])
             config = Path(filename)
             if config.is_file():
                 f = h5py.File(filename)
-                Listed_Config = str(f['entry/DAS_logs/configuration/key'][0])
-                Listed_Config = Listed_Config[2:]
-                Listed_Config = Listed_Config[:-1]
+                Count_time = f['entry/collection_time'][0]
                 Descrip = str(f['entry/sample/description'][0])
                 Descrip = Descrip[2:]
                 Descrip = Descrip[:-1]
-                
-                Sample_Name = Descrip.replace(Listed_Config, '')
-                Not_Sample = ['T_UU', 'T_DU', 'T_DD', 'T_UD', 'T_SM', 'HeIN', 'HeOUT', 'S_UU', 'S_DU', 'S_DD', 'S_UD', 'T_NP', 'S_NP']
-                for i in Not_Sample:
-                    Sample_Name = Sample_Name.replace(i, '')
-
-                Desired_Temp = 'unlisted'
-                if "temp" in f['entry/DAS_logs/']:
-                    Desired_Temp = str(f['entry/DAS_logs/temp/desiredPrimaryNode'][(0)])
-                    record_temp = 1 
-                    
-                Voltage = 'unlisted'
-                if "adam4021" in f['entry/DAS_logs/']:
-                    Voltage = str(f['entry/DAS_logs/adam4021/voltage'][(0)])
-                    record_adam4021 = 1
-
-                DT5 = Desired_Temp + " K,"
-                DT4 = Desired_Temp + " K"
-                DT3 = Desired_Temp + "K,"
-                DT2 = Desired_Temp + "K"
-                DT1 = Desired_Temp
-                V5 = Voltage + " V,"
-                V4 = Voltage + " V"
-                V3 = Voltage + "V,"
-                V2 = Voltage + "V"
-                V1 = Voltage
-                Not_Sample = [DT5, DT4, DT3, DT2, DT1, V5, V4, V3, V2, V1]
-                for i in Not_Sample:
-                    Sample_Name = Sample_Name.replace(i, '')
-
-                Sample_Name = Sample_Name.replace(' ', '')
-
                 print('Reading:', filenumber, ' ', Descrip)
-                
+                if Count_time > 59 and str(Descrip).find("Align") == -1:
+
+                    Listed_Config = str(f['entry/DAS_logs/configuration/key'][0])
+                    Listed_Config = Listed_Config[2:]
+                    Listed_Config = Listed_Config[:-1]
+                    Sample_Name = Descrip.replace(Listed_Config, '')
+                    Not_Sample = ['T_UU', 'T_DU', 'T_DD', 'T_UD', 'T_SM', 'T_NP', 'HeIN', 'HeOUT', 'S_UU', 'S_DU', 'S_DD', 'S_UD', 'S_NP', 'S_HeU', 'S_HeD', 'S_SMU', 'S_SMD']
+                    for i in Not_Sample:
+                        Sample_Name = Sample_Name.replace(i, '')
+                    Desired_Temp = 'na'
+                    if "temp" in f['entry/DAS_logs/']:
+                        Desired_Temp = str(f['entry/DAS_logs/temp/desiredPrimaryNode'][(0)])
+                        record_temp = 1    
+                    Voltage = 'na'
+                    if "adam4021" in f['entry/DAS_logs/']:
+                        Voltage = str(f['entry/DAS_logs/adam4021/voltage'][(0)])
+                        record_adam4021 = 1
+                    DT5 = Desired_Temp + " K,"
+                    DT4 = Desired_Temp + " K"
+                    DT3 = Desired_Temp + "K,"
+                    DT2 = Desired_Temp + "K"
+                    DT1 = Desired_Temp
+                    V5 = Voltage + " V,"
+                    V4 = Voltage + " V"
+                    V3 = Voltage + "V,"
+                    V2 = Voltage + "V"
+                    V1 = Voltage
+                    Not_Sample = [DT5, DT4, DT3, DT2, DT1, V5, V4, V3, V2, V1]
+                    for i in Not_Sample:
+                        Sample_Name = Sample_Name.replace(i, '')
+                    Sample_Name = Sample_Name.replace(' ', '')
+                    Sample_Base = Sample_Name
+                    Sample_Name = Sample_Name + '_' + str(Voltage) + 'V_' + str(Desired_Temp) + 'K'
+
+                    Purpose = f['entry/reduction/file_purpose'][()] #SCATT, TRANS, HE3
+                    Intent = f['entry/reduction/intent'][()] #Sample, Empty, Blocked Beam, Open Beam
+                    #ID = str(f['entry/sample/group_id'][0])
+                    End_time = dateutil.parser.parse(f['entry/end_time'][0])
+                    Trans_Counts = f['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
+                    #trans_mask = Trans_masks['MR']
+                    #trans_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
+                    #trans_data = trans_data*trans_mask
+                    #Trans_Counts = trans_data.sum()
+                    MonCounts = f['entry/control/monitor_counts'][0]
+                    Trans_Distance = f['entry/instrument/detector_{ds}/distance'.format(ds=TransPanel)][0]
+                    Attenuation = f['entry/DAS_logs/attenuator/attenuator'][0]
+                    Wavelength = f['entry/DAS_logs/wavelength/wavelength'][0]
+                    Config = Unique_Config_ID(filenumber)
+                    FrontPolDirection = f['entry/DAS_logs/frontPolarization/direction'][()]
+                    if "backPolarization" in f['entry/DAS_logs/']:
+                        BackPolDirection = f['entry/DAS_logs/backPolarization/direction'][()]
+                    else:
+                        BackPolDirection = [b'UNPOLARIZED']
+
+                    if len(Configs) < 1:
+                        Configs = [Config]
+                    else:
+                        if Config not in Configs:
+                            Configs.append(Config)
+
+                    if str(Intent).find("Blocked") != -1: #i.e. a blocked beam
+                        if str(Purpose).find("TRANS") != -1 or str(Purpose).find("HE3") != -1:
+                            BlockBeam[Config] = {'Trans':{'File' : filenumber, 'CountsPerSecond' : Trans_Counts/Count_time}}
+                        elif str(Purpose).find("SCATT") != -1:
+                            BlockBeam[Config] = {'Scatt':{'File' : filenumber}}
+                            
+                    elif str(Intent).find("Sample") != -1 or str(Intent).find("Empty") != -1 or str(Intent).find("Open") != -1:
+                        if len(Sample_Names) < 1:
+                            Sample_Names = [Sample_Name]
+                        else:
+                            if Sample_Name not in Sample_Names:
+                                Sample_Names.append(Sample_Name)
+                                
+                        Intent_short = str(Intent)
+                        Intent_short = Intent_short[3:-2]
+                        Intent_short = Intent_short.replace(' Cell', '')
+                        Intent_short = Intent_short.replace(' Beam', '')
+                            
+                        if str(Purpose).find("SCATT") != -1:
+                            if Sample_Name not in Scatt:
+                                Scatt[Sample_Name] = {'Intent': Intent_short, 'Sample_Base': Sample_Base, 'Config(s)' : {Config : {'Unpol': 'NA', 'U' : 'NA', 'D' : 'NA','UU' : 'NA', 'DU' : 'NA', 'DD' : 'NA', 'UD' : 'NA'}}}
+                            if Config not in Scatt[Sample_Name]['Config(s)']:
+                                #Check that multipe configurations per sample are processed properly; Scatt[Sample_Name]['Config(s)'].append(Config)
+                                Scatt[Sample_Name]['Config(s)'][Config] = {'Unpol': 'NA', 'U' : 'NA', 'D' : 'NA','UU' : 'NA', 'DU' : 'NA', 'DD' : 'NA', 'UD' : 'NA'}
+                            if str(FrontPolDirection).find("UNPOLARIZED") != -1 and str(BackPolDirection).find("UNPOLARIZED") != -1:
+                                if 'NA' in Scatt[Sample_Name]['Config(s)'][Config]['Unpol']:
+                                    Scatt[Sample_Name]['Config(s)'][Config]['Unpol'] = [filename]
+                                else:
+                                    Scatt[Sample_Name]['Config(s)'][Config]['Unpol'].append(filename)
+                            if str(FrontPolDirection).find("UP") != -1 and str(BackPolDirection).find("UNPOLARIZED") != -1:
+                                if 'NA' in Scatt[Sample_Name]['Config(s)'][Config]['U']:
+                                    Scatt[Sample_Name]['Config(s)'][Config]['U'] = [filename]
+                                else:
+                                    Scatt[Sample_Name]['Config(s)'][Config]['U'].append(filename)
+                            if str(FrontPolDirection).find("DOWN") != -1 and str(BackPolDirection).find("UNPOLARIZED") != -1:
+                                if 'NA' in Scatt[Sample_Name]['Config(s)'][Config]['D']:
+                                    Scatt[Sample_Name]['Config(s)'][Config]['D'] = [filename]
+                                else:
+                                    Scatt[Sample_Name]['Config(s)'][Config]['D'].append(filename)
+                            if str(FrontPolDirection).find("UP") != -1 and str(BackPolDirection).find("UP") != -1:
+                                if 'NA' in Scatt[Sample_Name]['Config(s)'][Config]['UU']:
+                                    Scatt[Sample_Name]['Config(s)'][Config]['UU'] = [filename]
+                                else:
+                                    Scatt[Sample_Name]['Config(s)'][Config]['UU'].append(filename)
+                            if str(FrontPolDirection).find("DOWN") != -1 and str(BackPolDirection).find("UP") != -1:
+                                if 'NA' in Scatt[Sample_Name]['Config(s)'][Config]['DU']:
+                                    Scatt[Sample_Name]['Config(s)'][Config]['DU'] = [filename]
+                                else:
+                                    Scatt[Sample_Name]['Config(s)'][Config]['DU'].append(filename)
+
+                            if str(FrontPolDirection).find("DOWN") != -1 and str(BackPolDirection).find("DOWN") != -1:
+                                if 'NA' in Scatt[Sample_Name]['Config(s)'][Config]['DD']:
+                                    Scatt[Sample_Name]['Config(s)'][Config]['DD'] = [filename]
+                                else:
+                                    Scatt[Sample_Name]['Config(s)'][Config]['DD'].append(filename)
+                            if str(FrontPolDirection).find("UP") != -1 and str(BackPolDirection).find("DOWN") != -1:
+                                if 'NA' in Scatt[Sample_Name]['Config(s)'][Config]['UD']:
+                                    Scatt[Sample_Name]['Config(s)'][Config]['UD'] = [filename]
+                                else:
+                                    Scatt[Sample_Name]['Config(s)'][Config]['UD'].append(filename)  
+                                
+                            
+                        if str(Purpose).find("TRANS") != -1:
+                            if Sample_Name not in Trans:
+                                Trans[Sample_Name] = {'Intent': Intent_short, 'Sample_Base': Sample_Base, 'Config(s)' : {Config : {'Unpol': 'NA', 'U' : 'NA', 'D' : 'NA', 'UU' : 'NA', 'DU' : 'NA', 'DD' : 'NA', 'UD' : 'NA', 'T_SM' : 'NA'}}}
+                            if Config not in Trans[Sample_Name]['Config(s)']:
+                                Trans[Sample_Name]['Config(s)'][Config] = {'Unpol': 'NA', 'U' : 'NA', 'D': 'NA', 'UU' : 'NA', 'DU' : 'NA', 'DD' : 'NA', 'UD' : 'NA', 'T_SM' : 'NA'}
+                            if str(FrontPolDirection).find("UNPOLARIZED") != -1 and str(BackPolDirection).find("UNPOLARIZED") != -1:
+                                if 'NA' in Trans[Sample_Name]['Config(s)'][Config]['Unpol']:
+                                    Trans[Sample_Name]['Config(s)'][Config]['Unpol'] = [filename]
+                                else:
+                                    Trans[Sample_Name]['Config(s)'][Config]['Unpol'].append(filename)
+                            if str(FrontPolDirection).find("UP") != -1 and str(BackPolDirection).find("UNPOLARIZED") != -1:
+                                if 'NA' in Trans[Sample_Name]['Config(s)'][Config]['U']:
+                                    Trans[Sample_Name]['Config(s)'][Config]['U'] = [filename]
+                                else:
+                                    Trans[Sample_Name]['Config(s)'][Config]['U'].append(filename)
+                            if str(FrontPolDirection).find("DOWN") != -1 and str(BackPolDirection).find("UNPOLARIZED") != -1:
+                                if 'NA' in Trans[Sample_Name]['Config(s)'][Config]['D']:
+                                    Trans[Sample_Name]['Config(s)'][Config]['D'] = [filename]
+                                else:
+                                    Trans[Sample_Name]['Config(s)'][Config]['D'].append(filename)
+                            if str(FrontPolDirection).find("UP") != -1 and str(BackPolDirection).find("UP") != -1:
+                                UU_filenumber = filenumber
+                            if str(FrontPolDirection).find("DOWN") != -1 and str(BackPolDirection).find("UP") != -1:
+                                DU_filenumber = filenumber
+                            if str(FrontPolDirection).find("DOWN") != -1 and str(BackPolDirection).find("DOWN") != -1:
+                                DD_filenumber = filenumber
+                            if str(FrontPolDirection).find("UP") != -1 and str(BackPolDirection).find("DOWN") != -1:
+                                UD_filenumber = filenumber
+                            if str(FrontPolDirection).find("UP") != -1 and str(BackPolDirection).find("UNPOLARIZED") != -1:
+                                SM_filenumber = filenumber
+                                if SM_filenumber - UU_filenumber == 4:
+                                    if 'NA' in Trans[Sample_Name]['Config(s)'][Config]['UU']:
+                                        Trans[Sample_Name]['Config(s)'][Config]['UU'] = [UU_filenumber]
+                                    else:
+                                        Trans[Sample_Name]['Config(s)'][Config]['UU'].append(UU_filenumber)
+                                    if 'NA' in Trans[Sample_Name]['Config(s)'][Config]['DU']:
+                                        Trans[Sample_Name]['Config(s)'][Config]['DU'] = [DU_filenumber]
+                                    else:
+                                        Trans[Sample_Name]['Config(s)'][Config]['DU'].append(DU_filenumber)
+                                    if 'NA' in Trans[Sample_Name]['Config(s)'][Config]['DD']:
+                                        Trans[Sample_Name]['Config(s)'][Config]['DD'] = [DD_filenumber]
+                                    else:
+                                        Trans[Sample_Name]['Config(s)'][Config]['DD'].append(DD_filenumber)
+                                    if 'NA' in Trans[Sample_Name]['Config(s)'][Config]['UD']:
+                                        Trans[Sample_Name]['Config(s)'][Config]['UD'] = [UD_filenumber]
+                                    else:
+                                        Trans[Sample_Name]['Config(s)'][Config]['UD'].append(UD_filenumber)
+                                    if 'NA' in Trans[Sample_Name]['Config(s)'][Config]['T_SM']:
+                                        Trans[Sample_Name]['Config(s)'][Config]['T_SM'] = [SM_filenumber]
+                                    else:
+                                        Trans[Sample_Name]['Config(s)'][Config]['T_SM'].append(SM_filenumber) 
+
+                            
+                        if str(Purpose).find("HE3") != -1:           
+                            if YesNoManualHe3Entry == 1:
+                                if filenumber in New_HE3_Files:
+                                    ScaledOpacity = MuValues[CellIdentifier]
+                                    TE = TeValues[CellIdentifier]
+                                    #HE3Insert_Time = (End_time.timestamp() - Count_time)/3600.0
+                                    CellTimeIdentifier = (End_time.timestamp() - Count_time)/3600.0
+                                    #f['/entry/DAS_logs/backPolarization/timestamp'][0]/3600000 #milliseconds to hours
+                                    HE3Insert_Time = (End_time.timestamp() - Count_time)/3600.0
+                                    CellIdentifier += 1    
+                            else: #i.e. automatic entry
+                                CellTimeIdentifier = f['/entry/DAS_logs/backPolarization/timestamp'][0]/3600000 #milliseconds to hours
+                                if CellTimeIdentifier not in HE3_Trans:
+                                    HE3Insert_Time = f['/entry/DAS_logs/backPolarization/timestamp'][0]/3600000 #milliseconds to hours
+                                    Opacity = f['/entry/DAS_logs/backPolarization/opacityAt1Ang'][0]
+                                    Wavelength = f['/entry/DAS_logs/wavelength/wavelength'][0]
+                                    ScaledOpacity = Opacity*Wavelength
+                                    TE = f['/entry/DAS_logs/backPolarization/glassTransmission'][0]
+                            HE3Type = str(f['entry/sample/description'][()])
+                            if HE3Type[-7:-2] == 'HeOUT':
+                            #He3Type = Descrip[-5:]
+                            #if str(He3Type).find("HEOUT") != -1:
+                                HE3OUT_filenumber = filenumber
+                                HE3OUT_config = Config
+                                HE3OUT_sample = Sample_Name
+                                HE3OUT_attenuators = int(f['entry/instrument/attenuator/num_atten_dropped'][0])
+                            #elif str(He3Type).find("HEIN") != -1:
+                            elif HE3Type[-7:-2] == ' HeIN':
+                                HE3IN_filenumber = filenumber
+                                HE3IN_config = Config
+                                HE3IN_sample = Sample_Name
+                                HE3IN_attenuators = int(f['entry/instrument/attenuator/num_atten_dropped'][0])
+                                HE3IN_StartTime = (End_time.timestamp() - Count_time/2)/3600.0
+                                if HE3OUT_filenumber > 0:
+                                    if HE3OUT_config == HE3IN_config and HE3OUT_attenuators == HE3IN_attenuators and HE3OUT_sample == HE3IN_sample: #This implies that you must have a 3He out before 3He in of same config and atten
+                                        if HE3Insert_Time not in HE3_Trans:
+                                            HE3_Trans[CellTimeIdentifier] = {'Te' : TE,
+                                                                         'Mu' : ScaledOpacity,
+                                                                         'Insert_time' : HE3Insert_Time}
+                                        Elasped_time = HE3IN_StartTime - HE3Insert_Time
+                                        if "Elasped_time" not in HE3_Trans[CellTimeIdentifier]:
+                                            HE3_Trans[CellTimeIdentifier]['HE3_OUT_file'] = [HE3OUT_filenumber]
+                                            HE3_Trans[CellTimeIdentifier]['HE3_IN_file'] = [HE3IN_filenumber]
+                                            HE3_Trans[CellTimeIdentifier]['Elasped_time'] = [Elasped_time]
+                                        else:
+                                            HE3_Trans[CellTimeIdentifier]['HE3_OUT_file'].append(HE3OUT_filenumber)
+                                            HE3_Trans[CellTimeIdentifier]['HE3_IN_file'].append(HE3IN_filenumber)
+                                            HE3_Trans[CellTimeIdentifier]['Elasped_time'].append(Elasped_time)
 
 
 
-    return
+    return Configs, Sample_Names, BlockBeam, Scatt, Trans, HE3_Trans
 
 def SortData(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues, start_number, end_number):
 
@@ -1572,10 +1774,29 @@ def ASCIIlike_Output(Type, ID, Config, Data_AllDetectors, Unc_Data_AllDetectors,
 #*************************************************
 Plex = Plex_File(start_number)
 
+
+Configs, Sample_Names, BlockBeam, Scatt, Trans, HE3Trans = SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues)
+
+#print(Configs)
+
+#print(Sample_Names)
+
+#print(BlockBeam)
 '''
-SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues)
+for Sample in Scatt:
+    print(Sample)
+    print(Scatt[Sample])
+    print('   ')
+for Sample in Trans:
+    print(Sample)
+    print(Trans[Sample])
+    print('   ')
+    
 '''
 
+print(HE3Trans)
+
+'''
 Trans_masks = Trans_Mask()
 
 Measured_Masks = {} #Measured_Masks[ConfigID][dshort][1 and 0 mask]
@@ -1674,7 +1895,8 @@ if FullPolYeseNo == 1:
                 
         if Print_ASCII == 1:
             ASCIIlike_Output(DataType, ID, Config_ID, PolData_AllDetectors, Unc_PolData_AllDetectors, QValues_All[Config_ID])
-                
+'''
+
 #*************************************************
 #***           End of 'The Program'            ***
 #*************************************************
