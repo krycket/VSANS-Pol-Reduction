@@ -125,7 +125,7 @@ def SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues):
                 Descrip = str(f['entry/sample/description'][0])
                 Descrip = Descrip[2:]
                 Descrip = Descrip[:-1]
-                print('Reading:', filenumber, ' ', Descrip)
+                #print('Reading:', filenumber, ' ', Descrip)
                 if Count_time > 59 and str(Descrip).find("Align") == -1:
 
                     Listed_Config = str(f['entry/DAS_logs/configuration/key'][0])
@@ -231,10 +231,10 @@ def SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues):
                                 else:
                                     Scatt[Sample_Name]['Config(s)'][Config]['UU'].append(filenumber)
                             if str(FrontPolDirection).find("DOWN") != -1 and str(BackPolDirection).find("UP") != -1:
-                                if 'NA' in Scatt[Sample_Name]['Config(s)'][Config]['DU']:
-                                    Scatt[Sample_Name]['Config(s)'][Config]['DU'] = [filenumber]
+                                if 'NA' in Scatt[Sample_Name]['Config(s)'][Config]['UD']:
+                                    Scatt[Sample_Name]['Config(s)'][Config]['UD'] = [filenumber]
                                 else:
-                                    Scatt[Sample_Name]['Config(s)'][Config]['DU'].append(filenumber)
+                                    Scatt[Sample_Name]['Config(s)'][Config]['UD'].append(filenumber)
 
                             if str(FrontPolDirection).find("DOWN") != -1 and str(BackPolDirection).find("DOWN") != -1:
                                 if 'NA' in Scatt[Sample_Name]['Config(s)'][Config]['DD']:
@@ -242,10 +242,10 @@ def SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues):
                                 else:
                                     Scatt[Sample_Name]['Config(s)'][Config]['DD'].append(filenumber)
                             if str(FrontPolDirection).find("UP") != -1 and str(BackPolDirection).find("DOWN") != -1:
-                                if 'NA' in Scatt[Sample_Name]['Config(s)'][Config]['UD']:
-                                    Scatt[Sample_Name]['Config(s)'][Config]['UD'] = [filenumber]
+                                if 'NA' in Scatt[Sample_Name]['Config(s)'][Config]['DU']:
+                                    Scatt[Sample_Name]['Config(s)'][Config]['DU'] = [filenumber]
                                 else:
-                                    Scatt[Sample_Name]['Config(s)'][Config]['UD'].append(filenumber)  
+                                    Scatt[Sample_Name]['Config(s)'][Config]['DU'].append(filenumber)  
                                 
                             
                         if str(Purpose).find("TRANS") != -1:
@@ -294,22 +294,27 @@ def SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues):
                                     if 'NA' in Pol_Trans[Sample_Name]['T_UU']['File']:
                                         Pol_Trans[Sample_Name]['T_UU']['File'] = [UU_filenumber]
                                         Pol_Trans[Sample_Name]['T_UU']['Meas_Time'] = [UU_Time]
-                                        #Add ['T_UU', etc.]['Meas_Time] -> UU_Time = (End_time.timestamp() - Count_time/2)/3600.0
                                     else:
                                         Pol_Trans[Sample_Name]['T_UU']['File'].append(UU_filenumber)
                                         Pol_Trans[Sample_Name]['T_UU']['Meas_Time'].append(UU_Time)
                                     if 'NA' in Pol_Trans[Sample_Name]['T_DU']['File']:
                                         Pol_Trans[Sample_Name]['T_DU']['File'] = [DU_filenumber]
+                                        Pol_Trans[Sample_Name]['T_DU']['Meas_Time'] = [DU_Time]
                                     else:
                                         Pol_Trans[Sample_Name]['T_DU']['File'].append(DU_filenumber)
+                                        Pol_Trans[Sample_Name]['T_DU']['Meas_Time'].append(DU_Time)
                                     if 'NA' in Pol_Trans[Sample_Name]['T_DD']['File']:
                                         Pol_Trans[Sample_Name]['T_DD']['File'] = [DD_filenumber]
+                                        Pol_Trans[Sample_Name]['T_DD']['Meas_Time'] = [DD_Time]
                                     else:
                                         Pol_Trans[Sample_Name]['T_DD']['File'].append(DD_filenumber)
+                                        Pol_Trans[Sample_Name]['T_DD']['Meas_Time'].append(DD_Time)
                                     if 'NA' in Pol_Trans[Sample_Name]['T_UD']['File']:
                                         Pol_Trans[Sample_Name]['T_UD']['File'] = [UD_filenumber]
+                                        Pol_Trans[Sample_Name]['T_UD']['Meas_Time'] = [UD_Time]
                                     else:
                                         Pol_Trans[Sample_Name]['T_UD']['File'].append(UD_filenumber)
+                                        Pol_Trans[Sample_Name]['T_UD']['Meas_Time'].append(UD_Time)
                                     if 'NA' in Pol_Trans[Sample_Name]['T_SM']['File']:
                                         Pol_Trans[Sample_Name]['T_SM']['File'] = [SM_filenumber]
                                     else:
@@ -651,7 +656,7 @@ def Process_Transmissions(BlockBeam, Masks, HE3_Trans, Pol_Trans, Trans):
     return
 
 
-def Plex_File(start_number):
+def Plex_File():
 
     PlexData = {}
 
@@ -889,20 +894,20 @@ def SortData(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues, start_numbe
                                 else:
                                     Pol_Scatt[ID][Config]['S_UU_files'].append(filenumber)        
                             if Type[-6:-2] == 'S_UD': # and str(BackPolDirection).find("UP") != -1: #and str(FrontPolDirection).find("DOWN") != -1
-                                if Pol_Scatt[ID][Config]['S_DU_files'] == [-1]:
-                                    Pol_Scatt[ID][Config]['S_DU_files'] = [filenumber]
+                                if Pol_Scatt[ID][Config]['S_UD_files'] == [-1]:
+                                    Pol_Scatt[ID][Config]['S_UD_files'] = [filenumber]
                                 else:
-                                    Pol_Scatt[ID][Config]['S_DU_files'].append(filenumber)
+                                    Pol_Scatt[ID][Config]['S_UD_files'].append(filenumber)
                             if Type[-6:-2] == 'S_DD': # and str(BackPolDirection).find("DOWN") != -1: #and str(FrontPolDirection).find("DOWN") != -1
                                 if Pol_Scatt[ID][Config]['S_DD_files'] == [-1]:
                                     Pol_Scatt[ID][Config]['S_DD_files'] = [filenumber]
                                 else:
                                     Pol_Scatt[ID][Config]['S_DD_files'].append(filenumber)
                             if Type[-6:-2] == 'S_DU': # and str(BackPolDirection).find("DOWN") != -1: #and str(FrontPolDirection).find("UP") != -1
-                                if Pol_Scatt[ID][Config]['S_UD_files'] == [-1]:
-                                    Pol_Scatt[ID][Config]['S_UD_files'] = [filenumber]
+                                if Pol_Scatt[ID][Config]['S_DU_files'] == [-1]:
+                                    Pol_Scatt[ID][Config]['S_DU_files'] = [filenumber]
                                 else:
-                                    Pol_Scatt[ID][Config]['S_UD_files'].append(filenumber)
+                                    Pol_Scatt[ID][Config]['S_DU_files'].append(filenumber)
                         
                     if str(Purpose).find("TRANS") != -1 or str(Purpose).find("HE3") != -1:
                         BlockBeamRate = 0
@@ -1813,28 +1818,12 @@ def Pol_SuppermirrorAndFlipper(Pol_Trans):
     for ID in Pol_Trans:
         for Time in Pol_Trans[ID]['T_UU']['Meas_Time']:
             NP, UT, T_MAJ, T_MIN = HE3_Pol_AtGivenTime(Time, HE3_Cell_Summary)
-
-            Max_Factor = UT*(1+NP)
-            Min_Factor = UT*(1-NP)
-            
-            print('Max factor ', Max_Factor, '  ', T_MAJ)
-            print('Min factor ', Min_Factor, '  ', T_MIN)
             if 'Neutron_Pol' not in Pol_Trans[ID]['T_UU']:
                 Pol_Trans[ID]['T_UU']['Neutron_Pol'] = [NP]
                 Pol_Trans[ID]['T_UU']['Unpol_Trans'] = [UT]
             else:
                 Pol_Trans[ID]['T_UU']['Neutron_Pol'].append(NP)
                 Pol_Trans[ID]['T_UU']['Unpol_Trans'].append(UT)
-            
-        for Time in Pol_Trans[ID]['T_DU']['Meas_Time']:
-            NP, UT, T_MAJ, T_MIN = HE3_Pol_AtGivenTime(Time, HE3_Cell_Summary)
-            if 'Neutron_Pol' not in Pol_Trans[ID]['T_DU']:
-                Pol_Trans[ID]['T_DU']['Neutron_Pol'] = [NP]
-                Pol_Trans[ID]['T_DU']['Unpol_Trans'] = [UT]
-            else:
-                Pol_Trans[ID]['T_DU']['Neutron_Pol'].append(NP)
-                Pol_Trans[ID]['T_DU']['Unpol_Trans'].append(UT)
-            
         for Time in Pol_Trans[ID]['T_DD']['Meas_Time']:
             NP, UT, T_MAJ, T_MIN = HE3_Pol_AtGivenTime(Time, HE3_Cell_Summary)
             if 'Neutron_Pol' not in Pol_Trans[ID]['T_DD']:
@@ -1842,8 +1831,15 @@ def Pol_SuppermirrorAndFlipper(Pol_Trans):
                 Pol_Trans[ID]['T_DD']['Unpol_Trans'] = [UT]
             else:
                 Pol_Trans[ID]['T_DD']['Neutron_Pol'].append(NP)
-                Pol_Trans[ID]['T_DD']['Unpol_Trans'].append(UT)
-                
+                Pol_Trans[ID]['T_DD']['Unpol_Trans'].append(UT)       
+        for Time in Pol_Trans[ID]['T_DU']['Meas_Time']:
+            NP, UT, T_MAJ, T_MIN = HE3_Pol_AtGivenTime(Time, HE3_Cell_Summary)
+            if 'Neutron_Pol' not in Pol_Trans[ID]['T_DU']:
+                Pol_Trans[ID]['T_DU']['Neutron_Pol'] = [NP]
+                Pol_Trans[ID]['T_DU']['Unpol_Trans'] = [UT]
+            else:
+                Pol_Trans[ID]['T_DU']['Neutron_Pol'].append(NP)
+                Pol_Trans[ID]['T_DU']['Unpol_Trans'].append(UT)     
         for Time in Pol_Trans[ID]['T_UD']['Meas_Time']:
             NP, UT,T_MAJ, T_MIN = HE3_Pol_AtGivenTime(Time, HE3_Cell_Summary)
             if 'Neutron_Pol' not in Pol_Trans[ID]['T_UD']:
@@ -1852,61 +1848,93 @@ def Pol_SuppermirrorAndFlipper(Pol_Trans):
             else:
                 Pol_Trans[ID]['T_UD']['Neutron_Pol'].append(NP)
                 Pol_Trans[ID]['T_UD']['Unpol_Trans'].append(UT)
+            
 
     for ID in Pol_Trans:
-
         ABS = np.array(Pol_Trans[ID]['T_SM']['Abs_Trans'])
         Pol_Trans[ID]['AbsScale'] = np.average(ABS)
 
         UU = np.array(Pol_Trans[ID]['T_UU']['Trans'])
-        UD = np.array(Pol_Trans[ID]['T_UD']['Trans'])
         UU_UnpolHe3Trans = np.array(Pol_Trans[ID]['T_UU']['Unpol_Trans'])
-        UD_UnpolHe3Trans = np.array(Pol_Trans[ID]['T_UD']['Unpol_Trans'])
         UU_NeutronPol = np.array(Pol_Trans[ID]['T_UU']['Neutron_Pol'])
-        UD_NeutronPol = np.array(Pol_Trans[ID]['T_UD']['Neutron_Pol'])
-        PSM = (UU/UU_UnpolHe3Trans - UD/UD_UnpolHe3Trans)/(UU_NeutronPol+UD_NeutronPol)
-        print('ID, PSM', ID, PSM)
-
         DD = np.array(Pol_Trans[ID]['T_DD']['Trans'])
-        DU = np.array(Pol_Trans[ID]['T_DU']['Trans'])
         DD_UnpolHe3Trans = np.array(Pol_Trans[ID]['T_DD']['Unpol_Trans'])
-        DU_UnpolHe3Trans = np.array(Pol_Trans[ID]['T_DU']['Unpol_Trans'])
         DD_NeutronPol = np.array(Pol_Trans[ID]['T_DD']['Neutron_Pol'])
-        DU_NeutronPol = np.array(Pol_Trans[ID]['T_DU']['Neutron_Pol'])
-        PSMPF = (DD/DD_UnpolHe3Trans - DU/DU_UnpolHe3Trans)/(DD_NeutronPol+DU_NeutronPol)
 
-        PF = PSMPF / PSM
-        '''
-        if str(ID).find("101") != -1:
-            PF = 1.00
-            PSM = 0.99
-        '''
+        RevSF = 1
 
+        if RevSF == 0:
+            UD = np.array(Pol_Trans[ID]['T_UD']['Trans'])
+            UD_UnpolHe3Trans = np.array(Pol_Trans[ID]['T_UD']['Unpol_Trans'])
+            UD_NeutronPol = np.array(Pol_Trans[ID]['T_UD']['Neutron_Pol'])
+            DU = np.array(Pol_Trans[ID]['T_DU']['Trans'])
+            DU_UnpolHe3Trans = np.array(Pol_Trans[ID]['T_DU']['Unpol_Trans'])
+            DU_NeutronPol = np.array(Pol_Trans[ID]['T_DU']['Neutron_Pol'])
+        else:
+            DU = np.array(Pol_Trans[ID]['T_UD']['Trans'])
+            DU_UnpolHe3Trans = np.array(Pol_Trans[ID]['T_UD']['Unpol_Trans'])
+            DU_NeutronPol = np.array(Pol_Trans[ID]['T_UD']['Neutron_Pol'])
+            UD = np.array(Pol_Trans[ID]['T_DU']['Trans'])
+            UD_UnpolHe3Trans = np.array(Pol_Trans[ID]['T_DU']['Unpol_Trans'])
+            UD_NeutronPol = np.array(Pol_Trans[ID]['T_DU']['Neutron_Pol'])
         '''
-        PSMPC = (UU/UD - 1)/(UU/UD + 1)
-        PF = (DD/DU - 1)/(DD/DU + 1)/PSMPC
-        PSM = PSMPC / DD_NeutronPol
-        '''
-
-        
+        #Method 0 (the one that has worked so far):
         PF = 1.00
+        Pol_Trans[ID]['P_F'] = np.average(PF)
         PSM1 = (DD/DD_UnpolHe3Trans - DU/DU_UnpolHe3Trans)/((DD_NeutronPol+DU_NeutronPol)*PF)
         PSM2 = (UU/UU_UnpolHe3Trans - UD/UD_UnpolHe3Trans)/(UU_NeutronPol+UD_NeutronPol)
         PSM = (PSM1 + PSM2)/ 2.0
-        
-        
-        
-        
-            
-        #print('filenumber_TUU', Pol_Trans[ID]['T_UU']['File'])
-        print('ID', ID)
-        print('PSM1', PSM1)
-        print('PSM2', PSM2)
-        print('PSM', 'Average: ', np.average(PSM))
-        print('PF', PF, ' Average: ', np.average(PF))
+        Pol_Trans[ID]['P_SM'] = np.average(PSM)
+        print('Ave P_SM is', Pol_Trans[ID]['P_SM'])
 
+        #Method 1: 
+        PSMxPCAve = (UU/UU_UnpolHe3Trans - UD/UD_UnpolHe3Trans)/(UU/UU_UnpolHe3Trans + UD/UD_UnpolHe3Trans)
+        PCAve = (UU_NeutronPol + UD_NeutronPol)/2.0
+        PSM = PSMxPCAve/PCAve
+        PFPSMxPCAve = (DD/DD_UnpolHe3Trans - DU/DU_UnpolHe3Trans)/(DD/DD_UnpolHe3Trans + DU/DU_UnpolHe3Trans)
+        PCAve = (DD_NeutronPol + DU_NeutronPol)/2.0
+        PFPSM = PFPSMxPCAve/PCAve
+        PF = PFPSM / PSM
         Pol_Trans[ID]['P_SM'] = np.average(PSM)
         Pol_Trans[ID]['P_F'] = np.average(PF)
+        print('P_SM', ID, PSM, 'Ave:', Pol_Trans[ID]['P_SM'])
+        print('P_F', ID, PF, 'Ave:', Pol_Trans[ID]['P_F'])
+        
+        #Method 2:
+        PF = 1.00
+        Pol_Trans[ID]['P_F'] = np.average(PF)
+        print('Ave P_F is set to', Pol_Trans[ID]['P_F'])  
+        PSMxPCAve = (UU/UU_UnpolHe3Trans - UD/UD_UnpolHe3Trans)/(UU/UU_UnpolHe3Trans + UD/UD_UnpolHe3Trans)
+        PCAve = (UU_NeutronPol + UD_NeutronPol)/2.0
+        PSM = PSMxPCAve/PCAve
+        PSM2xPCAve = (DD/DD_UnpolHe3Trans - DU/DU_UnpolHe3Trans)/(DD/DD_UnpolHe3Trans + DU/DU_UnpolHe3Trans)
+        PCAve = (DD_NeutronPol + DU_NeutronPol)/2.0
+        PSM2 = PSM2xPCAve/PCAve
+        print('P_SM', ID, PSM, PSM2)
+        PSM_All = (PSM + PSM2) / 2.0
+        Pol_Trans[ID]['P_SM'] = np.average(PSM_All)
+        print('Ave P_SM is', Pol_Trans[ID]['P_SM'])
+
+        '''
+
+        #Method 3:
+        PF = 1.00
+        Pol_Trans[ID]['P_F'] = np.average(PF)
+        print('Ave P_F is set to', Pol_Trans[ID]['P_F'])  
+        PSMxPC = (UU/UU_UnpolHe3Trans - UD/UD_UnpolHe3Trans)
+        PC = (UU_NeutronPol + UD_NeutronPol)/1.0
+        PSM = PSMxPC/PC
+        PSM2xPC = (DD/DD_UnpolHe3Trans - DU/DU_UnpolHe3Trans)
+        PC = (DD_NeutronPol + DU_NeutronPol)/1.0
+        PSM2 = PSM2xPC/PC
+        print('P_SM', ID, PSM, PSM2)
+        PSM_All = (PSM + PSM2) / 2.0
+        Pol_Trans[ID]['P_SM'] = np.average(PSM_All)
+        print('Ave P_SM is', Pol_Trans[ID]['P_SM'])
+
+        ADD1 = (UU/UU_UnpolHe3Trans + UD/UD_UnpolHe3Trans)/2.0
+        ADD2 = (DD/DD_UnpolHe3Trans + DU/DU_UnpolHe3Trans)/2.0
+        print('UU + UD', ADD1, 'DD + DU', ADD2)
 
         if UsePolCorr == 0:#0 Means no, turn it off
             Pol_Trans[ID]['P_SM'] = 1.0
@@ -2008,9 +2036,9 @@ def AbsScaleAndPolarizationCorrectData(GroupID, configuration, Pol_Trans, Pol_Sc
                 elif type == "S_DU_files":
                     #Note these seem to be the S_UD files by counts and behaviour
                     CrossSection_Index = 1
-                    Pol_Efficiency[CrossSection_Index][:] += [0.25*UT*(1.0 - PSM*PF)*(1.0 + NP), 0.25*UT*(1.0 + PSM*PF)*(1.0 + NP), 0.25*UT*(1.0 + PSM*PF)*(1.0 - NP), 0.25*UT*(1.0 - PSM*PF)*(1.0 - NP)]   
+                    #Pol_Efficiency[CrossSection_Index][:] += [0.25*UT*(1.0 - PSM*PF)*(1.0 + NP), 0.25*UT*(1.0 + PSM*PF)*(1.0 + NP), 0.25*UT*(1.0 + PSM*PF)*(1.0 - NP), 0.25*UT*(1.0 - PSM*PF)*(1.0 - NP)]   
                     #Pol_Efficiency[CrossSection_Index][:] += [0.25*((1.0 + PSM)*(1.0 - NP)*UT),0.25*((1.0 - PSM)*(1.0 - NP)*UT),0.25*((1.0 - PSM)*(1.0 + NP)*UT),0.25*((1.0 + PSM)*(1.0 + NP)*UT)]
-                    #Pol_Efficiency[CrossSection_Index][:] += [0.25*((1.0 + PSM)*(T_MIN)),0.25*((1.0 - PSM)*(T_MIN)),0.25*((1.0 - PSM)*(T_MAJ)),0.25*((1.0 + PSM)*(T_MAJ))]   
+                    Pol_Efficiency[CrossSection_Index][:] += [0.25*((1.0 + PSM)*(T_MIN)),0.25*((1.0 - PSM)*(T_MIN)),0.25*((1.0 - PSM)*(T_MAJ)),0.25*((1.0 + PSM)*(T_MAJ))]   
                     Det_Index = 0
                     for dshort in short_detectors:
                         data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)]) #- BlockBeam_Scatt[configuration][dshort]*Count_time
@@ -2034,9 +2062,9 @@ def AbsScaleAndPolarizationCorrectData(GroupID, configuration, Pol_Trans, Pol_Sc
                 elif type == "S_UD_files":
                     #Note these seem to be the S_DU files by counts and behaviour
                     CrossSection_Index = 3
-                    Pol_Efficiency[CrossSection_Index][:] += [0.25*((1.0 + PSM)*(1.0 - NP)*UT),0.25*((1.0 - PSM)*(1.0 - NP)*UT),0.25*((1.0 - PSM)*(1.0 + NP)*UT),0.25*((1.0 + PSM)*(1.0 + NP)*UT)]
+                    #Pol_Efficiency[CrossSection_Index][:] += [0.25*((1.0 + PSM)*(1.0 - NP)*UT),0.25*((1.0 - PSM)*(1.0 - NP)*UT),0.25*((1.0 - PSM)*(1.0 + NP)*UT),0.25*((1.0 + PSM)*(1.0 + NP)*UT)]
                     #Pol_Efficiency[CrossSection_Index][:] += [0.25*UT*(1.0 - PSM*PF)*(1.0 + NP), 0.25*UT*(1.0 + PSM*PF)*(1.0 + NP), 0.25*UT*(1.0 + PSM*PF)*(1.0 - NP), 0.25*UT*(1.0 - PSM*PF)*(1.0 - NP)]
-                    #Pol_Efficiency[CrossSection_Index][:] += [0.25*(1.0 - PSM*PF)*(T_MAJ), 0.25*(1.0 + PSM*PF)*(T_MAJ), 0.25*(1.0 + PSM*PF)*(T_MIN), 0.25*(1.0 - PSM*PF)*(T_MIN)]   
+                    Pol_Efficiency[CrossSection_Index][:] += [0.25*(1.0 - PSM*PF)*(T_MAJ), 0.25*(1.0 + PSM*PF)*(T_MAJ), 0.25*(1.0 + PSM*PF)*(T_MIN), 0.25*(1.0 - PSM*PF)*(T_MIN)]   
                     Det_Index = 0
                     for dshort in short_detectors:
                         data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)]) #- BlockBeam_Scatt[configuration][dshort]*Count_time
@@ -2047,18 +2075,11 @@ def AbsScaleAndPolarizationCorrectData(GroupID, configuration, Pol_Trans, Pol_Sc
                         Det_Index += 1
     PolCorr_AllDetectors = {}
     Uncertainty_PolCorr_AllDetectors = {}
-    print('Pol_Efficiency', Pol_Efficiency)
     Prefactor = inv(Pol_Efficiency)
-    print('Prefactor', Prefactor)
     Det_Index = 0
     for dshort in short_detectors:
         UncData_Per_Detector = UncScaled_Data[Det_Index][:][:]
         Data_Per_Detector = Scaled_Data[Det_Index][:][:]
-        if dshort == 'FL':
-            print('UU Sum', Scaled_Data[Det_Index][0][3000])
-            print('DU Sum', Scaled_Data[Det_Index][1][3000])
-            print('DD Sum', Scaled_Data[Det_Index][2][3000])
-            print('UD Sum', Scaled_Data[Det_Index][3][3000])
         PolCorr_Data = np.dot(Prefactor, Data_Per_Detector)
         #Below is the code that allows true matrix error propagation, but it takes a while...so may want to optimize more before impleneting.
         #Also will need to uncomment from uncertainties import unumpy (top).
@@ -2138,15 +2159,13 @@ Masks = ReadIn_Masks()
 
 Process_Transmissions(BlockBeam, Masks, HE3_Trans, Pol_Trans, Trans)
 
-for Samp in Pol_Trans:
-    print(Samp)
-    print(Pol_Trans[Samp])
-    print()
+HE3_Cell_Summary = HE3_DecayCurves(HE3_Trans)
 
-#HE3_Cell_Summary = HE3_DecayCurves(HE3_Trans)
+Pol_SuppermirrorAndFlipper(Pol_Trans)
+
+Plex = Plex_File()
 
 '''
-Plex = Plex_File(start_number)
 
 Trans_masks = Trans_Mask()
 
@@ -2247,6 +2266,7 @@ if FullPolYeseNo == 1:
         if Print_ASCII == 1:
             ASCIIlike_Output(DataType, ID, Config_ID, PolData_AllDetectors, Unc_PolData_AllDetectors, QValues_All[Config_ID])
 '''
+
 
 
 #*************************************************
