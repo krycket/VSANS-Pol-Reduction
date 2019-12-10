@@ -179,12 +179,11 @@ def SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues):
                         BackPolDirection = f['entry/DAS_logs/backPolarization/direction'][()]
                     else:
                         BackPolDirection = [b'UNPOLARIZED']
-
                     if len(Configs) < 1:
-                        Configs = [Config]
+                        Configs = {Config : filenumber}
                     else:
                         if Config not in Configs:
-                            Configs.append(Config)
+                            Configs.append({Config : filenumber})
 
                     if str(Intent).find("Blocked") != -1: #i.e. a blocked beam
                         if str(Purpose).find("TRANS") != -1 or str(Purpose).find("HE3") != -1:
@@ -250,9 +249,9 @@ def SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues):
                             
                         if str(Purpose).find("TRANS") != -1:
                             if Sample_Name not in Trans:
-                                Trans[Sample_Name] = {'Intent': Intent_short, 'Sample_Base': Sample_Base, 'Config(s)' : {Config : {'Unpol': 'NA', 'U' : 'NA', 'D' : 'NA'}}}
+                                Trans[Sample_Name] = {'Intent': Intent_short, 'Sample_Base': Sample_Base, 'Config(s)' : {Config : {'Unpol_Files': 'NA', 'U_Files' : 'NA', 'D_Files' : 'NA','Unpol_Trans_Cts': 'NA', 'U_Trans_Cts' : 'NA', 'D_Trans_Cts' : 'NA'}}}
                             if Config not in Trans[Sample_Name]['Config(s)']:
-                                Trans[Sample_Name]['Config(s)'][Config] = {'Unpol': 'NA', 'U' : 'NA', 'D': 'NA'}
+                                Trans[Sample_Name]['Config(s)'][Config] = {'Unpol_Files': 'NA', 'U_Files' : 'NA', 'D_Files': 'NA','Unpol_Trans_Cts': 'NA', 'U_Trans_Cts' : 'NA', 'D_Trans_Cts' : 'NA'}
                             if Sample_Name not in Pol_Trans:
                                 Pol_Trans[Sample_Name] = {'T_UU' : {'File' : 'NA'},
                                                           'T_DU' : {'File' : 'NA'},
@@ -262,20 +261,20 @@ def SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues):
                                                           'Config' : 'NA'
                                                           }
                             if str(FrontPolDirection).find("UNPOLARIZED") != -1 and str(BackPolDirection).find("UNPOLARIZED") != -1:
-                                if 'NA' in Trans[Sample_Name]['Config(s)'][Config]['Unpol']:
-                                    Trans[Sample_Name]['Config(s)'][Config]['Unpol'] = [filenumber]
+                                if 'NA' in Trans[Sample_Name]['Config(s)'][Config]['Unpol_Files']:
+                                    Trans[Sample_Name]['Config(s)'][Config]['Unpol_Files'] = [filenumber]
                                 else:
-                                    Trans[Sample_Name]['Config(s)'][Config]['Unpol'].append(filenumber)
+                                    Trans[Sample_Name]['Config(s)'][Config]['Unpol_Files'].append(filenumber)
                             if str(FrontPolDirection).find("UP") != -1 and str(BackPolDirection).find("UNPOLARIZED") != -1:
-                                if 'NA' in Trans[Sample_Name]['Config(s)'][Config]['U']:
-                                    Trans[Sample_Name]['Config(s)'][Config]['U'] = [filenumber]
+                                if 'NA' in Trans[Sample_Name]['Config(s)'][Config]['U_Files']:
+                                    Trans[Sample_Name]['Config(s)'][Config]['U_Files'] = [filenumber]
                                 else:
-                                    Trans[Sample_Name]['Config(s)'][Config]['U'].append(filenumber)
+                                    Trans[Sample_Name]['Config(s)'][Config]['U_Files'].append(filenumber)
                             if str(FrontPolDirection).find("DOWN") != -1 and str(BackPolDirection).find("UNPOLARIZED") != -1:
-                                if 'NA' in Trans[Sample_Name]['Config(s)'][Config]['D']:
-                                    Trans[Sample_Name]['Config(s)'][Config]['D'] = [filenumber]
+                                if 'NA' in Trans[Sample_Name]['Config(s)'][Config]['D_Files']:
+                                    Trans[Sample_Name]['Config(s)'][Config]['D_Files'] = [filenumber]
                                 else:
-                                    Trans[Sample_Name]['Config(s)'][Config]['D'].append(filenumber)
+                                    Trans[Sample_Name]['Config(s)'][Config]['D_Files'].append(filenumber)
                             if str(FrontPolDirection).find("UP") != -1 and str(BackPolDirection).find("UP") != -1:
                                 UU_filenumber = filenumber
                                 UU_Time = (End_time.timestamp() - Count_time/2)/3600.0
@@ -330,13 +329,13 @@ def SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues):
                             HE3Type = str(f['entry/sample/description'][()])
                             if HE3Type[-7:-2] == 'HeOUT':
                                 if Sample_Name not in Trans:
-                                    Trans[Sample_Name] = {'Intent': Intent_short, 'Sample_Base': Sample_Base, 'Config(s)' : {Config : {'Unpol': 'NA', 'U' : 'NA', 'D' : 'NA'}}}
+                                    Trans[Sample_Name] = {'Intent': Intent_short, 'Sample_Base': Sample_Base, 'Config(s)' : {Config : {'Unpol_Files': 'NA', 'U_Files' : 'NA', 'D_Files' : 'NA','Unpol_Trans_Cts': 'NA', 'U_Trans_Cts' : 'NA', 'D_Trans_Cts' : 'NA'}}}
                                 if Config not in Trans[Sample_Name]['Config(s)']:
-                                    Trans[Sample_Name]['Config(s)'][Config] = {'Unpol': 'NA', 'U' : 'NA', 'D': 'NA'}
-                                if 'NA' in Trans[Sample_Name]['Config(s)'][Config]['Unpol']:
-                                    Trans[Sample_Name]['Config(s)'][Config]['Unpol'] = [filenumber]
+                                    Trans[Sample_Name]['Config(s)'][Config] = {'Unpol_Files': 'NA', 'U_Files' : 'NA', 'D_Files': 'NA','Unpol_Trans_Cts': 'NA', 'U_Trans_Cts' : 'NA', 'D_Trans_Cts' : 'NA'}
+                                if 'NA' in Trans[Sample_Name]['Config(s)'][Config]['Unpol_Files']:
+                                    Trans[Sample_Name]['Config(s)'][Config]['Unpol_Files'] = [filenumber]
                                 else:
-                                    Trans[Sample_Name]['Config(s)'][Config]['Unpol'].append(filenumber)
+                                    Trans[Sample_Name]['Config(s)'][Config]['Unpol_Files'].append(filenumber)
                             
                             if YesNoManualHe3Entry == 1:
                                 if filenumber in New_HE3_Files:
@@ -434,85 +433,208 @@ def ReadIn_Masks():
 
 def Process_Transmissions(BlockBeam, Masks, HE3_Trans, Pol_Trans, Trans):
 
-    #HE3_Trans[CellTimeIdentifier]['Te', 'Mu', 'Insert_time', 'Config', 'HE3_OUT_file', 'HE3_IN_file', 'Elasped_time']
-    #BlockBeam[Config]['Trans':{'File','CountsPerSecond'} or 'Scatt':{'File'}]
-    #Masks[Config]['Trans' or 'Scatt_Standard' or 'Scatt_WithSolenoid' -> 'NA' or dshorts]
-
     for Cell in HE3_Trans:
-        counter = 0
-        for InFile in HE3_Trans[Cell]['HE3_IN_file']:
-            OutFile = HE3_Trans[Cell]['HE3_OUT_file'][counter]
-            Config = HE3_Trans[Cell]['Config'][counter]
-            if Config in BlockBeam:
-                if 'Trans' in BlockBeam[Config]:
-                    BBFile = BlockBeam[Config]['Trans']['File']
-                elif 'Scatt' in BlockBeam[Config]:
-                    BBFile = BlockBeam[Config]['Scatt']['File']
-                else:
-                    BBFile = 0
-            if Config in Masks and 'NA' not in Masks[Config]['Trans']:
-                mask_it = np.array(Masks[Config]['Trans'][TransPanel])
-                IN = path + "sans" + str(InFile) + ".nxs.ngv"
-                OUT = path + "sans" + str(OutFile) + ".nxs.ngv"
-                f = h5py.File(IN)
-                INMon = f['entry/control/monitor_counts'][0]
-                IN_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
-                INCount_time = f['entry/collection_time'][0]
-                g = h5py.File(OUT)
-                OUTMon = g['entry/control/monitor_counts'][0]
-                OUT_data = np.array(g['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
-                OUTCount_time = g['entry/collection_time'][0]
-                if BBFile == 0:
-                    BB_Data = np.zeros_like(IN_data)
-                else:
-                    BB = path + "sans" + str(BBFile) + ".nxs.ngv"
-                    h = h5py.File(BB)
-                    BBMon = h['entry/control/monitor_counts'][0]
-                    BBCount_time = h['entry/collection_time'][0]
-                    BB_data = np.array(h['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
-                trans_num = (IN_data - BB_data*(INCount_time/BBCount_time))*mask_it
-                trans_denom = (OUT_data - BB_data*(OUTCount_time/BBCount_time))*mask_it
-                trans = (np.sum(trans_num)/np.sum(trans_denom))*(OUTMon / INMon)
-                if 'Transmission' not in HE3_Trans[Cell]:
-                    HE3_Trans[Cell]['Transmission'] = [trans]
-                else:
-                    HE3_Trans[Cell]['Transmission'].append(trans)
-            else:
-                IN = path + "sans" + str(InFile) + ".nxs.ngv"
-                OUT = path + "sans" + str(OutFile) + ".nxs.ngv"
-                f = h5py.File(IN)
-                INMon = f['entry/control/monitor_counts'][0]
-                IN_counts = f['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
-                INCount_time = f['entry/collection_time'][0]
-                g = h5py.File(OUT)
-                OUTMon = g['entry/control/monitor_counts'][0]
-                OUT_counts = g['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
-                OUTCount_time = g['entry/collection_time'][0]
-                if BBFile == 0:
-                    BB_counts = 0.0
-                else:
-                    BB = path + "sans" + str(BBFile) + ".nxs.ngv"
-                    h = h5py.File(BB)
-                    BBMon = h['entry/control/monitor_counts'][0]
-                    BBCount_time = h['entry/collection_time'][0]
-                    BB_counts = h['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
-                trans_num = (IN_counts - BB_counts*(INCount_time/BBCount_time))
-                trans_denom = (OUT_counts - BB_counts*(OUTCount_time/BBCount_time))
-                trans = (trans_num/trans_denom)*(OUTMon / INMon)
-                if 'Transmission' not in HE3_Trans[Cell]:
-                    HE3_Trans[Cell]['Transmission'] = [trans]
-                else:
-                    HE3_Trans[Cell]['Transmission'].append(trans)                
-            counter += 1
+        if 'Elasped_time' in HE3_Trans[Cell]:
+            counter = 0
+            for InFile in HE3_Trans[Cell]['HE3_IN_file']:
+                OutFile = HE3_Trans[Cell]['HE3_OUT_file'][counter]
+                Config = HE3_Trans[Cell]['Config'][counter]
+                if Config in BlockBeam:
+                    if 'Trans' in BlockBeam[Config]:
+                        BBFile = BlockBeam[Config]['Trans']['File']
+                    elif 'Scatt' in BlockBeam[Config]:
+                        BBFile = BlockBeam[Config]['Scatt']['File']
+                    else:
+                        BBFile = 0
+                if Config in Masks and 'NA' not in Masks[Config]['Trans']:
+                    mask_it = np.array(Masks[Config]['Trans'][TransPanel])
+                    IN = path + "sans" + str(InFile) + ".nxs.ngv"
+                    OUT = path + "sans" + str(OutFile) + ".nxs.ngv"
+                    f = h5py.File(IN)
+                    INMon = f['entry/control/monitor_counts'][0]
+                    IN_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
+                    INCount_time = f['entry/collection_time'][0]
+                    g = h5py.File(OUT)
+                    OUTMon = g['entry/control/monitor_counts'][0]
+                    OUT_data = np.array(g['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
+                    OUTCount_time = g['entry/collection_time'][0]
+                    if BBFile == 0:
+                        BB_Data = np.zeros_like(IN_data)
+                        BBCount_time = 1.0  
+                    else:
+                        BB = path + "sans" + str(BBFile) + ".nxs.ngv"
+                        h = h5py.File(BB)
+                        BBCount_time = h['entry/collection_time'][0]
+                        BB_data = np.array(h['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
+                    trans_num = (IN_data - BB_data*(INCount_time/BBCount_time))*mask_it
+                    trans_denom = (OUT_data - BB_data*(OUTCount_time/BBCount_time))*mask_it
+                    trans = (np.sum(trans_num)/np.sum(trans_denom))*(OUTMon / INMon)
+                    if 'Transmission' not in HE3_Trans[Cell]:
+                        HE3_Trans[Cell]['Transmission'] = [trans]
+                    else:
+                        HE3_Trans[Cell]['Transmission'].append(trans)
+                else: #no mask for HE3_Trans
+                    IN = path + "sans" + str(InFile) + ".nxs.ngv"
+                    OUT = path + "sans" + str(OutFile) + ".nxs.ngv"
+                    f = h5py.File(IN)
+                    INMon = f['entry/control/monitor_counts'][0]
+                    IN_counts = f['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
+                    INCount_time = f['entry/collection_time'][0]
+                    g = h5py.File(OUT)
+                    OUTMon = g['entry/control/monitor_counts'][0]
+                    OUT_counts = g['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
+                    OUTCount_time = g['entry/collection_time'][0]
+                    if BBFile == 0:
+                        BB_counts = 0.0
+                        BBCount_time = 1.0
+                    else:
+                        BB = path + "sans" + str(BBFile) + ".nxs.ngv"
+                        h = h5py.File(BB)
+                        BBCount_time = h['entry/collection_time'][0]
+                        BB_counts = h['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
+                    trans_num = (IN_counts - BB_counts*(INCount_time/BBCount_time))
+                    trans_denom = (OUT_counts - BB_counts*(OUTCount_time/BBCount_time))
+                    trans = (trans_num/trans_denom)*(OUTMon / INMon)
+                    if 'Transmission' not in HE3_Trans[Cell]:
+                        HE3_Trans[Cell]['Transmission'] = [trans]
+                    else:
+                        HE3_Trans[Cell]['Transmission'].append(trans)                
+                counter += 1
 
     for Samp in Pol_Trans:
-        counter = 0
-        for UUFile in Pol_Trans[Samp]['T_UU']['File']:
-            DUFile = Pol_Trans[Samp]['T_DU']['File'][counter]
-            DDFile = Pol_Trans[Samp]['T_DD']['File'][counter]
-            UDFile = Pol_Trans[Samp]['T_UD']['File'][counter]
-            SMFile = Pol_Trans[Samp]['T_SM']['File'][counter]
-            Config = Pol_Trans[Samp]['Config'][counter]
+        if 'NA' not in Pol_Trans[Samp]['T_UU']['File']:
+            counter = 0
+            for UUFile in Pol_Trans[Samp]['T_UU']['File']:
+                DUFile = Pol_Trans[Samp]['T_DU']['File'][counter]
+                DDFile = Pol_Trans[Samp]['T_DD']['File'][counter]
+                UDFile = Pol_Trans[Samp]['T_UD']['File'][counter]
+                SMFile = Pol_Trans[Samp]['T_SM']['File'][counter]
+                Config = Pol_Trans[Samp]['Config'][counter]
+                if Config in BlockBeam:
+                    if 'Trans' in BlockBeam[Config]:
+                        BBFile = BlockBeam[Config]['Trans']['File']
+                    elif 'Scatt' in BlockBeam[Config]:
+                        BBFile = BlockBeam[Config]['Scatt']['File']
+                    else:
+                        BBFile = 0
+                if Config in Masks and 'NA' not in Masks[Config]['Trans']:
+                    mask_it = np.array(Masks[Config]['Trans'][TransPanel])
+                    UU = path + "sans" + str(UUFile) + ".nxs.ngv"
+                    DU = path + "sans" + str(DUFile) + ".nxs.ngv"
+                    DD = path + "sans" + str(DDFile) + ".nxs.ngv"
+                    UD = path + "sans" + str(UDFile) + ".nxs.ngv"
+                    SM = path + "sans" + str(SMFile) + ".nxs.ngv"
+                    f = h5py.File(UU)
+                    UUMon = f['entry/control/monitor_counts'][0]
+                    UU_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
+                    UUCount_time = f['entry/collection_time'][0]
+                    g = h5py.File(DU)
+                    DUMon = g['entry/control/monitor_counts'][0]
+                    DU_data = np.array(g['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
+                    DUCount_time = g['entry/collection_time'][0]
+                    h = h5py.File(DD)
+                    DDMon = h['entry/control/monitor_counts'][0]
+                    DD_data = np.array(h['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
+                    DDCount_time = h['entry/collection_time'][0]
+                    j = h5py.File(UD)
+                    UDMon = j['entry/control/monitor_counts'][0]
+                    UD_data = np.array(j['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
+                    UDCount_time = j['entry/collection_time'][0]
+                    k = h5py.File(SM)
+                    SMMon = k['entry/control/monitor_counts'][0]
+                    SM_data = np.array(k['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
+                    SMCount_time = k['entry/collection_time'][0]
+                    if BBFile == 0:
+                        BB_Data = np.zeros_like(UU_data)
+                        BBCount_time = 1.0
+                    else:
+                        BB = path + "sans" + str(BBFile) + ".nxs.ngv"
+                        l = h5py.File(BB)
+                        BBMon = l['entry/control/monitor_counts'][0]
+                        BBCount_time = l['entry/collection_time'][0]
+                        BB_data = np.array(l['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
+                    trans_UU = (UU_data - BB_data*(UUCount_time/BBCount_time))*mask_it
+                    trans_DU = (DU_data - BB_data*(DUCount_time/BBCount_time))*mask_it
+                    trans_DD = (DD_data - BB_data*(DDCount_time/BBCount_time))*mask_it
+                    trans_UD = (UD_data - BB_data*(UDCount_time/BBCount_time))*mask_it
+                    trans_SM = (SM_data - BB_data*(SMCount_time/SMCount_time))*mask_it
+                    UU_value = (np.sum(trans_UU)/np.sum(trans_SM))*(SMMon / UUMon)
+                    UD_value = (np.sum(trans_UD)/np.sum(trans_SM))*(SMMon / UDMon)
+                    DD_value = (np.sum(trans_DD)/np.sum(trans_SM))*(SMMon / DDMon)
+                    DU_value = (np.sum(trans_DU)/np.sum(trans_SM))*(SMMon / DUMon)
+                    SM_value = np.sum(trans_SM*1E8/SMMon)
+                    if 'Trans' not in Pol_Trans[Samp]['T_UU']:
+                        Pol_Trans[Samp]['T_UU']['Trans'] = [UU_value]
+                        Pol_Trans[Samp]['T_DU']['Trans'] = [DU_value]
+                        Pol_Trans[Samp]['T_DD']['Trans'] = [DD_value]
+                        Pol_Trans[Samp]['T_UD']['Trans'] = [UD_value]
+                        Pol_Trans[Samp]['T_SM']['Trans_Cts'] = [SM_value]
+                    else:
+                        Pol_Trans[Samp]['T_UU']['Trans'].append(UU_value)
+                        Pol_Trans[Samp]['T_DU']['Trans'].append(DU_value)
+                        Pol_Trans[Samp]['T_DD']['Trans'].append(DD_value)
+                        Pol_Trans[Samp]['T_UD']['Trans'].append(UD_value)
+                        Pol_Trans[Samp]['T_SM']['Trans_Cts'].append(SM_value)
+                else: #no mask for Full_Pol trans
+                    UU = path + "sans" + str(UUFile) + ".nxs.ngv"
+                    DU = path + "sans" + str(DUFile) + ".nxs.ngv"
+                    DD = path + "sans" + str(DDFile) + ".nxs.ngv"
+                    UD = path + "sans" + str(UDFile) + ".nxs.ngv"
+                    SM = path + "sans" + str(SMFile) + ".nxs.ngv"
+                    f = h5py.File(UU)
+                    UUMon = f['entry/control/monitor_counts'][0]
+                    UU_counts = f['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
+                    UUCount_time = f['entry/collection_time'][0]
+                    g = h5py.File(DU)
+                    DUMon = g['entry/control/monitor_counts'][0]
+                    DU_counts = g['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
+                    DUCount_time = g['entry/collection_time'][0]
+                    h = h5py.File(DD)
+                    DDMon = h['entry/control/monitor_counts'][0]
+                    DD_counts = h['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
+                    DDCount_time = h['entry/collection_time'][0]
+                    j = h5py.File(UD)
+                    UDMon = j['entry/control/monitor_counts'][0]
+                    UD_counts = j['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
+                    UDCount_time = j['entry/collection_time'][0]
+                    k = h5py.File(SM)
+                    SMMon = k['entry/control/monitor_counts'][0]
+                    SM_counts = k['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
+                    SMCount_time = k['entry/collection_time'][0]
+                    if BBFile == 0:
+                        BB_counts = 0.0
+                        BBCount_time = 1.0
+                    else:
+                        BB = path + "sans" + str(BBFile) + ".nxs.ngv"
+                        l = h5py.File(BB)
+                        BBCount_time = l['entry/collection_time'][0]
+                        BB_counts = l['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
+                    trans_UU = (UU_counts - BB_counts*(UUCount_time/BBCount_time))
+                    trans_DU = (DU_counts - BB_counts*(DUCount_time/BBCount_time))
+                    trans_DD = (DD_counts - BB_counts*(DDCount_time/BBCount_time))
+                    trans_UD = (UD_counts - BB_counts*(UDCount_time/BBCount_time))
+                    trans_SM = (SM_counts - BB_counts*(SMCount_time/BBCount_time))
+                    UU_value = (trans_UU/trans_SM)*(SMMon / UUMon)
+                    UD_value = (trans_DU/trans_SM)*(SMMon / UDMon)
+                    DD_value = (trans_DD/trans_SM)*(SMMon / DDMon)
+                    DU_value = (trans_UD/trans_SM)*(SMMon / DUMon)
+                    SM_value = trans_SM*1E8/SMMon
+                    if 'Trans' not in Pol_Trans[Samp]['T_UU']:
+                        Pol_Trans[Samp]['T_UU']['Trans'] = [UU_value]
+                        Pol_Trans[Samp]['T_DU']['Trans'] = [DU_value]
+                        Pol_Trans[Samp]['T_DD']['Trans'] = [DD_value]
+                        Pol_Trans[Samp]['T_UD']['Trans'] = [UD_value]
+                        Pol_Trans[Samp]['T_SM']['Trans_Cts'] = [SM_value]
+                    else:
+                        Pol_Trans[Samp]['T_UU']['Trans'].append(UU_value)
+                        Pol_Trans[Samp]['T_DU']['Trans'].append(DU_value)
+                        Pol_Trans[Samp]['T_DD']['Trans'].append(DD_value)
+                        Pol_Trans[Samp]['T_UD']['Trans'].append(UD_value)
+                        Pol_Trans[Samp]['T_SM']['Trans_Cts'].append(SM_value)
+                counter += 1
+
+    for Samp in Trans:
+        for Config in Trans[Samp]['Config(s)']:
             if Config in BlockBeam:
                 if 'Trans' in BlockBeam[Config]:
                     BBFile = BlockBeam[Config]['Trans']['File']
@@ -520,139 +642,83 @@ def Process_Transmissions(BlockBeam, Masks, HE3_Trans, Pol_Trans, Trans):
                     BBFile = BlockBeam[Config]['Scatt']['File']
                 else:
                     BBFile = 0
-            if Config in Masks and 'NA' not in Masks[Config]['Trans']:
-                mask_it = np.array(Masks[Config]['Trans'][TransPanel])
-                UU = path + "sans" + str(UUFile) + ".nxs.ngv"
-                DU = path + "sans" + str(DUFile) + ".nxs.ngv"
-                DD = path + "sans" + str(DDFile) + ".nxs.ngv"
-                UD = path + "sans" + str(UDFile) + ".nxs.ngv"
-                SM = path + "sans" + str(SMFile) + ".nxs.ngv"
-                f = h5py.File(UU)
-                UUMon = f['entry/control/monitor_counts'][0]
-                UU_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
-                UUCount_time = f['entry/collection_time'][0]
-
-                g = h5py.File(DU)
-                DUMon = g['entry/control/monitor_counts'][0]
-                DU_data = np.array(g['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
-                DUCount_time = g['entry/collection_time'][0]
-
-                h = h5py.File(DD)
-                DDMon = h['entry/control/monitor_counts'][0]
-                DD_data = np.array(h['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
-                DDCount_time = h['entry/collection_time'][0]
-
-                j = h5py.File(UD)
-                UDMon = j['entry/control/monitor_counts'][0]
-                UD_data = np.array(j['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
-                UDCount_time = j['entry/collection_time'][0]
-
-                k = h5py.File(SM)
-                SMMon = k['entry/control/monitor_counts'][0]
-                SM_data = np.array(k['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
-                SMCount_time = k['entry/collection_time'][0]
-
-                if BBFile == 0:
-                    BB_Data = np.zeros_like(UU_data)
-                else:
-                    BB = path + "sans" + str(BBFile) + ".nxs.ngv"
-                    l = h5py.File(BB)
-                    BBMon = l['entry/control/monitor_counts'][0]
-                    BBCount_time = l['entry/collection_time'][0]
-                    BB_data = np.array(l['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
-                    
-                trans_UU = (UU_data - BB_data*(UUCount_time/BBCount_time))*mask_it
-                trans_DU = (DU_data - BB_data*(DUCount_time/BBCount_time))*mask_it
-                trans_DD = (DD_data - BB_data*(DDCount_time/BBCount_time))*mask_it
-                trans_UD = (UD_data - BB_data*(UDCount_time/BBCount_time))*mask_it
-                trans_SM = (SM_data - BB_data*(SMCount_time/SMCount_time))*mask_it
-                
-                UU_value = (np.sum(trans_UU)/np.sum(trans_SM))*(SMMon / UUMon)
-                UD_value = (np.sum(trans_UD)/np.sum(trans_SM))*(SMMon / UDMon)
-                DD_value = (np.sum(trans_DD)/np.sum(trans_SM))*(SMMon / DDMon)
-                DU_value = (np.sum(trans_DU)/np.sum(trans_SM))*(SMMon / DUMon)
-                SM_value = np.sum(trans_SM)
-                
-                if 'Trans' not in Pol_Trans[Samp]['T_UU']:
-                    Pol_Trans[Samp]['T_UU']['Trans'] = [UU_value]
-                    Pol_Trans[Samp]['T_DU']['Trans'] = [DU_value]
-                    Pol_Trans[Samp]['T_DD']['Trans'] = [DD_value]
-                    Pol_Trans[Samp]['T_UD']['Trans'] = [UD_value]
-                    Pol_Trans[Samp]['T_SM']['Abs_Trans'] = [SM_value]
-                else:
-                    Pol_Trans[Samp]['T_UU']['Trans'].append(UU_value)
-                    Pol_Trans[Samp]['T_DU']['Trans'].append(DU_value)
-                    Pol_Trans[Samp]['T_DD']['Trans'].append(DD_value)
-                    Pol_Trans[Samp]['T_UD']['Trans'].append(UD_value)
-                    Pol_Trans[Samp]['T_SM']['Abs_Trans'].append(SM_value)
-            else:
-                UU = path + "sans" + str(UUFile) + ".nxs.ngv"
-                DU = path + "sans" + str(DUFile) + ".nxs.ngv"
-                DD = path + "sans" + str(DDFile) + ".nxs.ngv"
-                UD = path + "sans" + str(UDFile) + ".nxs.ngv"
-                SM = path + "sans" + str(SMFile) + ".nxs.ngv"
-                f = h5py.File(UU)
-                UUMon = f['entry/control/monitor_counts'][0]
-                UU_counts = f['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
-                UUCount_time = f['entry/collection_time'][0]
-
-                g = h5py.File(DU)
-                DUMon = g['entry/control/monitor_counts'][0]
-                DU_counts = g['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
-                DUCount_time = g['entry/collection_time'][0]
-
-                h = h5py.File(DD)
-                DDMon = h['entry/control/monitor_counts'][0]
-                DD_counts = h['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
-                DDCount_time = h['entry/collection_time'][0]
-
-                j = h5py.File(UD)
-                UDMon = j['entry/control/monitor_counts'][0]
-                UD_counts = j['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
-                UDCount_time = j['entry/collection_time'][0]
-
-                k = h5py.File(SM)
-                SMMon = k['entry/control/monitor_counts'][0]
-                SM_counts = k['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
-                SMCount_time = k['entry/collection_time'][0]
-                
-                if BBFile == 0:
-                    BB_counts = 0.0
-                else:
-                    BB = path + "sans" + str(BBFile) + ".nxs.ngv"
-                    l = h5py.File(BB)
-                    BBMon = l['entry/control/monitor_counts'][0]
-                    BBCount_time = l['entry/collection_time'][0]
-                    BB_counts = l['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
-
-                trans_UU = (UU_counts - BB_counts*(UUCount_time/BBCount_time))
-                trans_DU = (DU_counts - BB_counts*(DUCount_time/BBCount_time))
-                trans_DD = (DD_counts - BB_counts*(DDCount_time/BBCount_time))
-                trans_UD = (UD_counts - BB_counts*(UDCount_time/BBCount_time))
-                trans_SM = (SM_counts - BB_counts*(SMCount_time/SMCount_time))
-                
-                UU_value = (trans_UU/trans_SM)*(SMMon / UUMon)
-                UD_value = (trans_DU/trans_SM)*(SMMon / UDMon)
-                DD_value = (trans_DD/trans_SM)*(SMMon / DDMon)
-                DU_value = (trans_UD/trans_SM)*(SMMon / DUMon)
-                SM_value = trans_SM
-
-                if 'Trans' not in Pol_Trans[Samp]['T_UU']:
-                    Pol_Trans[Samp]['T_UU']['Trans'] = [UU_value]
-                    Pol_Trans[Samp]['T_DU']['Trans'] = [DU_value]
-                    Pol_Trans[Samp]['T_DD']['Trans'] = [DD_value]
-                    Pol_Trans[Samp]['T_UD']['Trans'] = [UD_value]
-                    Pol_Trans[Samp]['T_SM']['Abs_Trans'] = [SM_value]
-                else:
-                    Pol_Trans[Samp]['T_UU']['Trans'].append(UU_value)
-                    Pol_Trans[Samp]['T_DU']['Trans'].append(DU_value)
-                    Pol_Trans[Samp]['T_DD']['Trans'].append(DD_value)
-                    Pol_Trans[Samp]['T_UD']['Trans'].append(UD_value)
-                    Pol_Trans[Samp]['T_SM']['Abs_Trans'].append(SM_value)
-                    
-
-            counter += 1
-            
+                if Config in Masks and 'NA' not in Masks[Config]['Trans']:
+                    mask_it = np.array(Masks[Config]['Trans'][TransPanel])
+                    if BBFile == 0:
+                        example_file = Configs[Config]
+                        BB = path + "sans" + str(example_file) + ".nxs.ngv"
+                        l = h5py.File(BB)
+                        Example_data = np.array(l['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
+                        BB_Data = np.zeros_like(Example_data)
+                        BBCount_time = 1.0
+                    else:
+                        BB = path + "sans" + str(BBFile) + ".nxs.ngv"
+                        l = h5py.File(BB)
+                        BBMon = l['entry/control/monitor_counts'][0]
+                        BBCount_time = l['entry/collection_time'][0]
+                        BB_data = np.array(l['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
+                    if 'NA' not in Trans[Samp]['Config(s)'][Config]['Unpol_Files']:
+                        for UNF in Trans[Samp]['Config(s)'][Config]['Unpol_Files']:
+                            UN_file = path + "sans" + str(UNF) + ".nxs.ngv"
+                            f = h5py.File(UN_file)
+                            UNMon = f['entry/control/monitor_counts'][0]
+                            UN_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
+                            UNCount_time = f['entry/collection_time'][0]
+                            UNTrans = (UN_data - BB_data*(UNCount_time/BBCount_time))*mask_it
+                            UN_Trans = np.sum(UNTrans)*1E8/UNMon
+                            if 'NA' in Trans[Samp]['Config(s)'][Config]['Unpol_Trans_Cts']:
+                                Trans[Samp]['Config(s)'][Config]['Unpol_Trans_Cts'] = [UN_Trans]
+                            else:
+                                Trans[Samp]['Config(s)'][Config]['Unpol_Trans_Cts'].append(UN_Trans)        
+                    if 'NA' not in Trans[Samp]['Config(s)'][Config]['U_Files']:
+                        for UF in Trans[Samp]['Config(s)'][Config]['U_Files']:
+                            U_file = path + "sans" + str(UF) + ".nxs.ngv"
+                            f = h5py.File(U_file)
+                            UMon = f['entry/control/monitor_counts'][0]
+                            U_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
+                            UCount_time = f['entry/collection_time'][0]
+                            UTrans = (U_data - BB_data*(UCount_time/BBCount_time))*mask_it
+                            U_Trans = np.sum(UTrans)*1E8/UNMon
+                            if 'NA' in Trans[Samp]['Config(s)'][Config]['U_Trans_Cts']:
+                                Trans[Samp]['Config(s)'][Config]['U_Trans_Cts'] = [U_Trans]
+                            else:
+                                Trans[Samp]['Config(s)'][Config]['U_Trans_Cts'].append(U_Trans)
+                else: #no mask for Trans
+                    if BBFile == 0:
+                        BB_counts = 0.0
+                        BBCount_time = 1.0
+                    else:
+                        BB = path + "sans" + str(BBFile) + ".nxs.ngv"
+                        l = h5py.File(BB)
+                        BBCount_time = l['entry/collection_time'][0]
+                        BB_counts = l['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
+                    if 'NA' not in Trans[Samp]['Config(s)'][Config]['Unpol_Files']:
+                        for UNF in Trans[Samp]['Config(s)'][Config]['Unpol_Files']:
+                            UN_file = path + "sans" + str(UNF) + ".nxs.ngv"
+                            f = h5py.File(UN_file)
+                            UNMon = f['entry/control/monitor_counts'][0]
+                            UN_counts = f['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
+                            UNCount_time = f['entry/collection_time'][0]
+                            UNTrans = (UN_counts - BB_counts*(UNCount_time/BBCount_time))
+                            UN_Trans = UNTrans * 1E8 / UNMon
+                            if 'NA' in Trans[Samp]['Config(s)'][Config]['Unpol_Trans_Cts']:
+                                Trans[Samp]['Config(s)'][Config]['Unpol_Trans_Cts'] = [UN_Trans]
+                            else:
+                                Trans[Samp]['Config(s)'][Config]['Unpol_Trans_Cts'].append(UN_Trans)
+                    if 'NA' not in Trans[Samp]['Config(s)'][Config]['U_Files']:
+                        for UF in Trans[Samp]['Config(s)'][Config]['U_Files']:
+                            U_file = path + "sans" + str(UF) + ".nxs.ngv"
+                            f = h5py.File(U_file)
+                            UMon = f['entry/control/monitor_counts'][0]
+                            U_counts = f['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
+                            UCount_time = f['entry/collection_time'][0]
+                            UTrans = (U_counts - BB_counts*(UCount_time/BBCount_time))
+                            U_Trans = UTrans * 1E8 / UMon
+                            if 'NA' in Trans[Samp]['Config(s)'][Config]['U_Trans_Cts']:
+                                Trans[Samp]['Config(s)'][Config]['U_Trans_Cts'] = [U_Trans]
+                            else:
+                                Trans[Samp]['Config(s)'][Config]['U_Trans_Cts'].append(U_Trans)
+                                         
     return
 
 
@@ -977,7 +1043,7 @@ def SortData(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues, start_numbe
                                                          'T_DU': {'File': [DU_Transfilenumber], 'Trans' : [DU_Trans/SM_Trans], 'Meas_Time' : [DU_Time]},
                                                          'T_DD': {'File': [DD_Transfilenumber], 'Trans' : [DD_Trans/SM_Trans], 'Meas_Time' : [DD_Time]},
                                                          'T_UD': {'File': [UD_Transfilenumber], 'Trans' : [UD_Trans/SM_Trans], 'Meas_Time' : [UD_Time]},
-                                                         'T_SM': {'File': [SM_Transfilenumber], 'Abs_Trans' : [SM_Trans]},
+                                                         'T_SM': {'File': [SM_Transfilenumber], 'Trans_Cts' : [SM_Trans]},
                                                          'BlockBeam': {'File': [BlockBeam_filenumber]},
                                                          'Config' : [UU_Trans_Config]
                                                          }
@@ -995,7 +1061,7 @@ def SortData(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues, start_numbe
                                                     Pol_Trans[ID]['T_UD']['Trans'].append(UD_Trans/SM_Trans)
                                                     Pol_Trans[ID]['T_UD']['Meas_Time'].append(UD_Time)
                                                     Pol_Trans[ID]['T_SM']['File'].append(SM_Transfilenumber)
-                                                    Pol_Trans[ID]['T_SM']['Abs_Trans'].append(SM_Trans)
+                                                    Pol_Trans[ID]['T_SM']['Trans_Cts'].append(SM_Trans)
                                                     Pol_Trans[ID]['BlockBeam']['File'].append(BlockBeam_filenumber)
                                                     Pol_Trans[ID]['Config'].append(UU_Trans_Config)
 
@@ -1810,7 +1876,7 @@ def HE3_DecayCurves(HE3_Trans):
 
     return HE3_Cell_Summary
 
-def Pol_SuppermirrorAndFlipper(Pol_Trans):
+def Pol_SuppermirrorAndFlipper(Pol_Trans, HE3_Cell_Summary):
     #Uses time of measurement from Pol_Trans,
     #saves PSM and PF values into Pol_Trans.
     #Uses prefefined HE3_Pol_AtGivenTime function.
@@ -1851,7 +1917,7 @@ def Pol_SuppermirrorAndFlipper(Pol_Trans):
             
 
     for ID in Pol_Trans:
-        ABS = np.array(Pol_Trans[ID]['T_SM']['Abs_Trans'])
+        ABS = np.array(Pol_Trans[ID]['T_SM']['Trans_Cts'])
         Pol_Trans[ID]['AbsScale'] = np.average(ABS)
 
         UU = np.array(Pol_Trans[ID]['T_UU']['Trans'])
@@ -2161,11 +2227,23 @@ Process_Transmissions(BlockBeam, Masks, HE3_Trans, Pol_Trans, Trans)
 
 HE3_Cell_Summary = HE3_DecayCurves(HE3_Trans)
 
-Pol_SuppermirrorAndFlipper(Pol_Trans)
+Pol_SuppermirrorAndFlipper(Pol_Trans, HE3_Cell_Summary)
 
 Plex = Plex_File()
 
+for CF in Configs:
+    representative_filenumber = Configs[CF]
+    Solid_Angle = SolidAngle_AllDetectors(representative_filenumber) #Solid_Angle[dshort]
+    QX, QY, QZ, Q_total, Q_perp_unc, Q_parl_unc, dimXX, dimYY, Right_mask, Top_mask, Left_mask, Bottom_mask, DiagCW_mask, DiagCCW_mask, No_mask, Mask_User_Definedm, Shadow = QCalculationAndMasks_AllDetectors(representative_filenumber, SectorCutAngles)
+        
+#Scatt[Sample_Name] = {'Intent': Intent_short, 'Sample_Base': Sample_Base,
+#'Config(s)' : {Config : {'Unpol': 'NA', 'U' : 'NA', 'D' : 'NA','UU' : 'NA', 'DU' : 'NA', 'DD' : 'NA', 'UD' : 'NA'}}}
+                                
+    
+
 '''
+
+Plex = Plex_File()
 
 Trans_masks = Trans_Mask()
 
@@ -2243,7 +2321,7 @@ FullPolResults = {}
 if FullPolYeseNo == 1:
     HE3_Cell_Summary = HE3_DecayCurves(HE3_Trans)
 
-    Pol_SuppermirrorAndFlipper(Pol_Trans)
+    Pol_SuppermirrorAndFlipper(Pol_Trans, HE3_Cell_Summary)
 
     PolToSubtract_AllDetectors = {}            
     for ID in Pol_Scatt:
@@ -2265,9 +2343,9 @@ if FullPolYeseNo == 1:
                 
         if Print_ASCII == 1:
             ASCIIlike_Output(DataType, ID, Config_ID, PolData_AllDetectors, Unc_PolData_AllDetectors, QValues_All[Config_ID])
+
+
 '''
-
-
 
 #*************************************************
 #***           End of 'The Program'            ***
