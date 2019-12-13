@@ -1853,6 +1853,7 @@ def SliceDataPolData(Q_min, Q_max, Q_bins, QGridPerDetector, masks, PolCorr_AllD
      
     return Output
 
+
 def He3Decay_func(t, p, gamma):
     return p * np.exp(-t / gamma)
 
@@ -2078,9 +2079,10 @@ def Pol_SuppermirrorAndFlipper(Pol_Trans, HE3_Cell_Summary):
         Pol_Trans[ID]['P_SM'] = np.average(PSM_All)
         print('Ave P_SM is', Pol_Trans[ID]['P_SM'])
 
-        ADD1 = (UU/UU_UnpolHe3Trans + UD/UD_UnpolHe3Trans)/2.0
-        ADD2 = (DD/DD_UnpolHe3Trans + DU/DU_UnpolHe3Trans)/2.0
+        #ADD1 = (UU/UU_UnpolHe3Trans + UD/UD_UnpolHe3Trans)/2.0
+        #ADD2 = (DD/DD_UnpolHe3Trans + DU/DU_UnpolHe3Trans)/2.0
         #print('UU + UD', ADD1, 'DD + DU', ADD2)
+
 
         if UsePolCorr == 0:#0 Means no, turn it off
             Pol_Trans[ID]['P_SM'] = 1.0
@@ -2371,6 +2373,221 @@ def AbsScaleAndPolarizationCorrectData(GroupID, configuration, Pol_Trans, Pol_Sc
 
     return PolCorr_AllDetectors, Uncertainty_PolCorr_AllDetectors
 
+def SliceData(Slice_Type, Q_min, Q_max, Q_bins, QGridPerDetector, masks, PolCorr_AllDetectors, Unc_PolCorr_AllDetectors, dimXX, dimYY, ID, Config, PlotYesNo):
+    
+    Key = Slice_Type
+    print('Plotting and saving {type} cuts for GroupID {idnum} at Configuration {cf}'.format(type=Key, idnum=ID, cf = Config))
+    Q_Values = np.linspace(Q_min, Q_max, Q_bins, endpoint=True)
+    Q_step = (Q_max - Q_min) / Q_bins  
+    FrontUU = np.zeros_like(Q_Values)
+    FrontDU = np.zeros_like(Q_Values)
+    FrontDD = np.zeros_like(Q_Values)
+    FrontUD = np.zeros_like(Q_Values)
+    FrontUU_Unc = np.zeros_like(Q_Values)
+    FrontDU_Unc = np.zeros_like(Q_Values)
+    FrontDD_Unc = np.zeros_like(Q_Values)
+    FrontUD_Unc = np.zeros_like(Q_Values)
+    FrontMeanQ = np.zeros_like(Q_Values)
+    FrontMeanQUnc = np.zeros_like(Q_Values)
+    FrontPixels = np.zeros_like(Q_Values)
+    MiddleUU = np.zeros_like(Q_Values)
+    MiddleDU = np.zeros_like(Q_Values)
+    MiddleDD = np.zeros_like(Q_Values)
+    MiddleUD = np.zeros_like(Q_Values)
+    MiddleUU_Unc = np.zeros_like(Q_Values)
+    MiddleDU_Unc = np.zeros_like(Q_Values)
+    MiddleDD_Unc = np.zeros_like(Q_Values)
+    MiddleUD_Unc = np.zeros_like(Q_Values)
+    MiddleMeanQ = np.zeros_like(Q_Values)
+    MiddleMeanQUnc = np.zeros_like(Q_Values)
+    MiddlePixels = np.zeros_like(Q_Values)
+    
+    for dshort in short_detectors:
+        dimX = dimXX[dshort]
+        dimY = dimYY[dshort]
+        Q_tot = QGridPerDetector['Q_total'][dshort][:][:]
+        Q_unc = np.sqrt(np.power(QGridPerDetector['Q_perp_unc'][dshort][:][:],2) + np.power(QGridPerDetector['Q_parl_unc'][dshort][:][:],2))
+        UU = PolCorr_AllDetectors[dshort][0][:][:]
+        UU = UU.reshape((dimX, dimY))
+        DU = PolCorr_AllDetectors[dshort][1][:][:]
+        DU = DU.reshape((dimX, dimY))
+        DD = PolCorr_AllDetectors[dshort][2][:][:]
+        DD = DD.reshape((dimX, dimY))
+        UD = PolCorr_AllDetectors[dshort][3][:][:]
+        UD = UD.reshape((dimX, dimY))
+        UU_Unc = Unc_PolCorr_AllDetectors[dshort][0][:][:]
+        UU_Unc = UU_Unc.reshape((dimX, dimY))
+        DU_Unc = Unc_PolCorr_AllDetectors[dshort][1][:][:]
+        DU_Unc = DU_Unc.reshape((dimX, dimY))
+        DD_Unc = Unc_PolCorr_AllDetectors[dshort][2][:][:]
+        DD_Unc = DD_Unc.reshape((dimX, dimY))
+        UD_Unc = Unc_PolCorr_AllDetectors[dshort][3][:][:]
+        UD_Unc = UD_Unc.reshape((dimX, dimY))
+
+        Exp_bins = np.linspace(Q_min, Q_max + Q_step, Q_bins + 1, endpoint=True)
+        countsUU, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=UU[masks[dshort] > 0])
+        countsDU, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=DU[masks[dshort] > 0])
+        countsDD, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=DD[masks[dshort] > 0])
+        countsUD, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=UD[masks[dshort] > 0])
+        
+        UncUU, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=np.power(UU_Unc[masks[dshort] > 0],2))
+        UncDU, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=np.power(DU_Unc[masks[dshort] > 0],2))
+        UncDD, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=np.power(DD_Unc[masks[dshort] > 0],2))
+        UncUD, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=np.power(UD_Unc[masks[dshort] > 0],2))
+        
+        MeanQSum, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=Q_tot[masks[dshort] > 0])
+        MeanQUnc, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=np.power(Q_unc[masks[dshort] > 0],2)) 
+        pixels, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=np.ones_like(UU)[masks[dshort] > 0])  
+        carriage_key = dshort[0]
+        if carriage_key == 'F':
+            FrontUU += countsUU
+            FrontDU += countsDU
+            FrontDD += countsDD
+            FrontUD += countsUD
+            FrontUU_Unc += UncUU
+            FrontDU_Unc += UncDU
+            FrontDD_Unc += UncDD
+            FrontUD_Unc += UncUD
+            FrontMeanQ += MeanQSum
+            FrontMeanQUnc += MeanQUnc
+            FrontPixels += pixels
+        elif carriage_key == 'M':
+            MiddleUU += countsUU
+            MiddleDU += countsDU
+            MiddleDD += countsDD
+            MiddleUD += countsUD
+            MiddleUU_Unc += UncUU
+            MiddleDU_Unc += UncDU
+            MiddleDD_Unc += UncDD
+            MiddleUD_Unc += UncUD
+            MiddleMeanQ += MeanQSum
+            MiddleMeanQUnc += MeanQUnc
+            MiddlePixels += pixels
+
+    nonzero_front_mask = (FrontPixels > 0) #True False map
+    nonzero_middle_mask = (MiddlePixels > 0) #True False map
+    Q_Front = Q_Values[nonzero_front_mask]
+    MeanQ_Front = FrontMeanQ[nonzero_front_mask] / FrontPixels[nonzero_front_mask]
+    MeanQUnc_Front = np.sqrt(FrontMeanQUnc[nonzero_front_mask]) / FrontPixels[nonzero_front_mask]
+    UUF = FrontUU[nonzero_front_mask] / FrontPixels[nonzero_front_mask]
+    DUF = FrontDU[nonzero_front_mask] / FrontPixels[nonzero_front_mask]
+    DDF = FrontDD[nonzero_front_mask] / FrontPixels[nonzero_front_mask]
+    UDF = FrontUD[nonzero_front_mask] / FrontPixels[nonzero_front_mask]
+    Q_Middle = Q_Values[nonzero_middle_mask]
+    MeanQ_Middle = MiddleMeanQ[nonzero_middle_mask] / MiddlePixels[nonzero_middle_mask]
+    MeanQUnc_Middle = np.sqrt(MiddleMeanQUnc[nonzero_middle_mask]) / MiddlePixels[nonzero_middle_mask]
+    UUM = MiddleUU[nonzero_middle_mask] / MiddlePixels[nonzero_middle_mask]
+    DUM = MiddleDU[nonzero_middle_mask] / MiddlePixels[nonzero_middle_mask]
+    DDM = MiddleDD[nonzero_middle_mask] / MiddlePixels[nonzero_middle_mask]
+    UDM = MiddleUD[nonzero_middle_mask] / MiddlePixels[nonzero_middle_mask]
+
+    Sigma_UUF = np.sqrt(FrontUU_Unc[nonzero_front_mask]) / FrontPixels[nonzero_front_mask]
+    Sigma_DUF = np.sqrt(FrontDU_Unc[nonzero_front_mask]) / FrontPixels[nonzero_front_mask]
+    Sigma_DDF = np.sqrt(FrontDD_Unc[nonzero_front_mask]) / FrontPixels[nonzero_front_mask]
+    Sigma_UDF = np.sqrt(FrontUD_Unc[nonzero_front_mask]) / FrontPixels[nonzero_front_mask]
+    Sigma_UUM = np.sqrt(MiddleUU_Unc[nonzero_middle_mask]) / MiddlePixels[nonzero_middle_mask]
+    Sigma_DUM = np.sqrt(MiddleDU_Unc[nonzero_middle_mask]) / MiddlePixels[nonzero_middle_mask]
+    Sigma_DDM = np.sqrt(MiddleDD_Unc[nonzero_middle_mask]) / MiddlePixels[nonzero_middle_mask]
+    Sigma_UDM = np.sqrt(MiddleUD_Unc[nonzero_middle_mask]) / MiddlePixels[nonzero_middle_mask]
+
+    UUM = UUM - LowQ_Offset_NSF
+    DUM = DUM - LowQ_Offset_SF
+    DDM = DDM - LowQ_Offset_NSF
+    UDM = UDM - LowQ_Offset_SF
+    
+    Q_Common = np.concatenate((Q_Middle, Q_Front), axis=0)
+    Q_Mean = np.concatenate((MeanQ_Middle, MeanQ_Front), axis=0)
+    Q_Uncertainty = np.concatenate((MeanQUnc_Middle, MeanQUnc_Front), axis=0)
+    UU = np.concatenate((UUM, UUF), axis=0)
+    DU = np.concatenate((DUM, DUF), axis=0)
+    DD = np.concatenate((DDM, DDF), axis=0)
+    UD = np.concatenate((UDM, UDF), axis=0)
+    SigmaUU = np.concatenate((Sigma_UUM, Sigma_UUF), axis=0)
+    SigmaDU = np.concatenate((Sigma_DUM, Sigma_DUF), axis=0)
+    SigmaDD = np.concatenate((Sigma_DDM, Sigma_DDF), axis=0)
+    SigmaUD = np.concatenate((Sigma_UDM, Sigma_UDF), axis=0)
+    Shadow = np.ones_like(Q_Common)
+
+    if PlotYesNo == 1:
+        fig = plt.figure()
+        '''If don't want to plot error bars, use something like plt.loglog(Q_Front, UUF, 'b*', label='Front, UU')'''
+        ax = plt.axes()
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.errorbar(Q_Front, UUF, yerr=Sigma_UUF, fmt = 'b*', label='Front, UU')
+        ax.errorbar(Q_Middle, UUM, yerr=Sigma_UUM, fmt = 'g*', label='Middle, UU')
+        ax.errorbar(Q_Front, DDF, yerr=Sigma_DDF, fmt = 'm*', label='Front, DD')
+        ax.errorbar(Q_Middle, DDM, yerr=Sigma_DDM, fmt = 'r*', label='Middle, DD')
+        ax.errorbar(Q_Front, DUF, yerr=Sigma_DUF, fmt = 'c.', label='Front, DU')
+        ax.errorbar(Q_Middle, DUM, yerr=Sigma_DUM, fmt = 'm.', label='Middle, DU')
+        ax.errorbar(Q_Front, UDF, yerr=Sigma_UDF, fmt = 'y.', label='Front, UD')
+        ax.errorbar(Q_Middle, UDM, yerr=Sigma_UDM, fmt = 'b.', label='Middle, UD') 
+        plt.xlabel('Q')
+        plt.ylabel('Intensity')
+        plt.title('FullPol_{keyword}Cuts for ID = {idnum} and Config = {cf}'.format(keyword=Key, idnum=ID, cf = Config))
+        plt.legend()
+        fig.savefig('{keyword}FullPol_Cuts_ID{idnum}_CF{cf}.png'.format(keyword=Key, idnum=ID, cf = Config))
+        plt.show()
+
+        SFF = DUF + DUF
+        Sigma_SFF = np.sqrt(np.power(Sigma_DUF,2) + np.power(Sigma_UDF,2))
+        SFM = DUM + DUM
+        Sigma_SFM = np.sqrt(np.power(Sigma_DUM,2) + np.power(Sigma_UDM,2))
+
+        NSFF = UUF + DDF
+        Sigma_NSFF = np.sqrt(np.power(Sigma_UUF,2) + np.power(Sigma_DDF,2))
+        NSFM = UUM + DDM
+        Sigma_NSFM = np.sqrt(np.power(Sigma_UUM,2) + np.power(Sigma_DDM,2))
+
+        
+        fig = plt.figure()
+        #If don't want to plot error bars, use something like plt.loglog(Q_Front, UUF, 'b*', label='Front, UU')
+        ax = plt.axes()
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.errorbar(Q_Middle, NSFM, yerr=Sigma_NSFM, fmt = 'm*', label='Middle, UU + DD')
+        ax.errorbar(Q_Front, NSFF, yerr=Sigma_NSFF, fmt = 'r*', label='Front, UU + DD')
+        ax.errorbar(Q_Middle, SFM, yerr=Sigma_SFM, fmt = 'b*', label='Middle, UD + DU')
+        ax.errorbar(Q_Front, SFF, yerr=Sigma_SFF, fmt = 'g*', label='Front, UD + DU')
+        plt.xlabel('Q')
+        plt.ylabel('Intensity')
+        plt.title('FullPol_{keyword}Cuts for ID = {idnum} and Config = {cf}'.format(keyword=Key, idnum=ID, cf = Config))
+        plt.legend()
+        fig.savefig('{keyword}FullPol_Combined_ID{idnum}_CF{cf}.png'.format(keyword=Key, idnum=ID, cf = Config))
+        plt.show()
+        
+
+        SF = UD + DU
+        SF_Unc = np.sqrt(np.power(SigmaDU,2) + np.power(SigmaUD,2))
+        NSF = UU + DD
+        NSF_Unc = np.sqrt(np.power(SigmaUU,2) + np.power(SigmaDD,2))
+        NSFDiff = DD - UU
+
+        text_output = np.array([Q_Common, UU, SigmaUU, DU, SigmaDU, DD, SigmaDD, UD, SigmaUD, Q_Uncertainty, Q_Mean, Shadow])
+        text_output = text_output.T
+        np.savetxt('{key}FullPol_ID={idnum}Config={cf}.txt'.format(key=Key, idnum=ID, cf = Config), text_output, header='Q, UU, DelUU, DU, DelUD, DD, DelDD, UD, DelUD, DQ, MeanQ, Shadow', fmt='%1.4e')
+
+        '''
+        text_output2 = np.array([Q_Common, SF, SF_Unc, NSF, NSF_Unc, NSFDiff, Q_Uncertainty, Q_Mean, Shadow])
+        text_output2 = text_output2.T
+        np.savetxt('{key}FullPol_ID={idnum}Config={cf}.txt'.format(key=Key, idnum=ID, cf = Config), text_output2, header='Q, SF, DelSF, NSF, DelNSF, NSFDiff, DelQ, MeanQ, Shadow', fmt='%1.4e')
+        '''
+        
+        Output = {}
+        Output['Q_Common'] = Q_Common
+        Output['Q_Mean'] = Q_Mean
+        Output['SF'] = SF
+        Output['SF_Unc'] = SF_Unc
+        Output['NSF'] = NSF
+        Output['NSFDiff'] = NSFDiff
+        Output['NSF_Unc'] = NSF_Unc
+        Output['Q_Uncertainty'] = Q_Uncertainty
+        Output['Q_Mean'] = Q_Mean
+        Output['Shadow'] = Shadow
+     
+    return Output
+
+
 def ASCIIlike_Output(Type, ID, Config, Data_AllDetectors, Unc_Data_AllDetectors, QGridPerDetector):
 
     for dshort in short_detectors:
@@ -2444,6 +2661,7 @@ Pol_SuppermirrorAndFlipper(Pol_Trans, HE3_Cell_Summary)
 Plex = Plex_File()
 
 Trunc_mask = {}
+Slice_mask = {}
 FullPolResults = {}
 QValues_All = {}
 PlotYesNo = 1 #1 means yes
@@ -2451,37 +2669,57 @@ for Config in Configs:
     representative_filenumber = Configs[Config]
     Solid_Angle = SolidAngle_AllDetectors(representative_filenumber)
     BB_per_second = BlockedBeamScattCountsPerSecond(Config, representative_filenumber)
-    #Masks[ConfigID]['Scatt_WithSolenoid']
-    #Masks[ConfigID]['Scatt_Standard']
-    #if 'Scatt_WithSolenoid' in Masks[Config]:
     QX, QY, QZ, Q_total, Q_perp_unc, Q_parl_unc, dimXX, dimYY, Right_mask, Top_mask, Left_mask, Bottom_mask, DiagCW_mask, DiagCCW_mask, No_mask, Mask_User_Definedm, Shadow = QCalculationAndMasks_AllDetectors(representative_filenumber, SectorCutAngles)
-
-    MinMQ = np.amin(Q_total['MR'])
-    print('MinMQ', MinMQ)
-    MaxMQ = np.amax(Q_total['MR'])
-    print('MaxMQ', MaxMQ)
-    MinFQ = np.amin(Q_total['FR'])
-    print('MinFQ', MinFQ)
-    MaxFQ = np.amax(Q_total['FR'])
-    print('MaxFQ', MaxFQ)
-    
-    QValues_All[Config] = {'QX':QX,'QY':QY,'QZ':QZ,'Q_total':Q_total,'Q_perp_unc':Q_perp_unc,'Q_parl_unc':Q_parl_unc}
-    Trunc_mask['label'] = 'Vert'
-    #Trunc_mask['label'] = 'Horz'
+    QValues_All = {'QX':QX,'QY':QY,'QZ':QZ,'Q_total':Q_total,'Q_perp_unc':Q_perp_unc,'Q_parl_unc':Q_parl_unc}
+    MinQ1 = np.amin(Q_total['MR'])
+    MinQ2 = np.amin(Q_total['ML'])
+    MinQ3 = np.amin(Q_total['MT'])
+    MinQ4 = np.amin(Q_total['MB'])
+    MinQs = np.array([MinQ1, MinQ2, MinQ3, MinQ4])
+    MinQ_Middle = np.amin(MinQs)
+    MaxQ1 = np.amax(Q_total['FR'])
+    MaxQ2 = np.amax(Q_total['FL'])
+    MaxQ3 = np.amax(Q_total['FT'])
+    MaxQ4 = np.amax(Q_total['FB'])
+    MaxQs = np.array([MaxQ1, MaxQ2, MaxQ3, MaxQ4])
+    MaxQ_Front = np.amax(MaxQs)
+    Q_min = MinQ_Middle 
+    Q_max = MaxQ_Front
+    Q_bins = 180 #120
     for dshort in short_detectors:
-        Trunc_mask[dshort] = Top_mask[dshort] +  Bottom_mask[dshort]
-        #Trunc_mask[dshort] = Left_mask[dshort] +  Right_mask[dshort]
+        #Slice_mask[dshort] = Top_mask[dshort] + Bottom_mask[dshort]
+        Slice_mask[dshort] = Left_mask[dshort] +  Right_mask[dshort]
+    if Config in Masks:
+        if 'Scatt_WithSolenoid' in Masks[Config]:
+            for dshort in short_detectors:
+                Trunc_mask[dshort] = Slice_mask[dshort]*Masks[Config]['Scatt_WithSolenoid'][dshort]
+    HaveFullPolEmpty = 0
     for Sample in Sample_Names:
         if Sample in Scatt:
-            if Config in Scatt[Sample]['Config(s)']:
-                PolCorr_AllDetectors, Uncertainty_PolCorr_AllDetectors, FullPolGo = GlobalAbsScaleAndPolCorr(Sample, Config, BB_per_second, Solid_Angle)
-                if FullPolGo > 0:
-                    if 'Scatt_WithSolenoid' in Masks[Config]:
-                        for dshort in short_detectors:
-                            Trunc_mask[dshort] = Trunc_mask[dshort]*Masks[Config]['Scatt_WithSolenoid'][dshort]
-                            print('Usng solenoid mask')
-                    FullPolResults = SliceDataPolData(Q_min, Q_max, Q_bins, QValues_All[Config], Trunc_mask, PolCorr_AllDetectors, Uncertainty_PolCorr_AllDetectors, dimXX, dimYY, Sample, Config, PlotYesNo)
-
+            if str(Scatt[Sample]['Intent']).find('Empty') != -1:
+                if Config in Scatt[Sample]['Config(s)']:
+                    PolCorr_AllDetectors, Uncertainty_PolCorr_AllDetectors, FullPolGo = GlobalAbsScaleAndPolCorr(Sample, Config, BB_per_second, Solid_Angle)
+                    if FullPolGo > 0:
+                        FullPolResults['Empty'] = SliceData('Vert', Q_min, Q_max, Q_bins, QValues_All, Trunc_mask, PolCorr_AllDetectors, Uncertainty_PolCorr_AllDetectors, dimXX, dimYY, Sample, Config, PlotYesNo)
+                        HaveFullPolEmpty = 1
+    for Sample in Sample_Names:
+        if Sample in Scatt:                
+            if str(Scatt[Sample]['Intent']).find('Sample') != -1:
+                if Config in Scatt[Sample]['Config(s)']:
+                    PolCorr_AllDetectors, Uncertainty_PolCorr_AllDetectors, FullPolGo = GlobalAbsScaleAndPolCorr(Sample, Config, BB_per_second, Solid_Angle)
+                    if FullPolGo > 0:
+                        FullPolResults['Vert'] = SliceData('Vert', Q_min, Q_max, Q_bins, QValues_All, Trunc_mask, PolCorr_AllDetectors, Uncertainty_PolCorr_AllDetectors, dimXX, dimYY, Sample, Config, PlotYesNo)
+                        Q = FullPolResults['Vert']['Q_Common']
+                        NSF = FullPolResults['Vert']['NSF'] - FullPolResults['Empty']['NSF']
+                        SF = FullPolResults['Vert']['SF'] - FullPolResults['Empty']['SF']
+                        fig = plt.figure()
+                        plt.loglog(Q, NSF, 'b*', label='NSF')
+                        plt.loglog(Q, SF, 'r*', label='SF')
+                        plt.xlabel('Q')
+                        plt.ylabel('Intensity')
+                        plt.title('Test')
+                        plt.legend()
+                        plt.show()
 '''
 Plex = Plex_File()
 
