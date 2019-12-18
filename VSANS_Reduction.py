@@ -38,7 +38,7 @@ Use_Adam4021 = 1 #0 = no; 1 = yes
 Use_Lakeshore340 = 1 #0 = no; 1 = yes
 Unpol_Key_list = ['Vert']#['Horz','Vert','Diag','Circ']
 FullPol_Key_list = ['Vert']#['Horz','Vert','Diag','Circ']
-FullPolYeseNo = 1
+FullPolYeseNo = 0
 UnpolYesNo = 0
 LowQ_Offset_Unpol =  0.0 #will subtract this amount; might be required if forgot to get a good blocked beam
 LowQ_Offset_SF = 0.0 #2.3
@@ -2007,24 +2007,13 @@ def Pol_SuppermirrorAndFlipper(Pol_Trans, HE3_Cell_Summary):
         DD = np.array(Pol_Trans[ID]['T_DD']['Trans'])
         DD_UnpolHe3Trans = np.array(Pol_Trans[ID]['T_DD']['Unpol_Trans'])
         DD_NeutronPol = np.array(Pol_Trans[ID]['T_DD']['Neutron_Pol'])
-
-        RevSF = 1
-
-        if RevSF == 0:
-            UD = np.array(Pol_Trans[ID]['T_UD']['Trans'])
-            UD_UnpolHe3Trans = np.array(Pol_Trans[ID]['T_UD']['Unpol_Trans'])
-            UD_NeutronPol = np.array(Pol_Trans[ID]['T_UD']['Neutron_Pol'])
-            DU = np.array(Pol_Trans[ID]['T_DU']['Trans'])
-            DU_UnpolHe3Trans = np.array(Pol_Trans[ID]['T_DU']['Unpol_Trans'])
-            DU_NeutronPol = np.array(Pol_Trans[ID]['T_DU']['Neutron_Pol'])
-        else:
-            DU = np.array(Pol_Trans[ID]['T_UD']['Trans'])
-            DU_UnpolHe3Trans = np.array(Pol_Trans[ID]['T_UD']['Unpol_Trans'])
-            DU_NeutronPol = np.array(Pol_Trans[ID]['T_UD']['Neutron_Pol'])
-            UD = np.array(Pol_Trans[ID]['T_DU']['Trans'])
-            UD_UnpolHe3Trans = np.array(Pol_Trans[ID]['T_DU']['Unpol_Trans'])
-            UD_NeutronPol = np.array(Pol_Trans[ID]['T_DU']['Neutron_Pol'])
-        '''
+        UD = np.array(Pol_Trans[ID]['T_UD']['Trans'])
+        UD_UnpolHe3Trans = np.array(Pol_Trans[ID]['T_UD']['Unpol_Trans'])
+        UD_NeutronPol = np.array(Pol_Trans[ID]['T_UD']['Neutron_Pol'])
+        DU = np.array(Pol_Trans[ID]['T_DU']['Trans'])
+        DU_UnpolHe3Trans = np.array(Pol_Trans[ID]['T_DU']['Unpol_Trans'])
+        DU_NeutronPol = np.array(Pol_Trans[ID]['T_DU']['Neutron_Pol'])
+            
         #Method 0 (the one that has worked so far):
         PF = 1.00
         Pol_Trans[ID]['P_F'] = np.average(PF)
@@ -2032,7 +2021,8 @@ def Pol_SuppermirrorAndFlipper(Pol_Trans, HE3_Cell_Summary):
         PSM2 = (UU/UU_UnpolHe3Trans - UD/UD_UnpolHe3Trans)/(UU_NeutronPol+UD_NeutronPol)
         PSM = (PSM1 + PSM2)/ 2.0
         Pol_Trans[ID]['P_SM'] = np.average(PSM)
-        print('Ave P_SM is', Pol_Trans[ID]['P_SM'])
+        print('Method 0 Ave P_SM is', Pol_Trans[ID]['P_SM'])
+        print('  ')
 
         #Method 1: 
         PSMxPCAve = (UU/UU_UnpolHe3Trans - UD/UD_UnpolHe3Trans)/(UU/UU_UnpolHe3Trans + UD/UD_UnpolHe3Trans)
@@ -2044,8 +2034,9 @@ def Pol_SuppermirrorAndFlipper(Pol_Trans, HE3_Cell_Summary):
         PF = PFPSM / PSM
         Pol_Trans[ID]['P_SM'] = np.average(PSM)
         Pol_Trans[ID]['P_F'] = np.average(PF)
-        print('P_SM', ID, PSM, 'Ave:', Pol_Trans[ID]['P_SM'])
-        print('P_F', ID, PF, 'Ave:', Pol_Trans[ID]['P_F'])
+        print('Method1 P_SM', ID, PSM, 'Ave:', Pol_Trans[ID]['P_SM'])
+        print('Method1 P_F', ID, PF, 'Ave:', Pol_Trans[ID]['P_F'])
+        print('  ')
         
         #Method 2:
         PF = 1.00
@@ -2060,9 +2051,9 @@ def Pol_SuppermirrorAndFlipper(Pol_Trans, HE3_Cell_Summary):
         print('P_SM', ID, PSM, PSM2)
         PSM_All = (PSM + PSM2) / 2.0
         Pol_Trans[ID]['P_SM'] = np.average(PSM_All)
-        print('Ave P_SM is', Pol_Trans[ID]['P_SM'])
+        print('Method2 Ave P_SM is', Pol_Trans[ID]['P_SM'])
+        print('  ')
 
-        '''
 
         #Method 3:
         PF = 1.00
@@ -2077,12 +2068,44 @@ def Pol_SuppermirrorAndFlipper(Pol_Trans, HE3_Cell_Summary):
         print('P_SM', ID, PSM, PSM2)
         PSM_All = (PSM + PSM2) / 2.0
         Pol_Trans[ID]['P_SM'] = np.average(PSM_All)
-        print('Ave P_SM is', Pol_Trans[ID]['P_SM'])
+        print('Method3 Ave P_SM is', Pol_Trans[ID]['P_SM'])
+        print('  ')
+
+        #Method 4:
+        PSM1 = (1.0*UU/UU_UnpolHe3Trans - 1.0)/(UU_NeutronPol)
+        PSM2 = (1.0 - 1.0*UD/UD_UnpolHe3Trans)/(UD_NeutronPol)
+
+        PFPSM1 = (1.0*DD/DD_UnpolHe3Trans - 1.0)/(DD_NeutronPol)
+        PFPSM2 = (1.0 - 1.0*DU/DU_UnpolHe3Trans)/(DU_NeutronPol)
+
+        PF1 = PFPSM1/PSM1
+        PF2 = PFPSM2/PSM2
+
+        print('PSM1', PSM1)
+        print('PSM2', PSM2)
+        print('PFPSM1', PFPSM1)
+        print('PFPSM2', PFPSM2)
+
+        A = np.average(PSM1)
+        B = np.average(PSM2)
+        C = np.average(PFPSM1)
+        D = np.average(PFPSM2)
+
+        PSM = (A + B + C + D)/4.0
+        Pol_Trans[ID]['P_SM'] = PSM
+        Pol_Trans[ID]['P_F'] = 1.0
+        print('Method4 PSM', PSM)
+        print('  ')
+
+        PSMUU = (UU/UU_UnpolHe3Trans - 1.0)/(UU_NeutronPol)
+        PSMDD = (DD/DD_UnpolHe3Trans - 1.0)/(DD_NeutronPol)
+
+        print('PSMUU and PSMDD', PSMUU, PSMDD)
+        
 
         #ADD1 = (UU/UU_UnpolHe3Trans + UD/UD_UnpolHe3Trans)/2.0
         #ADD2 = (DD/DD_UnpolHe3Trans + DU/DU_UnpolHe3Trans)/2.0
         #print('UU + UD', ADD1, 'DD + DU', ADD2)
-
 
         if UsePolCorr == 0:#0 Means no, turn it off
             Pol_Trans[ID]['P_SM'] = 1.0
@@ -2194,9 +2217,14 @@ def GlobalAbsScaleAndPolCorr(Sample, Config, BlockBeam_per_second, Solid_Angle):
                     Count_time = f['entry/collection_time'][0]
                     entry = Scatt[Sample]['Config(s)'][Config][type_time][filenumber_counter]
                     NP, UT, T_MAJ, T_MIN = HE3_Pol_AtGivenTime(entry, HE3_Cell_Summary)
+                    C = NP
+                    S = 0.992 #0.995
+                    X = np.sqrt(0.967/S) #np.sqrt(0.955/S)
                     if type == "UU":
                         CrossSection_Index = 0
-                        Pol_Efficiency[CrossSection_Index][:] += [0.25*(1.0 + PSM)*(T_MAJ), 0.25*(1.0 - PSM)*(T_MAJ), 0.25*(1.0 - PSM)*(T_MIN), 0.25*(1.0 + PSM)*(T_MIN)]
+                        #Pol_Efficiency[CrossSection_Index][:] += [0.25*(1.0 + PSM)*(T_MAJ), 0.25*(1.0 - PSM)*(T_MAJ), 0.25*(1.0 - PSM)*(T_MIN), 0.25*(1.0 + PSM)*(T_MIN)]
+                        #Pol_Efficiency[CrossSection_Index][:] += [T_MAJ, 0, 0, 0]
+                        Pol_Efficiency[CrossSection_Index][:] += [(C*(S*X*X + X) + S*X + 1)*UT, (C*(-S*X*X + X) - S*X + 1)*UT, (C*(S*X*X - X) - S*X + 1)*UT, (C*(-S*X*X - X) + S*X + 1)*UT]
                         Det_Index = 0
                         for dshort in short_detectors:
                             data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
@@ -2209,7 +2237,10 @@ def GlobalAbsScaleAndPolCorr(Sample, Config, BlockBeam_per_second, Solid_Angle):
                     elif type == "DU":
                         #Note these seem to be the UD files by counts and behaviour
                         CrossSection_Index = 1
-                        Pol_Efficiency[CrossSection_Index][:] += [0.25*((1.0 + PSM)*(T_MIN)),0.25*((1.0 - PSM)*(T_MIN)),0.25*((1.0 - PSM)*(T_MAJ)),0.25*((1.0 + PSM)*(T_MAJ))]   
+                        #Pol_Efficiency[CrossSection_Index][:] += [0.25*((1.0 + PSM)*(T_MIN)),0.25*((1.0 - PSM)*(T_MIN)),0.25*((1.0 - PSM)*(T_MAJ)),0.25*((1.0 + PSM)*(T_MAJ))]
+                        #Pol_Efficiency[CrossSection_Index][:] += [0.25*(1.0 - PSM*PF)*(T_MAJ), 0.25*(1.0 + PSM*PF)*(T_MAJ), 0.25*(1.0 + PSM*PF)*(T_MIN), 0.25*(1.0 - PSM*PF)*(T_MIN)]
+                        #Pol_Efficiency[CrossSection_Index][:] += [0, T_MAJ, 0, 0]
+                        Pol_Efficiency[CrossSection_Index][:] += [(C*(-S*X*X + X) - S*X + 1)*UT, (C*(S*X*X + X) + S*X + 1)*UT, (C*(-S*X*X - X) + S*X + 1)*UT, (C*(S*X*X - X) - S*X + 1)*UT]
                         Det_Index = 0
                         for dshort in short_detectors:
                             data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
@@ -2221,7 +2252,9 @@ def GlobalAbsScaleAndPolCorr(Sample, Config, BlockBeam_per_second, Solid_Angle):
                             Det_Index += 1
                     elif type == "DD":
                         CrossSection_Index = 2
-                        Pol_Efficiency[CrossSection_Index][:] += [0.25*((1.0 - PSM*PF)*(T_MIN)),0.25*((1.0 + PSM*PF)*(T_MIN)),0.25*((1.0 + PSM*PF)*(T_MAJ)), 0.25*((1.0 - PSM*PF)*(T_MAJ))]
+                        #Pol_Efficiency[CrossSection_Index][:] += [0.25*((1.0 - PSM*PF)*(T_MIN)),0.25*((1.0 + PSM*PF)*(T_MIN)),0.25*((1.0 + PSM*PF)*(T_MAJ)), 0.25*((1.0 - PSM*PF)*(T_MAJ))]
+                        #Pol_Efficiency[CrossSection_Index][:] += [0, 0, T_MAJ, 0]
+                        Pol_Efficiency[CrossSection_Index][:] += [(C*(S*X*X - X) - S*X + 1)*UT, (C*(-S*X*X - X) + S*X + 1)*UT, (C*(S*X*X + X) + S*X + 1)*UT, (C*(-S*X*X + X) - S*X + 1)*UT]
                         Det_Index = 0
                         for dshort in short_detectors:
                             data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
@@ -2234,7 +2267,10 @@ def GlobalAbsScaleAndPolCorr(Sample, Config, BlockBeam_per_second, Solid_Angle):
                     elif type == "UD":
                         #Note these seem to be the S_DU files by counts and behaviour
                         CrossSection_Index = 3
-                        Pol_Efficiency[CrossSection_Index][:] += [0.25*(1.0 - PSM*PF)*(T_MAJ), 0.25*(1.0 + PSM*PF)*(T_MAJ), 0.25*(1.0 + PSM*PF)*(T_MIN), 0.25*(1.0 - PSM*PF)*(T_MIN)]   
+                        #Pol_Efficiency[CrossSection_Index][:] += [0.25*(1.0 - PSM*PF)*(T_MAJ), 0.25*(1.0 + PSM*PF)*(T_MAJ), 0.25*(1.0 + PSM*PF)*(T_MIN), 0.25*(1.0 - PSM*PF)*(T_MIN)]
+                        #Pol_Efficiency[CrossSection_Index][:] += [0.25*((1.0 + PSM)*(T_MIN)),0.25*((1.0 - PSM)*(T_MIN)),0.25*((1.0 - PSM)*(T_MAJ)),0.25*((1.0 + PSM)*(T_MAJ))] 
+                        #Pol_Efficiency[CrossSection_Index][:] += [0, 0, 0, T_MAJ]
+                        Pol_Efficiency[CrossSection_Index][:] += [(C*(-S*X*X - X) + S*X + 1)*UT, (C*(S*X*X - X) - S*X + 1)*UT, (C*(-S*X*X + X) - S*X + 1)*UT, (C*(S*X*X + X) + S*X + 1)*UT]
                         Det_Index = 0
                         for dshort in short_detectors:
                             data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
@@ -2510,7 +2546,7 @@ def SliceData(Slice_Type, Q_min, Q_max, Q_bins, QGridPerDetector, masks, PolCorr
 
     if PlotYesNo == 1:
         fig = plt.figure()
-        '''If don't want to plot error bars, use something like plt.loglog(Q_Front, UUF, 'b*', label='Front, UU')'''
+        '''If don't want to plot error bars, use something like plt.loglog(Q_Front, UUF, 'b*', label='Front, UU')
         ax = plt.axes()
         ax.set_xscale("log")
         ax.set_yscale("log")
@@ -2521,7 +2557,16 @@ def SliceData(Slice_Type, Q_min, Q_max, Q_bins, QGridPerDetector, masks, PolCorr
         ax.errorbar(Q_Front, DUF, yerr=Sigma_DUF, fmt = 'c.', label='Front, DU')
         ax.errorbar(Q_Middle, DUM, yerr=Sigma_DUM, fmt = 'm.', label='Middle, DU')
         ax.errorbar(Q_Front, UDF, yerr=Sigma_UDF, fmt = 'y.', label='Front, UD')
-        ax.errorbar(Q_Middle, UDM, yerr=Sigma_UDM, fmt = 'b.', label='Middle, UD') 
+        ax.errorbar(Q_Middle, UDM, yerr=Sigma_UDM, fmt = 'b.', label='Middle, UD')
+        '''
+        plt.loglog(Q_Front, UUF, 'b*', label='Front, UU')
+        plt.loglog(Q_Middle, UUM, 'g*', label='Middle, UU')
+        plt.loglog(Q_Front, DDF, 'm*', label='Front, DD')
+        plt.loglog(Q_Middle, DDM, 'r*', label='Middle, DD')
+        plt.loglog(Q_Front, DUF, 'c.', label='Front, DU')
+        plt.loglog(Q_Middle, DUM, 'm.', label='Middle, DU')
+        plt.loglog(Q_Front, UDF, 'y.', label='Front, UD')
+        plt.loglog(Q_Middle, UDM, 'b.', label='Middle, UD')
         plt.xlabel('Q')
         plt.ylabel('Intensity')
         plt.title('FullPol_{keyword}Cuts for ID = {idnum} and Config = {cf}'.format(keyword=Key, idnum=ID, cf = Config))
@@ -2542,6 +2587,7 @@ def SliceData(Slice_Type, Q_min, Q_max, Q_bins, QGridPerDetector, masks, PolCorr
         
         fig = plt.figure()
         #If don't want to plot error bars, use something like plt.loglog(Q_Front, UUF, 'b*', label='Front, UU')
+        '''
         ax = plt.axes()
         ax.set_xscale("log")
         ax.set_yscale("log")
@@ -2549,6 +2595,11 @@ def SliceData(Slice_Type, Q_min, Q_max, Q_bins, QGridPerDetector, masks, PolCorr
         ax.errorbar(Q_Front, NSFF, yerr=Sigma_NSFF, fmt = 'r*', label='Front, UU + DD')
         ax.errorbar(Q_Middle, SFM, yerr=Sigma_SFM, fmt = 'b*', label='Middle, UD + DU')
         ax.errorbar(Q_Front, SFF, yerr=Sigma_SFF, fmt = 'g*', label='Front, UD + DU')
+        '''
+        plt.loglog(Q_Middle, NSFM, 'm*', label='Middle, UU + DD')
+        plt.loglog(Q_Front, NSFF, 'r*', label='Front, UU + DD')
+        plt.loglog(Q_Middle, SFM, 'b*', label='Middle, UD + DU')
+        plt.loglog(Q_Front, SFF, 'g*', label='Front, UD + DU')
         plt.xlabel('Q')
         plt.ylabel('Intensity')
         plt.title('FullPol_{keyword}Cuts for ID = {idnum} and Config = {cf}'.format(keyword=Key, idnum=ID, cf = Config))
@@ -2687,8 +2738,8 @@ for Config in Configs:
     Q_max = MaxQ_Front
     Q_bins = 180 #120
     for dshort in short_detectors:
-        #Slice_mask[dshort] = Top_mask[dshort] + Bottom_mask[dshort]
-        Slice_mask[dshort] = Left_mask[dshort] +  Right_mask[dshort]
+        Slice_mask[dshort] = Top_mask[dshort] + Bottom_mask[dshort]
+        #Slice_mask[dshort] = Left_mask[dshort] +  Right_mask[dshort]
     if Config in Masks:
         if 'Scatt_WithSolenoid' in Masks[Config]:
             for dshort in short_detectors:
@@ -2713,13 +2764,15 @@ for Config in Configs:
                         NSF = FullPolResults['Vert']['NSF'] - FullPolResults['Empty']['NSF']
                         SF = FullPolResults['Vert']['SF'] - FullPolResults['Empty']['SF']
                         fig = plt.figure()
-                        plt.loglog(Q, NSF, 'b*', label='NSF')
-                        plt.loglog(Q, SF, 'r*', label='SF')
+                        #plt.loglog(Q, NSF, 'b*', label='NSF')
+                        plt.semilogx(Q, SF, 'r*', label='SF')
                         plt.xlabel('Q')
                         plt.ylabel('Intensity')
                         plt.title('Test')
                         plt.legend()
                         plt.show()
+                    
+
 '''
 Plex = Plex_File()
 
