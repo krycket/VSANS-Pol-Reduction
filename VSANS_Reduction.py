@@ -9,50 +9,24 @@ import datetime
 from numpy.linalg import inv
 from uncertainties import unumpy
 import os
-#from ConfinedSkyrmions_6June2019 import *
-#from MnFe2O4NPs_March2019 import *
-#from Fe3O4Cal_Nov2019 import *
+
 #The following is from Fe3O4Cal_Nov2019.py:
-
-UncertaintyMode = 1 #1 = Sigma of summed counts; 0 = Varience of pixels (to match IGOR)
-UsePolCorr = 1 #1 = usual; 0 means to turn the supermirror and flipper corrections off, but retain the 3He absorption correction
-#path = 'D:\Projects_Current\MnFe2O4PureNPs\Ijiri_March2019_VSANSdata/'
 path = ''
-TransMask = 'PolTrans_MASK.h5'
-start_number = 51277 #51276
-end_number = 51360
-Excluded_Files = [51279, 51289]
-Select_GroupIDs = 0 #0 = No (use all IDs, except those listed as undesired), 1 = Yes (process selected IDs only)
-Desired_GroupIDs = []
-Undesired_GroupIDs = ['29.0']
-BlockedBeamFiles = [51279] #can be empty (no correction) or can list in multiple configurations if desired; automaticaly matched to files of interest based on detector distance
-Mask_Files = [51282]
-Mask_Thresholds_Front = [4]
-Mask_Thresholds_Middle = [1]
-Q_min = 0.001
-Q_max = 0.13
-Q_bins = 120
 TransPanel = 'MR' #Default is 'MR'
-SectorCutAngles = 10.0
-Use_Adam4021 = 1 #0 = no; 1 = yes
-Use_Lakeshore340 = 1 #0 = no; 1 = yes
-Unpol_Key_list = ['Vert']#['Horz','Vert','Diag','Circ']
-FullPol_Key_list = ['Vert']#['Horz','Vert','Diag','Circ']
-FullPolYeseNo = 0
-UnpolYesNo = 0
-LowQ_Offset_Unpol =  0.0 #will subtract this amount; might be required if forgot to get a good blocked beam
-LowQ_Offset_SF = 0.0 #2.3
-LowQ_Offset_NSF = 0.0 #3
-Print_ASCII = 0 #1 = yes; otherwise no
-YesNoManualHe3Entry = 0 #0 for no (default), 1 for yes 
-New_HE3_Files = [28422, 28498, 28577, 28673, 28755, 28869] #For manual declaration of 3He cell and parameters (should not be needed from July 2019 onward)
-MuValues = [3.374, 3.105, 3.374, 3.105, 3.374, 3.105] #[3.374, 3.105]=[Fras, Bur]; For manual declaration of 3He cell and parameters (should not be needed from July 2019 onward)
-TeValues = [0.86, 0.86, 0.86, 0.86, 0.86, 0.86] #[0.86, 0.86]=[Fras, Bur]; For manual declaration of 3He cell and parameters (should not be needed from July 2019 onward)
+SectorCutAngles = 15.0
+UsePolCorr = 1
+YesNoManualHe3Entry = 0 #0 for no (default), 1 for yes
+New_HE3_Files = {}
+MuValues = {} #[3.374, 3.105]=[Fras, Bur]; should not be needed after July 2019
+TeValues = {} #[0.86, 0.86]=[Fras, Bur]; should not be needed after July 2019
 
-#This program is set to reduce VSANS data using middle and front detectors - umnpol, fullpol available.
-#To do: BS shadow, deadtime corr., check abs. scaling, uncertainty propagation through , choice of 2 cross-section empty files, half-pol
+'''
+This program is set to reduce VSANS data using middle and front detectors - umnpol, fullpol available.
+To do: BS shadow, deadtime corr., check abs. scaling, uncertainty propagation through , choice of 2 cross-section empty files, half-pol
+'''
 
 short_detectors = ["MT", "MB", "ML", "MR", "FT", "FB", "FL", "FR"]
+middle_detectors = ["MT", "MB", "ML", "MR"]
 
 def Unique_Config_ID(filenumber):
     
@@ -368,9 +342,7 @@ def SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues):
                                 if filenumber in New_HE3_Files:
                                     ScaledOpacity = MuValues[CellIdentifier]
                                     TE = TeValues[CellIdentifier]
-                                    #HE3Insert_Time = (End_time.timestamp() - Count_time)/3600.0
                                     CellTimeIdentifier = (End_time.timestamp() - Count_time)/3600.0
-                                    #f['/entry/DAS_logs/backPolarization/timestamp'][0]/3600000 #milliseconds to hours
                                     HE3Insert_Time = (End_time.timestamp() - Count_time)/3600.0
                                     CellIdentifier += 1    
                             else: #i.e. automatic entry
@@ -382,13 +354,10 @@ def SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues):
                                     ScaledOpacity = Opacity*Wavelength
                                     TE = f['/entry/DAS_logs/backPolarization/glassTransmission'][0]
                             if HE3Type[-7:-2] == 'HeOUT':
-                            #He3Type = Descrip[-5:]
-                            #if str(He3Type).find("HEOUT") != -1:
                                 HE3OUT_filenumber = filenumber
                                 HE3OUT_config = Config
                                 HE3OUT_sample = Sample_Name
                                 HE3OUT_attenuators = int(f['entry/instrument/attenuator/num_atten_dropped'][0])
-                            #elif str(He3Type).find("HEIN") != -1:
                             elif HE3Type[-7:-2] == ' HeIN':
                                 HE3IN_filenumber = filenumber
                                 HE3IN_config = Config
@@ -439,7 +408,9 @@ def ReadIn_Masks():
                     f = h5py.File(filename)
                     for dshort in short_detectors:
                         mask_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
-                        #need to reverse zeros and ones (assuming IGOR-made masks)
+                        '''
+                        need to reverse zeros and ones (assuming IGOR-made masks):
+                        '''
                         single_mask[dshort] = np.zeros_like(mask_data)
                         single_mask[dshort][mask_data == 0] = 1.0
                         
@@ -779,60 +750,9 @@ def Plex_File():
             
     return PlexData
 
-def Make_Mask_From_File(mask_number, Front_threshold, Middle_threshold):
-    #Returns measured_masks[dshort], usually based on a glassy carbon file
-    measured_masks = {}
-
-    
-    long_name = path + "sans" + str(filenumber) + ".nxs.ngv"
-    config = Path(long_name)
-    if config.is_file():
-        print('Reading in mask file number:', filenumber)
-        f = h5py.File(long_name)
-        for dshort in short_detectors:
-            measured_mask_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
-            measured_masks[dshort] = np.zeros_like(measured_mask_data)
-            position_key = dshort[0]
-            if position_key == 'F':
-                measured_masks[dshort][measured_mask_data >= Front_threshold] = 1.0
-            if position_key == 'M':
-                measured_masks[dshort][measured_mask_data >= Middle_threshold] = 1.0
-    
-    '''
-    filename = path + "VSANS_SOLENOID_MASK.h5"
-    config = Path(filename)
-    if config.is_file():
-        f = h5py.File(filename)
-        for dshort in short_detectors:
-            mask_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
-            #need to reverse zeros and ones
-            measured_masks[dshort] = np.zeros_like(mask_data)
-            measured_masks[dshort][mask_data == 0] = 1.0
-    '''
-                
-    return measured_masks
-
-def Trans_Mask():
-
-    trans_masks = {}
-
-    #filename = path + "PolTrans_MASK.h5"
-    filename = TransMask
-    config = Path(filename)
-    if config.is_file():
-        f = h5py.File(filename)
-        for dshort in short_detectors:
-            trans_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
-            #need to reverse zeros and ones
-            trans_masks[dshort] = np.zeros_like(trans_data)
-            trans_masks[dshort][trans_data == 0] = 1.0
-                
-    return trans_masks
-
 def BlockedBeamScattCountsPerSecond(Config, representative_filenumber):
 
     BB_per_second = {}
-    #print(BlockBeam[Config])
 
     if Config in BlockBeam:
         if 'NA' not in BlockBeam[Config]['Trans']['File']:
@@ -927,307 +847,8 @@ def BlockedBeam_Averaged(BlockedBeamFiles, MeasMasks, Trans_masks):
                     Ave = np.average(Holder[masks[dshort] > 0])
                     
                     BlockBeam_ScattPerPixel[Config_ID][dshort] = {'AvePerSec' : Ave/Count_time, 'Unc' : Unc/Count_time}
-    '''
-    for CF_ID in BlockBeam_Trans:
-        if CF_ID not in BlockBeam_ScattPerPixel:
-            filenumber = BlockBeam_Trans[CF_ID]['File']
-            filename = path + "sans" + str(filenumber) + ".nxs.ngv"
-            config = Path(filename)
-            if config.is_file():
-                f = h5py.File(filename)
-                Count_time = f['entry/collection_time'][0]
-                BlockBeam_ScattPerPixel[CF_ID] = {'AltFile' : filenumber}
-                for dshort in short_detectors:
-                    BlockBeam_ScattPerPixel[Config_ID][dshort] = {'AvePerSec' : Ave/Count_time, 'Unc' : Unc/Count_time}
-    '''
                 
     return BlockBeam_Trans, BlockBeam_ScattPerPixel
-
-def SortData(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues, start_number, end_number):
-
-    Unpol_Trans = {}
-    Unpol_Scatt = {}
-    HalfpolSM_Trans = {}
-    HalfpolSM_Scatt = {}
-    HE3_Trans = {}
-    Pol_Trans = {}
-    Pol_Scatt = {}
-    Scatt_ConfigIDs = {}
-    CellIdentifier = 0
-    Recent_T_SM = {}
-    HE3OUT_config = -1
-    HE3OUT_attenuators = -1
-    filenumber = start_number
-    while filenumber < end_number + 1:
-        filename = path + "sans" + str(filenumber) + ".nxs.ngv"
-        config = Path(filename)
-        fn = str(filenumber)
-        if config.is_file() and filenumber not in Excluded_Files and filenumber not in BlockedBeamFiles and filenumber not in Mask_Files:
-            f = h5py.File(filename)
-            Listed_Config = str(f['entry/DAS_logs/configuration/key'][0])
-            Listed_Config = Listed_Config[2:]
-            Listed_Config = Listed_Config[:-1]
-            Descrip = str(f['entry/sample/description'][0])
-            Descrip = Descrip[2:]
-            Descrip = Descrip[:-1]
-            print('Reading in file number:', filenumber, '  ', Descrip)
-            Sample_Name = Descrip.replace(Listed_Config, '')
-            Not_Sample = ['T_UU', 'T_DU', 'T_DD', 'T_UD', 'T_SM', 'HeIN', 'HeOUT', 'S_UU', 'S_DU', 'S_DD', 'S_UD', 'T_NP', 'S_NP']
-            for i in Not_Sample:
-                Sample_Name = Sample_Name.replace(i, '')
-            
-            Purpose = f['entry/reduction/file_purpose'][()]
-            Intent = f['entry/reduction/intent'][()]
-            #ID = str(f['entry/sample/group_id'][0])
-            ID = Sample_Name
-            End_time = dateutil.parser.parse(f['entry/end_time'][0])
-            Count_time = f['entry/collection_time'][0]
-            #Trans_Counts = f['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
-            trans_mask = Trans_masks['MR']
-            trans_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
-            trans_data = trans_data*trans_mask
-            Trans_Counts = trans_data.sum()
-            MonCounts = f['entry/control/monitor_counts'][0]
-            Trans_Distance = f['entry/instrument/detector_{ds}/distance'.format(ds=TransPanel)][0]
-            Attenuation = f['entry/DAS_logs/attenuator/attenuator'][0]
-            Wavelength = f['entry/DAS_logs/wavelength/wavelength'][0]
-            Config = Unique_Config_ID(filenumber)
-            FrontPolDirection = f['entry/DAS_logs/frontPolarization/direction'][()]
-            if Use_Adam4021 > 0:
-                Voltage = int(f['entry/DAS_logs/adam4021/voltage'][(0)]*100)
-                Voltage = Voltage / 100
-            else:
-                Voltage = NA
-            if Use_Lakeshore340 > 0:
-                Desired_Temp = f['entry/DAS_logs/temp/desiredPrimaryNode'][0]
-            else:
-                Desired_Temp = NA
-
-            if filenumber == start_number:
-                Scatt_ConfigIDs[Config] = {'Example_File' : [filenumber]}
-
-            if ID in Desired_GroupIDs or Select_GroupIDs == 0:
-                if ID not in Undesired_GroupIDs:
-
-                    ID = ID + '_' + str(Voltage) + 'V_' + str(Desired_Temp) + 'K'
-
-                    if "backPolarization" in f['entry/DAS_logs/']:
-                        BackPolDirection = f['entry/DAS_logs/backPolarization/direction'][()]
-                    else:
-                        BackPolDirection = [b'UNPOLARIZED']
-                    Type = str(f['entry/sample/description'][()])
-    
-                    if str(Purpose).find("SCATT") != -1:
-                        if str(FrontPolDirection).find("UNPOLARIZED") != -1 and str(BackPolDirection).find("UNPOLARIZED") != -1:
-                            if ID not in Unpol_Scatt:
-                                Unpol_Scatt[ID] = {Config : {'File' :[filenumber]}}
-                            elif Config not in Unpol_Scatt[ID]:
-                                Unpol_Scatt[ID] = {Config : {'File' :[filenumber]}}
-                            else:
-                                Unpol_Scatt[ID][Config]['File'].append(filenumber)
-                        elif str(FrontPolDirection).find("UP") != -1 and str(BackPolDirection).find("UNPOLARIZED") != -1:
-                            print('Need to define HalfPol_UP scattering')
-                        elif str(FrontPolDirection).find("DOWN") != -1 and str(BackPolDirection).find("UNPOLARIZED") != -1:
-                            print('Need to define HalfPol_DOWN scattering')
-                        elif str(FrontPolDirection).find("UNPOLARIZED") == -1 and str(BackPolDirection).find("UNPOLARIZED") == -1:#i.e. fully polarized   
-                            if ID not in Pol_Scatt:
-                                Pol_Scatt[ID] = {Config : {'S_UU_files' : [-1], 'S_DU_files' : [-1], 'S_DD_files' : [-1], 'S_UD_files' : [-1]}}
-                            if Config not in Pol_Scatt[ID]:
-                                Pol_Scatt[ID][Config] = {'S_UU_files' : [-1], 'S_DU_files' : [-1], 'S_DD_files' : [-1], 'S_UD_files' : [-1]}
-                            if Type[-6:-2] == 'S_UU': # and str(BackPolDirection).find("UP") != -1: #and str(FrontPolDirection).find("UP") != -1     
-                                if Pol_Scatt[ID][Config]['S_UU_files'] == [-1]:
-                                    Pol_Scatt[ID][Config]['S_UU_files'] = [filenumber]
-                                else:
-                                    Pol_Scatt[ID][Config]['S_UU_files'].append(filenumber)        
-                            if Type[-6:-2] == 'S_UD': # and str(BackPolDirection).find("UP") != -1: #and str(FrontPolDirection).find("DOWN") != -1
-                                if Pol_Scatt[ID][Config]['S_UD_files'] == [-1]:
-                                    Pol_Scatt[ID][Config]['S_UD_files'] = [filenumber]
-                                else:
-                                    Pol_Scatt[ID][Config]['S_UD_files'].append(filenumber)
-                            if Type[-6:-2] == 'S_DD': # and str(BackPolDirection).find("DOWN") != -1: #and str(FrontPolDirection).find("DOWN") != -1
-                                if Pol_Scatt[ID][Config]['S_DD_files'] == [-1]:
-                                    Pol_Scatt[ID][Config]['S_DD_files'] = [filenumber]
-                                else:
-                                    Pol_Scatt[ID][Config]['S_DD_files'].append(filenumber)
-                            if Type[-6:-2] == 'S_DU': # and str(BackPolDirection).find("DOWN") != -1: #and str(FrontPolDirection).find("UP") != -1
-                                if Pol_Scatt[ID][Config]['S_DU_files'] == [-1]:
-                                    Pol_Scatt[ID][Config]['S_DU_files'] = [filenumber]
-                                else:
-                                    Pol_Scatt[ID][Config]['S_DU_files'].append(filenumber)
-                        
-                    if str(Purpose).find("TRANS") != -1 or str(Purpose).find("HE3") != -1:
-                        BlockBeamRate = 0
-                        BlockBeam_filenumber = -1
-                        if Config in BlockBeam_Trans:
-                            BlockBeamRate = BlockBeam_Trans[Config]['CountsPerSecond']
-                            BlockBeam_filenumber = BlockBeam_Trans[Config]['File']
-                        CountPerMon = (Trans_Counts - BlockBeamRate*Count_time)*1E8/MonCounts
-                        
-                        if str(FrontPolDirection).find("UNPOLARIZED") != -1 and str(BackPolDirection).find("UNPOLARIZED") != -1:
-                            if ID not in Unpol_Trans:
-                                Unpol_Trans[ID] = {Config : {'File' : [filenumber], 'Abs_Trans': [CountPerMon], 'BlockBeamFile': [BlockBeam_filenumber]}}
-                            elif Config not in Unpol_Trans[ID]:
-                                Unpol_Trans[ID] = {Config : {'File' : [filenumber], 'Abs_Trans': [CountPerMon], 'BlockBeamFile': [BlockBeam_filenumber]}}
-                            else:
-                                Unpol_Trans[ID][Config]['File'].append(filenumber)
-                                Unpol_Trans[ID][Config]['Abs_Trans'].append(CountPerMon)
-                                Unpol_Trans[ID][Config]['BlockBeamFile'].append(BlockBeam_filenumber)
-                        elif str(FrontPolDirection).find("UP") != -1 and str(BackPolDirection).find("UNPOLARIZED") != -1:
-                            print('Need to define HalfPol_UP transmission')
-                        elif str(FrontPolDirection).find("DOWN") != -1 and str(BackPolDirection).find("UNPOLARIZED") != -1:
-                            print('Need to define HalfPol_DOWN transmission')
-
-                            
-                        if str(FrontPolDirection).find("UNPOLARIZED") == -1:
-                            if str(BackPolDirection).find("UNPOLARIZED") == -1 or Type[-6:-2] == 'T_SM': #i.e. fully polarized
-                                if Type[-6:-2] == 'T_UU':
-                                    UU_Transfilenumber = filenumber
-                                    UU_Trans = (Trans_Counts - BlockBeamRate*Count_time)*1E8/MonCounts
-                                    UU_Trans_ID = ID
-                                    UU_Trans_Config = Config
-                                    UU_Trans_Attn = Attenuation
-                                    UU_Time = (End_time.timestamp() - Count_time/2)/3600.0
-                                elif Type[-6:-2] == 'T_DU':
-                                    DU_Transfilenumber = filenumber
-                                    DU_Trans = (Trans_Counts - BlockBeamRate*Count_time)*1E8/MonCounts
-                                    DU_Trans_ID = ID
-                                    DU_Trans_Config = Config
-                                    DU_Trans_Attn = Attenuation
-                                    DU_Time = (End_time.timestamp() - Count_time/2)/3600.0
-                                elif Type[-6:-2] == 'T_DD':
-                                    DD_Transfilenumber = filenumber
-                                    DD_Trans = (Trans_Counts - BlockBeamRate*Count_time)*1E8/MonCounts
-                                    DD_Trans_ID = ID
-                                    DD_Trans_Config = Config
-                                    DD_Trans_Attn = Attenuation
-                                    DD_Time = (End_time.timestamp() - Count_time/2)/3600.0
-                                elif Type[-6:-2] == 'T_UD':
-                                    UD_Transfilenumber = filenumber
-                                    UD_Trans = (Trans_Counts - BlockBeamRate*Count_time)*1E8/MonCounts
-                                    UD_Trans_ID = ID
-                                    UD_Trans_Config = Config
-                                    UD_Trans_Attn = Attenuation
-                                    UD_Time = (End_time.timestamp() - Count_time/2)/3600.0
-                                elif Type[-6:-2] == 'T_SM':
-                                    SM_Transfilenumber = filenumber
-                                    SM_Trans = (Trans_Counts - BlockBeamRate*Count_time)*1E8/MonCounts
-                                    SM_Trans_ID = ID
-                                    SM_Trans_Config = Config
-                                    SM_Trans_Attn = Attenuation
-
-                                    if UU_Trans_Config == DD_Trans_Config and UD_Trans_Config == DU_Trans_Config and UU_Trans_Config == UD_Trans_Config:
-                                        if UU_Trans_ID == DD_Trans_ID and UD_Trans_ID == DU_Trans_ID and UU_Trans_ID == UD_Trans_ID:
-                                            if UU_Trans_Attn == DD_Trans_Attn and UD_Trans_Attn == DU_Trans_Attn and UU_Trans_Attn == UD_Trans_Attn:
-                                                if ID not in Pol_Trans:
-                                                    Pol_Trans[ID] = {'T_UU': {'File': [UU_Transfilenumber], 'Trans' : [UU_Trans/SM_Trans], 'Meas_Time' : [UU_Time]},
-                                                         'T_DU': {'File': [DU_Transfilenumber], 'Trans' : [DU_Trans/SM_Trans], 'Meas_Time' : [DU_Time]},
-                                                         'T_DD': {'File': [DD_Transfilenumber], 'Trans' : [DD_Trans/SM_Trans], 'Meas_Time' : [DD_Time]},
-                                                         'T_UD': {'File': [UD_Transfilenumber], 'Trans' : [UD_Trans/SM_Trans], 'Meas_Time' : [UD_Time]},
-                                                         'T_SM': {'File': [SM_Transfilenumber], 'Trans_Cts' : [SM_Trans]},
-                                                         'BlockBeam': {'File': [BlockBeam_filenumber]},
-                                                         'Config' : [UU_Trans_Config]
-                                                         }
-                                                else:
-                                                    Pol_Trans[ID]['T_UU']['File'].append(UU_Transfilenumber)
-                                                    Pol_Trans[ID]['T_UU']['Trans'].append(UU_Trans/SM_Trans)
-                                                    Pol_Trans[ID]['T_UU']['Meas_Time'].append(UU_Time)
-                                                    Pol_Trans[ID]['T_DU']['File'].append(DU_Transfilenumber)
-                                                    Pol_Trans[ID]['T_DU']['Trans'].append(DU_Trans/SM_Trans)
-                                                    Pol_Trans[ID]['T_DU']['Meas_Time'].append(DU_Time)
-                                                    Pol_Trans[ID]['T_DD']['File'].append(DD_Transfilenumber)
-                                                    Pol_Trans[ID]['T_DD']['Trans'].append(DD_Trans/SM_Trans)
-                                                    Pol_Trans[ID]['T_DD']['Meas_Time'].append(DD_Time)
-                                                    Pol_Trans[ID]['T_UD']['File'].append(UD_Transfilenumber)
-                                                    Pol_Trans[ID]['T_UD']['Trans'].append(UD_Trans/SM_Trans)
-                                                    Pol_Trans[ID]['T_UD']['Meas_Time'].append(UD_Time)
-                                                    Pol_Trans[ID]['T_SM']['File'].append(SM_Transfilenumber)
-                                                    Pol_Trans[ID]['T_SM']['Trans_Cts'].append(SM_Trans)
-                                                    Pol_Trans[ID]['BlockBeam']['File'].append(BlockBeam_filenumber)
-                                                    Pol_Trans[ID]['Config'].append(UU_Trans_Config)
-
-            if str(Purpose).find("HE3") != -1:
-                if YesNoManualHe3Entry == 1:
-                    if filenumber in New_HE3_Files:
-                        ScaledOpacity = MuValues[CellIdentifier]
-                        TE = TeValues[CellIdentifier]
-                        #HE3Insert_Time = (End_time.timestamp() - Count_time)/3600.0
-                        CellTimeIdentifier = (End_time.timestamp() - Count_time)/3600.0
-                        #f['/entry/DAS_logs/backPolarization/timestamp'][0]/3600000 #milliseconds to hours
-                        HE3Insert_Time = (End_time.timestamp() - Count_time)/3600.0
-                        CellIdentifier += 1
-                        
-                else: #i.e. YesNoManualHe3Entry != 1
-                    CellTimeIdentifier = f['/entry/DAS_logs/backPolarization/timestamp'][0]/3600000 #milliseconds to hours
-                    if CellTimeIdentifier not in HE3_Trans:
-                        HE3Insert_Time = f['/entry/DAS_logs/backPolarization/timestamp'][0]/3600000 #milliseconds to hours
-                        Opacity = f['/entry/DAS_logs/backPolarization/opacityAt1Ang'][0]
-                        Wavelength = f['/entry/DAS_logs/wavelength/wavelength'][0]
-                        ScaledOpacity = Opacity*Wavelength
-                        TE = f['/entry/DAS_logs/backPolarization/glassTransmission'][0]
-                           
-                HE3Type = str(f['entry/sample/description'][()])
-                if HE3Type[-7:-2] == 'HeOUT':
-                    HE3OUT_filenumber = filenumber
-                    HE3OUT_config = Config
-                    HE3OUT_attenuators = int(f['entry/instrument/attenuator/num_atten_dropped'][0])
-                    HE3OUT_counts = Trans_Counts
-                    HE3OUT_mon = MonCounts
-                    HE3OUT_count_time = Count_time
-                elif HE3Type[-7:-2] == ' HeIN':
-                    HE3IN_filenumber = filenumber
-                    HE3IN_config = Config
-                    HE3IN_attenuators = int(f['entry/instrument/attenuator/num_atten_dropped'][0])
-                    HE3IN_counts = Trans_Counts
-                    HE3IN_mon = MonCounts
-                    HE3IN_count_time = Count_time
-                    HE3IN_StartTime = (End_time.timestamp() - Count_time/2)/3600.0
-                    if HE3OUT_config == HE3IN_config and HE3OUT_attenuators == HE3IN_attenuators: #This implies that you must have a 3He out before 3He in of same config and atten
-                        if HE3Insert_Time not in HE3_Trans:
-                            HE3_Trans[CellTimeIdentifier] = {'Te' : TE,
-                                                         'Mu' : ScaledOpacity,
-                                                         'Insert_time' : HE3Insert_Time}
-                        Elasped_time = HE3IN_StartTime - HE3Insert_Time
-                        BlockBeamRate = 0
-                        BlockBeam_filenumber = 0
-                        if HE3IN_config in BlockBeam_Trans:
-                            BlockBeamRate = BlockBeam_Trans[Config]['CountsPerSecond']
-                            BlockBeam_filenumber = BlockBeam_Trans[Config]['File']
-                        HE3_transmission = (HE3IN_counts - BlockBeamRate*HE3IN_count_time)/HE3IN_mon
-                        HE3_transmission = HE3_transmission /((HE3OUT_counts - BlockBeamRate*HE3OUT_count_time)/HE3OUT_mon)
-                        if "Transmission" not in HE3_Trans[CellTimeIdentifier]:
-                            HE3_Trans[CellTimeIdentifier]['HE3_OUT_file'] = [HE3OUT_filenumber]
-                            HE3_Trans[CellTimeIdentifier]['HE3_IN_file'] = [HE3IN_filenumber]
-                            HE3_Trans[CellTimeIdentifier]['BlockBeam_file'] = [BlockBeam_filenumber]
-                            HE3_Trans[CellTimeIdentifier]['Elasped_time'] = [Elasped_time]
-                            HE3_Trans[CellTimeIdentifier]['Transmission'] = [HE3_transmission]
-                        else:
-                            HE3_Trans[CellTimeIdentifier]['HE3_OUT_file'].append(HE3OUT_filenumber)
-                            HE3_Trans[CellTimeIdentifier]['HE3_IN_file'].append(HE3IN_filenumber)
-                            HE3_Trans[CellTimeIdentifier]['BlockBeam_file'].append(BlockBeam_filenumber)
-                            HE3_Trans[CellTimeIdentifier]['Elasped_time'].append(Elasped_time)
-                            HE3_Trans[CellTimeIdentifier]['Transmission'].append(HE3_transmission)
-                        
-                                
-                        
-
-        filenumber += 1
-
-    for ID in Unpol_Scatt:
-        for Config_ID in Unpol_Scatt[ID]:
-            if Config_ID not in Scatt_ConfigIDs:
-                print('Unpol ', Config_ID, 'not in', Scatt_ConfigIDs)
-                filenumber = Unpol_Scatt[ID][Config_ID]['File'][0]
-                Scatt_ConfigIDs[Config_ID] = {'Example_File' : [filenumber]}
-    for ID in Pol_Scatt:
-        for Config_ID in Pol_Scatt[ID]:
-            if Config_ID not in Scatt_ConfigIDs:
-                print('Pol ', Config_ID, 'not in', Scatt_ConfigIDs)
-            if Config_ID not in Scatt_ConfigIDs and Pol_Scatt[ID][Config_ID]['S_UU_files'][0] != -1:
-                filenumber = Pol_Scatt[ID][Config_ID]['S_UU_files'][0]
-                Scatt_ConfigIDs[Config_ID] = {Scatt_ConfigIDs[Config_ID] : [filenumber]}
-
-
-    return  Unpol_Trans, Unpol_Scatt, HE3_Trans, Pol_Trans, Pol_Scatt, Scatt_ConfigIDs
 
 def SolidAngle_AllDetectors(representative_filenumber):
     Solid_Angle = {}
@@ -1432,428 +1053,6 @@ def QCalculationAndMasks_AllDetectors(representative_filenumber, AngleWidth):
 
     return Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, dimXX, dimYY, Mask_Right, Mask_Top, Mask_Left, Mask_Bottom, Mask_DiagonalCW, Mask_DiagonalCCW, Mask_None, Mask_User_Defined, BeamStopShadow
 
-def SliceDataUnpolData(Q_min, Q_max, Q_bins, QGridPerDetector, masks, Data_AllDetectors, Unc_Data_AllDetectors, dimXX, dimYY, ID, Config, PlotYesNo):
-
-    Key = masks['label']
-    GroupID = ID
-    print('Plotting and saving {type} cuts for GroupID {idnum} at Configuration {cf}'.format(type=Key, idnum=ID, cf = Config))
-    Q_Values = np.linspace(Q_min, Q_max, Q_bins, endpoint=True)
-    Q_step = (Q_max - Q_min) / Q_bins  
-    Front = np.zeros_like(Q_Values)
-    Front_Unc = np.zeros_like(Q_Values)
-    FrontMeanQ = np.zeros_like(Q_Values)
-    FrontMeanQUnc = np.zeros_like(Q_Values)
-    FrontPixels = np.zeros_like(Q_Values)
-    Middle = np.zeros_like(Q_Values)
-    Middle_Unc = np.zeros_like(Q_Values)
-    MiddleMeanQ = np.zeros_like(Q_Values)
-    MiddleMeanQUnc = np.zeros_like(Q_Values)
-    MiddlePixels = np.zeros_like(Q_Values)
-    for dshort in short_detectors:
-        dimX = dimXX[dshort]
-        dimY = dimYY[dshort]
-        Q_tot = QGridPerDetector['Q_total'][dshort][:][:]
-        Q_unc = np.sqrt(np.power(QGridPerDetector['Q_perp_unc'][dshort][:][:],2) + np.power(QGridPerDetector['Q_parl_unc'][dshort][:][:],2))
-        Unpol = Data_AllDetectors[dshort][:][:]
-        Unpol = Unpol.reshape((dimX, dimY))
-        Unpol_Unc = Unc_Data_AllDetectors[dshort][:][:]
-        Unpol_Unc = Unpol_Unc.reshape((dimX, dimY))
-        #Slice:
-        Exp_bins = np.linspace(Q_min, Q_max + Q_step, Q_bins + 1, endpoint=True)
-        counts, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=Unpol[masks[dshort] > 0])
-        counts_Unc, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=np.power(Unpol_Unc[masks[dshort] > 0],2))
-        MeanQSum, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=Q_tot[masks[dshort] > 0])
-        #MeanQUnc, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=np.power(Q_unc[masks[dshort] > 0],2))
-        MeanQUnc, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=Q_unc[masks[dshort] > 0]) 
-        pixels, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=np.ones_like(Unpol)[masks[dshort] > 0])
-        carriage_key = dshort[0]
-        if carriage_key == 'F':
-            Front += counts
-            Front_Unc += counts_Unc
-            FrontMeanQ += MeanQSum
-            FrontMeanQUnc += MeanQUnc
-            FrontPixels += pixels
-        elif carriage_key == 'M':
-            Middle += counts
-            Middle_Unc += counts_Unc
-            MiddleMeanQ += MeanQSum
-            MiddleMeanQUnc += MeanQUnc
-            MiddlePixels += pixels
-    nonzero_front_mask = (FrontPixels > 0) #True False map
-    nonzero_middle_mask = (MiddlePixels > 0) #True False map
-    Q_Front = Q_Values[nonzero_front_mask]
-    MeanQ_Front = FrontMeanQ[nonzero_front_mask] / FrontPixels[nonzero_front_mask]
-    #MeanQUnc_Front = np.sqrt(FrontMeanQUnc[nonzero_front_mask]) / FrontPixels[nonzero_front_mask]
-    MeanQUnc_Front = FrontMeanQUnc[nonzero_front_mask] / FrontPixels[nonzero_front_mask]
-    Unpol_Front = Front[nonzero_front_mask] / FrontPixels[nonzero_front_mask]
-    Q_Middle = Q_Values[nonzero_middle_mask]
-    MeanQ_Middle = MiddleMeanQ[nonzero_middle_mask] / MiddlePixels[nonzero_middle_mask]
-    #MeanQUnc_Middle = np.sqrt(MiddleMeanQUnc[nonzero_middle_mask]) / MiddlePixels[nonzero_middle_mask]
-    MeanQUnc_Middle = MiddleMeanQUnc[nonzero_middle_mask] / MiddlePixels[nonzero_middle_mask]
-    Unpol_Middle = Middle[nonzero_middle_mask] / MiddlePixels[nonzero_middle_mask]
-
-    Sigma_Front = np.sqrt(Front_Unc[nonzero_front_mask]) / FrontPixels[nonzero_front_mask]
-    Sigma_Middle = np.sqrt(Middle_Unc[nonzero_middle_mask]) / MiddlePixels[nonzero_middle_mask]
-
-    Unpol_Middle = Unpol_Middle - LowQ_Offset_Unpol
-
-    #***
-    if UncertaintyMode == 0:#Varience between pixels udsed for sigma
-        Front_DiffSqrd = np.zeros_like(Q_Values)
-        Middle_DiffSqrd = np.zeros_like(Q_Values)
-        #Calculate average intensity per Q_bin
-        FrontPixels_Modified = FrontPixels
-        FrontPixels_Modified[FrontPixels <= 0] = 1
-        MiddlePixels_Modified = MiddlePixels
-        MiddlePixels_Modified[MiddlePixels <= 0] = 1
-        MUnpolAve = Middle /MiddlePixels_Modified
-        FUnpolAve = Front/FrontPixels_Modified
-        for dshort in short_detectors:
-            dimX = dimXX[dshort]
-            dimY = dimYY[dshort]
-            Q_tot = QGridPerDetector['Q_total'][dshort][:][:]
-            Unpol = Data_AllDetectors[dshort][:][:]
-            Unpol = Unpol.reshape((dimX, dimY))
-            carriage_key = dshort[0]
-            Q_tot_modified = Q_tot
-            Q_tot_modified[Q_tot > Q_max] = Q_max
-            Q_tot_modified[Q_tot < Q_min] = Q_min
-            inds = np.digitize(Q_tot_modified, Exp_bins, right=True) - 1
-            carriage_key = dshort[0]
-            if carriage_key == 'F':
-                Unpol_Ave = FUnpolAve[inds]
-            if carriage_key == 'M':
-                Unpol_Ave = MUnpolAve[inds]    
-            DiffUnpolSqrd, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=np.power((Unpol[masks[dshort] > 0] - Unpol_Ave[masks[dshort] > 0]),2))
-            if carriage_key == 'F':
-                Front_DiffSqrd += DiffUnpolSqrd
-            elif carriage_key == 'M':
-                Middle_DiffSqrd += DiffUnpolSqrd
-        Sigma_Front = np.sqrt(Front_DiffSqrd[nonzero_front_mask] / FrontPixels[nonzero_front_mask])
-        Sigma_Middle = np.sqrt(Middle_DiffSqrd[nonzero_middle_mask] / MiddlePixels[nonzero_middle_mask])
-        #***
-
-    Q_Common = np.concatenate((Q_Middle, Q_Front), axis=0)
-    Q_Mean = np.concatenate((MeanQ_Middle, MeanQ_Front), axis=0)
-    Q_Uncertainty = np.concatenate((MeanQUnc_Middle, MeanQUnc_Front), axis=0)
-    Unpol = np.concatenate((Unpol_Middle, Unpol_Front), axis=0)
-    Sigma = np.concatenate((Sigma_Middle, Sigma_Front), axis=0)
-    Shadow = np.ones_like(Q_Common)
-
-    if PlotYesNo == 1:
-        fig = plt.figure()
-        ax = plt.axes()
-        ax.set_xscale("log")
-        ax.set_yscale("log")
-        ax.errorbar(Q_Front, Unpol_Front, yerr=Sigma_Front, fmt = 'b*', label='Front, Unpol')
-        ax.errorbar(Q_Middle, Unpol_Middle, yerr=Sigma_Middle, fmt = 'g*', label='Middle, Unpol')
-        '''
-        #If don't want to plot error bars:
-        plt.loglog(Q_Middle, Unpol_Middle, 'b*', label='Middle, Unpol')
-        plt.loglog(Q_Front, Unpol_Front, 'g*', label='Front, Unpol')
-        '''
-        plt.xlabel('Q')
-        plt.ylabel('Intensity')
-        plt.title('Unpol {keyword} Cuts for ID = {idnum} and Config = {cf}'.format(keyword=Key, idnum=GroupID, cf = Config))
-        plt.legend()
-        fig.savefig('{keyword}Unpol_Cuts_ID{idnum}_CF{cf}.png'.format(keyword=Key, idnum=GroupID, cf = Config))
-        plt.show()
-
-        #QQ, QM, UU, DU, DD, UD = SliceDataPolData(Q_min, Q_max, Q_bins, Q_total, ChosenMasks, PolCorr_AllDetectors, dimXX, dimYY, GroupID, PlotYesNo)
-        text_output = np.array([Q_Common, Unpol, Sigma, Q_Uncertainty, Q_Mean, Shadow])
-        text_output = text_output.T
-        np.savetxt('{key}Unpol_ID={idnum}Config={cf}.txt'.format(key=Key, idnum=ID, cf = Config), text_output, header='Q, I, DI, DQ, MeanQ, Shadow', fmt='%1.4e')
-    
-    return Q_Common, Q_Mean, Unpol
-
-def SliceDataPolData(Q_min, Q_max, Q_bins, QGridPerDetector, masks, PolCorr_AllDetectors, Unc_PolCorr_AllDetectors, dimXX, dimYY, ID, Config, PlotYesNo):
-    
-    Key = masks['label']
-    print('Plotting and saving {type} cuts for GroupID {idnum} at Configuration {cf}'.format(type=Key, idnum=ID, cf = Config))
-    Q_Values = np.linspace(Q_min, Q_max, Q_bins, endpoint=True)
-    Q_step = (Q_max - Q_min) / Q_bins  
-    FrontUU = np.zeros_like(Q_Values)
-    FrontDU = np.zeros_like(Q_Values)
-    FrontDD = np.zeros_like(Q_Values)
-    FrontUD = np.zeros_like(Q_Values)
-    FrontUU_Unc = np.zeros_like(Q_Values)
-    FrontDU_Unc = np.zeros_like(Q_Values)
-    FrontDD_Unc = np.zeros_like(Q_Values)
-    FrontUD_Unc = np.zeros_like(Q_Values)
-    FrontMeanQ = np.zeros_like(Q_Values)
-    FrontMeanQUnc = np.zeros_like(Q_Values)
-    FrontPixels = np.zeros_like(Q_Values)
-    MiddleUU = np.zeros_like(Q_Values)
-    MiddleDU = np.zeros_like(Q_Values)
-    MiddleDD = np.zeros_like(Q_Values)
-    MiddleUD = np.zeros_like(Q_Values)
-    MiddleUU_Unc = np.zeros_like(Q_Values)
-    MiddleDU_Unc = np.zeros_like(Q_Values)
-    MiddleDD_Unc = np.zeros_like(Q_Values)
-    MiddleUD_Unc = np.zeros_like(Q_Values)
-    MiddleMeanQ = np.zeros_like(Q_Values)
-    MiddleMeanQUnc = np.zeros_like(Q_Values)
-    MiddlePixels = np.zeros_like(Q_Values)
-    
-    for dshort in short_detectors:
-        dimX = dimXX[dshort]
-        dimY = dimYY[dshort]
-        Q_tot = QGridPerDetector['Q_total'][dshort][:][:]
-        Q_unc = np.sqrt(np.power(QGridPerDetector['Q_perp_unc'][dshort][:][:],2) + np.power(QGridPerDetector['Q_parl_unc'][dshort][:][:],2))
-        UU = PolCorr_AllDetectors[dshort][0][:][:]
-        UU = UU.reshape((dimX, dimY))
-        DU = PolCorr_AllDetectors[dshort][1][:][:]
-        DU = DU.reshape((dimX, dimY))
-        DD = PolCorr_AllDetectors[dshort][2][:][:]
-        DD = DD.reshape((dimX, dimY))
-        UD = PolCorr_AllDetectors[dshort][3][:][:]
-        UD = UD.reshape((dimX, dimY))
-        UU_Unc = Unc_PolCorr_AllDetectors[dshort][0][:][:]
-        UU_Unc = UU_Unc.reshape((dimX, dimY))
-        DU_Unc = Unc_PolCorr_AllDetectors[dshort][1][:][:]
-        DU_Unc = DU_Unc.reshape((dimX, dimY))
-        DD_Unc = Unc_PolCorr_AllDetectors[dshort][2][:][:]
-        DD_Unc = DD_Unc.reshape((dimX, dimY))
-        UD_Unc = Unc_PolCorr_AllDetectors[dshort][3][:][:]
-        UD_Unc = UD_Unc.reshape((dimX, dimY))
-
-        Exp_bins = np.linspace(Q_min, Q_max + Q_step, Q_bins + 1, endpoint=True)
-        countsUU, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=UU[masks[dshort] > 0])
-        countsDU, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=DU[masks[dshort] > 0])
-        countsDD, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=DD[masks[dshort] > 0])
-        countsUD, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=UD[masks[dshort] > 0])
-        
-        UncUU, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=np.power(UU_Unc[masks[dshort] > 0],2))
-        UncDU, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=np.power(DU_Unc[masks[dshort] > 0],2))
-        UncDD, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=np.power(DD_Unc[masks[dshort] > 0],2))
-        UncUD, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=np.power(UD_Unc[masks[dshort] > 0],2))
-        
-        MeanQSum, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=Q_tot[masks[dshort] > 0])
-        MeanQUnc, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=np.power(Q_unc[masks[dshort] > 0],2)) 
-        pixels, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=np.ones_like(UU)[masks[dshort] > 0])  
-        carriage_key = dshort[0]
-        if carriage_key == 'F':
-            FrontUU += countsUU
-            FrontDU += countsDU
-            FrontDD += countsDD
-            FrontUD += countsUD
-            FrontUU_Unc += UncUU
-            FrontDU_Unc += UncDU
-            FrontDD_Unc += UncDD
-            FrontUD_Unc += UncUD
-            FrontMeanQ += MeanQSum
-            FrontMeanQUnc += MeanQUnc
-            FrontPixels += pixels
-        elif carriage_key == 'M':
-            MiddleUU += countsUU
-            MiddleDU += countsDU
-            MiddleDD += countsDD
-            MiddleUD += countsUD
-            MiddleUU_Unc += UncUU
-            MiddleDU_Unc += UncDU
-            MiddleDD_Unc += UncDD
-            MiddleUD_Unc += UncUD
-            MiddleMeanQ += MeanQSum
-            MiddleMeanQUnc += MeanQUnc
-            MiddlePixels += pixels
-
-    nonzero_front_mask = (FrontPixels > 0) #True False map
-    nonzero_middle_mask = (MiddlePixels > 0) #True False map
-    Q_Front = Q_Values[nonzero_front_mask]
-    MeanQ_Front = FrontMeanQ[nonzero_front_mask] / FrontPixels[nonzero_front_mask]
-    MeanQUnc_Front = np.sqrt(FrontMeanQUnc[nonzero_front_mask]) / FrontPixels[nonzero_front_mask]
-    UUF = FrontUU[nonzero_front_mask] / FrontPixels[nonzero_front_mask]
-    DUF = FrontDU[nonzero_front_mask] / FrontPixels[nonzero_front_mask]
-    DDF = FrontDD[nonzero_front_mask] / FrontPixels[nonzero_front_mask]
-    UDF = FrontUD[nonzero_front_mask] / FrontPixels[nonzero_front_mask]
-    Q_Middle = Q_Values[nonzero_middle_mask]
-    MeanQ_Middle = MiddleMeanQ[nonzero_middle_mask] / MiddlePixels[nonzero_middle_mask]
-    MeanQUnc_Middle = np.sqrt(MiddleMeanQUnc[nonzero_middle_mask]) / MiddlePixels[nonzero_middle_mask]
-    UUM = MiddleUU[nonzero_middle_mask] / MiddlePixels[nonzero_middle_mask]
-    DUM = MiddleDU[nonzero_middle_mask] / MiddlePixels[nonzero_middle_mask]
-    DDM = MiddleDD[nonzero_middle_mask] / MiddlePixels[nonzero_middle_mask]
-    UDM = MiddleUD[nonzero_middle_mask] / MiddlePixels[nonzero_middle_mask]
-
-    Sigma_UUF = np.sqrt(FrontUU_Unc[nonzero_front_mask]) / FrontPixels[nonzero_front_mask]
-    Sigma_DUF = np.sqrt(FrontDU_Unc[nonzero_front_mask]) / FrontPixels[nonzero_front_mask]
-    Sigma_DDF = np.sqrt(FrontDD_Unc[nonzero_front_mask]) / FrontPixels[nonzero_front_mask]
-    Sigma_UDF = np.sqrt(FrontUD_Unc[nonzero_front_mask]) / FrontPixels[nonzero_front_mask]
-    Sigma_UUM = np.sqrt(MiddleUU_Unc[nonzero_middle_mask]) / MiddlePixels[nonzero_middle_mask]
-    Sigma_DUM = np.sqrt(MiddleDU_Unc[nonzero_middle_mask]) / MiddlePixels[nonzero_middle_mask]
-    Sigma_DDM = np.sqrt(MiddleDD_Unc[nonzero_middle_mask]) / MiddlePixels[nonzero_middle_mask]
-    Sigma_UDM = np.sqrt(MiddleUD_Unc[nonzero_middle_mask]) / MiddlePixels[nonzero_middle_mask]
-
-    UUM = UUM - LowQ_Offset_NSF
-    DUM = DUM - LowQ_Offset_SF
-    DDM = DDM - LowQ_Offset_NSF
-    UDM = UDM - LowQ_Offset_SF
-
-    if UncertaintyMode == 0:#Varience between pixels udsed for sigma
-        FrontUU_DiffSqrd = np.zeros_like(Q_Values)
-        FrontDU_DiffSqrd = np.zeros_like(Q_Values)
-        FrontDD_DiffSqrd = np.zeros_like(Q_Values)
-        FrontUD_DiffSqrd = np.zeros_like(Q_Values)
-        MiddleUU_DiffSqrd = np.zeros_like(Q_Values)
-        MiddleDU_DiffSqrd = np.zeros_like(Q_Values)
-        MiddleDD_DiffSqrd = np.zeros_like(Q_Values)
-        MiddleUD_DiffSqrd = np.zeros_like(Q_Values)
-        '''Calculate average intensity per Q_bin'''
-        FrontPixels_Modified = FrontPixels
-        FrontPixels_Modified[FrontPixels <= 0] = 1
-        MiddlePixels_Modified = MiddlePixels
-        MiddlePixels_Modified[MiddlePixels <= 0] = 1
-        MUUAve = MiddleUU /MiddlePixels_Modified
-        MDUAve = MiddleDU /MiddlePixels_Modified
-        MDDAve = MiddleDD /MiddlePixels_Modified
-        MUDAve = MiddleUD /MiddlePixels_Modified
-        FUUAve = FrontUU/FrontPixels_Modified
-        FDUAve = FrontDU/FrontPixels_Modified
-        FDDAve = FrontDD/FrontPixels_Modified
-        FUDAve = FrontUD/FrontPixels_Modified
-        for dshort in short_detectors:
-            dimX = dimXX[dshort]
-            dimY = dimYY[dshort]
-            Q_tot = QGridPerDetector[dshort][:][:]
-            UU = PolCorr_AllDetectors[dshort][0][:][:]
-            UU = UU.reshape((dimX, dimY))
-            DU = PolCorr_AllDetectors[dshort][1][:][:]
-            DU = DU.reshape((dimX, dimY))
-            DD = PolCorr_AllDetectors[dshort][2][:][:]
-            DD = DD.reshape((dimX, dimY))
-            UD = PolCorr_AllDetectors[dshort][3][:][:]
-            UD = UD.reshape((dimX, dimY))
-            carriage_key = dshort[0]
-            Q_tot_modified = Q_tot
-            Q_tot_modified[Q_tot > Q_max] = Q_max
-            Q_tot_modified[Q_tot < Q_min] = Q_min
-            inds = np.digitize(Q_tot_modified, Exp_bins, right=True) - 1
-            carriage_key = dshort[0]
-            if carriage_key == 'F':
-                UU_Ave = FUUAve[inds]
-                DU_Ave = FDUAve[inds]
-                DD_Ave = FDDAve[inds]
-                UD_Ave = FUDAve[inds]
-            if carriage_key == 'M':
-                UU_Ave = MUUAve[inds]
-                DU_Ave = MDUAve[inds] 
-                DD_Ave = MDDAve[inds]
-                UD_Ave = MUDAve[inds]     
-            DiffUUSqrd, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=np.power((UU[masks[dshort] > 0] - UU_Ave[masks[dshort] > 0]),2))
-            DiffDUSqrd, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=np.power((UD[masks[dshort] > 0] - UD_Ave[masks[dshort] > 0]),2))
-            DiffDDSqrd, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=np.power((DD[masks[dshort] > 0] - DD_Ave[masks[dshort] > 0]),2))
-            DiffUDSqrd, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=np.power((UD[masks[dshort] > 0] - UD_Ave[masks[dshort] > 0]),2))
-            if carriage_key == 'F':
-                FrontUU_DiffSqrd += DiffUUSqrd
-                FrontDU_DiffSqrd += DiffDUSqrd
-                FrontDD_DiffSqrd += DiffDDSqrd
-                FrontUD_DiffSqrd += DiffUDSqrd
-            elif carriage_key == 'M':
-                MiddleUU_DiffSqrd += DiffUUSqrd
-                MiddleDU_DiffSqrd += DiffDUSqrd
-                MiddleDD_DiffSqrd += DiffDDSqrd
-                MiddleUD_DiffSqrd += DiffUDSqrd
-        Sigma_UUF = np.sqrt(FrontUU_DiffSqrd[nonzero_front_mask] / FrontPixels[nonzero_front_mask])
-        Sigma_DUF = np.sqrt(FrontDU_DiffSqrd[nonzero_front_mask] / FrontPixels[nonzero_front_mask])
-        Sigma_DDF = np.sqrt(FrontDD_DiffSqrd[nonzero_front_mask] / FrontPixels[nonzero_front_mask])
-        Sigma_UDF = np.sqrt(FrontUD_DiffSqrd[nonzero_front_mask] / FrontPixels[nonzero_front_mask])
-        Sigma_UUM = np.sqrt(MiddleUU_DiffSqrd[nonzero_middle_mask] / MiddlePixels[nonzero_middle_mask])
-        Sigma_DUM = np.sqrt(MiddleDU_DiffSqrd[nonzero_middle_mask] / MiddlePixels[nonzero_middle_mask])
-        Sigma_DDM = np.sqrt(MiddleDD_DiffSqrd[nonzero_middle_mask] / MiddlePixels[nonzero_middle_mask])
-        Sigma_UDM = np.sqrt(MiddleUD_DiffSqrd[nonzero_middle_mask] / MiddlePixels[nonzero_middle_mask])
-
-    Q_Common = np.concatenate((Q_Middle, Q_Front), axis=0)
-    Q_Mean = np.concatenate((MeanQ_Middle, MeanQ_Front), axis=0)
-    Q_Uncertainty = np.concatenate((MeanQUnc_Middle, MeanQUnc_Front), axis=0)
-    UU = np.concatenate((UUM, UUF), axis=0)
-    DU = np.concatenate((DUM, DUF), axis=0)
-    DD = np.concatenate((DDM, DDF), axis=0)
-    UD = np.concatenate((UDM, UDF), axis=0)
-    SigmaUU = np.concatenate((Sigma_UUM, Sigma_UUF), axis=0)
-    SigmaDU = np.concatenate((Sigma_DUM, Sigma_DUF), axis=0)
-    SigmaDD = np.concatenate((Sigma_DDM, Sigma_DDF), axis=0)
-    SigmaUD = np.concatenate((Sigma_UDM, Sigma_UDF), axis=0)
-    Shadow = np.ones_like(Q_Common)
-
-    if PlotYesNo == 1:
-        fig = plt.figure()
-        '''If don't want to plot error bars, use something like plt.loglog(Q_Front, UUF, 'b*', label='Front, UU')'''
-        ax = plt.axes()
-        ax.set_xscale("log")
-        ax.set_yscale("log")
-        ax.errorbar(Q_Front, UUF, yerr=Sigma_UUF, fmt = 'b*', label='Front, UU')
-        ax.errorbar(Q_Middle, UUM, yerr=Sigma_UUM, fmt = 'g*', label='Middle, UU')
-        ax.errorbar(Q_Front, DDF, yerr=Sigma_DDF, fmt = 'm*', label='Front, DD')
-        ax.errorbar(Q_Middle, DDM, yerr=Sigma_DDM, fmt = 'r*', label='Middle, DD')
-        ax.errorbar(Q_Front, DUF, yerr=Sigma_DUF, fmt = 'c.', label='Front, DU')
-        ax.errorbar(Q_Middle, DUM, yerr=Sigma_DUM, fmt = 'm.', label='Middle, DU')
-        ax.errorbar(Q_Front, UDF, yerr=Sigma_UDF, fmt = 'y.', label='Front, UD')
-        ax.errorbar(Q_Middle, UDM, yerr=Sigma_UDM, fmt = 'b.', label='Middle, UD') 
-        plt.xlabel('Q')
-        plt.ylabel('Intensity')
-        plt.title('FullPol_{keyword}Cuts for ID = {idnum} and Config = {cf}'.format(keyword=Key, idnum=ID, cf = Config))
-        plt.legend()
-        fig.savefig('{keyword}FullPol_Cuts_ID{idnum}_CF{cf}.png'.format(keyword=Key, idnum=ID, cf = Config))
-        plt.show()
-
-        SFF = DUF + DUF
-        Sigma_SFF = np.sqrt(np.power(Sigma_DUF,2) + np.power(Sigma_UDF,2))
-        SFM = DUM + DUM
-        Sigma_SFM = np.sqrt(np.power(Sigma_DUM,2) + np.power(Sigma_UDM,2))
-
-        NSFF = UUF + DDF
-        Sigma_NSFF = np.sqrt(np.power(Sigma_UUF,2) + np.power(Sigma_DDF,2))
-        NSFM = UUM + DDM
-        Sigma_NSFM = np.sqrt(np.power(Sigma_UUM,2) + np.power(Sigma_DDM,2))
-
-        
-        fig = plt.figure()
-        #If don't want to plot error bars, use something like plt.loglog(Q_Front, UUF, 'b*', label='Front, UU')
-        ax = plt.axes()
-        ax.set_xscale("log")
-        ax.set_yscale("log")
-        ax.errorbar(Q_Middle, NSFM, yerr=Sigma_NSFM, fmt = 'm*', label='Middle, UU + DD')
-        ax.errorbar(Q_Front, NSFF, yerr=Sigma_NSFF, fmt = 'r*', label='Front, UU + DD')
-        ax.errorbar(Q_Middle, SFM, yerr=Sigma_SFM, fmt = 'b*', label='Middle, UD + DU')
-        ax.errorbar(Q_Front, SFF, yerr=Sigma_SFF, fmt = 'g*', label='Front, UD + DU')
-        plt.xlabel('Q')
-        plt.ylabel('Intensity')
-        plt.title('FullPol_{keyword}Cuts for ID = {idnum} and Config = {cf}'.format(keyword=Key, idnum=ID, cf = Config))
-        plt.legend()
-        fig.savefig('{keyword}FullPol_Combined_ID{idnum}_CF{cf}.png'.format(keyword=Key, idnum=ID, cf = Config))
-        plt.show()
-        
-
-        SF = UD + DU
-        SF_Unc = np.sqrt(np.power(SigmaDU,2) + np.power(SigmaUD,2))
-        NSF = UU + DD
-        NSF_Unc = np.sqrt(np.power(SigmaUU,2) + np.power(SigmaDD,2))
-        NSFDiff = DD - UU
-
-        text_output = np.array([Q_Common, UU, SigmaUU, DU, SigmaDU, DD, SigmaDD, UD, SigmaUD, Q_Uncertainty, Q_Mean, Shadow])
-        text_output = text_output.T
-        np.savetxt('{key}FullPol_ID={idnum}Config={cf}.txt'.format(key=Key, idnum=ID, cf = Config), text_output, header='Q, UU, DelUU, DU, DelUD, DD, DelDD, UD, DelUD, DQ, MeanQ, Shadow', fmt='%1.4e')
-
-        '''
-        text_output2 = np.array([Q_Common, SF, SF_Unc, NSF, NSF_Unc, NSFDiff, Q_Uncertainty, Q_Mean, Shadow])
-        text_output2 = text_output2.T
-        np.savetxt('{key}FullPol_ID={idnum}Config={cf}.txt'.format(key=Key, idnum=ID, cf = Config), text_output2, header='Q, SF, DelSF, NSF, DelNSF, NSFDiff, DelQ, MeanQ, Shadow', fmt='%1.4e')
-        '''
-        
-        Output = {}
-        Output['Q_Common'] = Q_Common
-        Output['Q_Mean'] = Q_Mean
-        Output['SF'] = SF
-        Output['SF_Unc'] = SF_Unc
-        Output['NSF'] = NSF
-        Output['NSFDiff'] = NSFDiff
-        Output['NSF_Unc'] = NSF_Unc
-        Output['Q_Uncertainty'] = Q_Uncertainty
-        Output['Q_Mean'] = Q_Mean
-        Output['Shadow'] = Shadow
-     
-    return Output
-
-
 def He3Decay_func(t, p, gamma):
     return p * np.exp(-t / gamma)
 
@@ -2013,99 +1212,34 @@ def Pol_SuppermirrorAndFlipper(Pol_Trans, HE3_Cell_Summary):
         DU = np.array(Pol_Trans[ID]['T_DU']['Trans'])
         DU_UnpolHe3Trans = np.array(Pol_Trans[ID]['T_DU']['Unpol_Trans'])
         DU_NeutronPol = np.array(Pol_Trans[ID]['T_DU']['Neutron_Pol'])
-            
-        #Method 0 (the one that has worked so far):
+        print('UU_Cell', UU_NeutronPol, UU_UnpolHe3Trans)
+        print('DU_Cell', DU_NeutronPol, DU_UnpolHe3Trans)
+        print('DD_Cell', DD_NeutronPol, DD_UnpolHe3Trans)
+        print('UD_Cell', UD_NeutronPol, UD_UnpolHe3Trans)
+
+        '''
+        #Division method:
+        print('  ')
         PF = 1.00
         Pol_Trans[ID]['P_F'] = np.average(PF)
-        PSM1 = (DD/DD_UnpolHe3Trans - DU/DU_UnpolHe3Trans)/((DD_NeutronPol+DU_NeutronPol)*PF)
-        PSM2 = (UU/UU_UnpolHe3Trans - UD/UD_UnpolHe3Trans)/(UU_NeutronPol+UD_NeutronPol)
+        PSM1 = (DD/DD_UnpolHe3Trans - DU/DU_UnpolHe3Trans)/(DU_NeutronPol*DD/DD_UnpolHe3Trans+DD_NeutronPol*DU/DU_UnpolHe3Trans)
+        PSM2 = (UU/UU_UnpolHe3Trans - UD/UD_UnpolHe3Trans)/(UD_NeutronPol*UU/UU_UnpolHe3Trans+UU_NeutronPol*UD/UD_UnpolHe3Trans)
         PSM = (PSM1 + PSM2)/ 2.0
         Pol_Trans[ID]['P_SM'] = np.average(PSM)
-        print('Method 0 Ave P_SM is', Pol_Trans[ID]['P_SM'])
+        print('Ave P_SM is', Pol_Trans[ID]['P_SM'])
+        '''
+        #Direct transmission method:
         print('  ')
-
-        #Method 1: 
-        PSMxPCAve = (UU/UU_UnpolHe3Trans - UD/UD_UnpolHe3Trans)/(UU/UU_UnpolHe3Trans + UD/UD_UnpolHe3Trans)
-        PCAve = (UU_NeutronPol + UD_NeutronPol)/2.0
-        PSM = PSMxPCAve/PCAve
-        PFPSMxPCAve = (DD/DD_UnpolHe3Trans - DU/DU_UnpolHe3Trans)/(DD/DD_UnpolHe3Trans + DU/DU_UnpolHe3Trans)
-        PCAve = (DD_NeutronPol + DU_NeutronPol)/2.0
-        PFPSM = PFPSMxPCAve/PCAve
-        PF = PFPSM / PSM
-        Pol_Trans[ID]['P_SM'] = np.average(PSM)
-        Pol_Trans[ID]['P_F'] = np.average(PF)
-        print('Method1 P_SM', ID, PSM, 'Ave:', Pol_Trans[ID]['P_SM'])
-        print('Method1 P_F', ID, PF, 'Ave:', Pol_Trans[ID]['P_F'])
-        print('  ')
-        
-        #Method 2:
         PF = 1.00
         Pol_Trans[ID]['P_F'] = np.average(PF)
-        print('Ave P_F is set to', Pol_Trans[ID]['P_F'])  
-        PSMxPCAve = (UU/UU_UnpolHe3Trans - UD/UD_UnpolHe3Trans)/(UU/UU_UnpolHe3Trans + UD/UD_UnpolHe3Trans)
-        PCAve = (UU_NeutronPol + UD_NeutronPol)/2.0
-        PSM = PSMxPCAve/PCAve
-        PSM2xPCAve = (DD/DD_UnpolHe3Trans - DU/DU_UnpolHe3Trans)/(DD/DD_UnpolHe3Trans + DU/DU_UnpolHe3Trans)
-        PCAve = (DD_NeutronPol + DU_NeutronPol)/2.0
-        PSM2 = PSM2xPCAve/PCAve
-        print('P_SM', ID, PSM, PSM2)
-        PSM_All = (PSM + PSM2) / 2.0
-        Pol_Trans[ID]['P_SM'] = np.average(PSM_All)
-        print('Method2 Ave P_SM is', Pol_Trans[ID]['P_SM'])
-        print('  ')
-
-
-        #Method 3:
-        PF = 1.00
-        Pol_Trans[ID]['P_F'] = np.average(PF)
-        print('Ave P_F is set to', Pol_Trans[ID]['P_F'])  
-        PSMxPC = (UU/UU_UnpolHe3Trans - UD/UD_UnpolHe3Trans)
-        PC = (UU_NeutronPol + UD_NeutronPol)/1.0
-        PSM = PSMxPC/PC
-        PSM2xPC = (DD/DD_UnpolHe3Trans - DU/DU_UnpolHe3Trans)
-        PC = (DD_NeutronPol + DU_NeutronPol)/1.0
-        PSM2 = PSM2xPC/PC
-        print('P_SM', ID, PSM, PSM2)
-        PSM_All = (PSM + PSM2) / 2.0
-        Pol_Trans[ID]['P_SM'] = np.average(PSM_All)
-        print('Method3 Ave P_SM is', Pol_Trans[ID]['P_SM'])
-        print('  ')
-
-        #Method 4:
-        PSM1 = (1.0*UU/UU_UnpolHe3Trans - 1.0)/(UU_NeutronPol)
-        PSM2 = (1.0 - 1.0*UD/UD_UnpolHe3Trans)/(UD_NeutronPol)
-
-        PFPSM1 = (1.0*DD/DD_UnpolHe3Trans - 1.0)/(DD_NeutronPol)
-        PFPSM2 = (1.0 - 1.0*DU/DU_UnpolHe3Trans)/(DU_NeutronPol)
-
-        PF1 = PFPSM1/PSM1
-        PF2 = PFPSM2/PSM2
-
-        print('PSM1', PSM1)
-        print('PSM2', PSM2)
-        print('PFPSM1', PFPSM1)
-        print('PFPSM2', PFPSM2)
-
-        A = np.average(PSM1)
-        B = np.average(PSM2)
-        C = np.average(PFPSM1)
-        D = np.average(PFPSM2)
-
-        PSM = (A + B + C + D)/4.0
-        Pol_Trans[ID]['P_SM'] = PSM
-        Pol_Trans[ID]['P_F'] = 1.0
-        print('Method4 PSM', PSM)
-        print('  ')
-
         PSMUU = (UU/UU_UnpolHe3Trans - 1.0)/(UU_NeutronPol)
         PSMDD = (DD/DD_UnpolHe3Trans - 1.0)/(DD_NeutronPol)
-
-        print('PSMUU and PSMDD', PSMUU, PSMDD)
+        PSMUD = (1.0 - UD/UD_UnpolHe3Trans)/(UD_NeutronPol)
+        PSMDU = (1.0 - DU/DU_UnpolHe3Trans)/(DU_NeutronPol)
+        PSM_Ave = 0.25*(np.average(PSMUU) + np.average(PSMDD) + np.average(PSMUD) + np.average(PSMDU))
+        Pol_Trans[ID]['P_SM'] = np.average(PSM_Ave)
+        print('PSM', Pol_Trans[ID]['P_SM'])
         
-
-        #ADD1 = (UU/UU_UnpolHe3Trans + UD/UD_UnpolHe3Trans)/2.0
-        #ADD2 = (DD/DD_UnpolHe3Trans + DU/DU_UnpolHe3Trans)/2.0
-        #print('UU + UD', ADD1, 'DD + DU', ADD2)
 
         if UsePolCorr == 0:#0 Means no, turn it off
             Pol_Trans[ID]['P_SM'] = 1.0
@@ -2114,51 +1248,7 @@ def Pol_SuppermirrorAndFlipper(Pol_Trans, HE3_Cell_Summary):
 
     return
 
-
-def AbsScale(GroupID, configuration, Trans, Scatt):
-
-    Data_AllDetectors = {}
-    Unc_Data_AllDetectors = {}
-    BB = {}
-    if GroupID in Trans:
-        ABS_Scale = np.average(Trans[GroupID][configuration]['Abs_Trans'])
-    else:
-        ABS_Scale = 1.0  
-    SD = np.zeros((8,6144))
-    Unc_SD = np.zeros((8,6144))
-    for filenumber in Scatt[GroupID][configuration]['File']:
-        filename = path + "sans" + str(filenumber) + ".nxs.ngv"
-        config = Path(filename)
-        if config.is_file():
-            f = h5py.File(filename)
-            MonCounts = f['entry/control/monitor_counts'][0]
-            Count_time = f['entry/collection_time'][0]
-            for dshort in short_detectors:
-                if configuration in BlockBeam_ScattPerPixel:
-                    BB[dshort] = BlockBeam_ScattPerPixel[configuration][dshort]['AvePerSec']*Count_time
-                else:
-                    BB[dshort] = 0.0
-                    
-            Det_Index = 0
-            for dshort in short_detectors:
-                data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
-                unc = np.sqrt(data)
-                data = data - BB[dshort]
-                SD[Det_Index][:] += ((1E8/MonCounts)/ABS_Scale)*data.flatten()
-                Unc_SD[Det_Index][:] += ((1E8/MonCounts)/ABS_Scale)*unc.flatten()
-                #unc = np.sqrt(data)
-                #UncScaled_Data[Det_Index][:] += ((1E8/MonCounts)/ABS_Scale)*unc.flatten()
-                Det_Index += 1
-
-            Det_Index = 0
-            for dshort in short_detectors:
-                Data_AllDetectors[dshort] = SD[Det_Index]
-                Unc_Data_AllDetectors[dshort] = Unc_SD[Det_Index]
-                Det_Index += 1
-                
-    return Data_AllDetectors, Unc_Data_AllDetectors
-
-def GlobalAbsScaleAndPolCorr(Sample, Config, BlockBeam_per_second, Solid_Angle):
+def GlobalAbsScaleAndPolCorr(Sample, Config, BlockBeam_per_second, Solid_Angle, YesNoSubtraction, SubtractionArray):
 
     #Full-Pol Reduction
     Scaled_Data = np.zeros((8,4,6144))
@@ -2166,7 +1256,9 @@ def GlobalAbsScaleAndPolCorr(Sample, Config, BlockBeam_per_second, Solid_Angle):
     masks = {}
     BB = {}
     Pol_Efficiency = np.zeros((4,4))
+    HE3_Efficiency = np.zeros((4,4))
     PolCorr_AllDetectors = {}
+    HE3Corr_AllDetectors = {}
     Uncertainty_PolCorr_AllDetectors = {}
     Have_FullPol = 0
     if str(Scatt[Sample]['Config(s)'][Config]['UU']).find('NA') == -1 and Sample in Trans:
@@ -2203,6 +1295,11 @@ def GlobalAbsScaleAndPolCorr(Sample, Config, BlockBeam_per_second, Solid_Angle):
             Unc = np.sqrt(Sum)/Pixels
             Ave = np.average(Holder[masks[dshort] > 0])
             BB[dshort] = Ave
+
+        Number_UU = 1.0*len(Scatt[Sample]['Config(s)'][Config]["UU"])
+        Number_DU = 1.0*len(Scatt[Sample]['Config(s)'][Config]["DU"])
+        Number_DD = 1.0*len(Scatt[Sample]['Config(s)'][Config]["DD"])
+        Number_UD = 1.0*len(Scatt[Sample]['Config(s)'][Config]["UD"])
             
         Scatt_Type = ["UU", "DU", "DD", "UD"]
         for type in Scatt_Type:
@@ -2218,196 +1315,89 @@ def GlobalAbsScaleAndPolCorr(Sample, Config, BlockBeam_per_second, Solid_Angle):
                     entry = Scatt[Sample]['Config(s)'][Config][type_time][filenumber_counter]
                     NP, UT, T_MAJ, T_MIN = HE3_Pol_AtGivenTime(entry, HE3_Cell_Summary)
                     C = NP
-                    S = 0.992 #0.995
-                    X = np.sqrt(0.967/S) #np.sqrt(0.955/S)
+                    S = 0.995 #0.995
+                    X = np.sqrt(PSM/S) #also try np.sqrt(PSM*1.005/S with S = 1.0
                     if type == "UU":
                         CrossSection_Index = 0
-                        #Pol_Efficiency[CrossSection_Index][:] += [0.25*(1.0 + PSM)*(T_MAJ), 0.25*(1.0 - PSM)*(T_MAJ), 0.25*(1.0 - PSM)*(T_MIN), 0.25*(1.0 + PSM)*(T_MIN)]
-                        #Pol_Efficiency[CrossSection_Index][:] += [T_MAJ, 0, 0, 0]
+                        UT = UT / Number_UU
                         Pol_Efficiency[CrossSection_Index][:] += [(C*(S*X*X + X) + S*X + 1)*UT, (C*(-S*X*X + X) - S*X + 1)*UT, (C*(S*X*X - X) - S*X + 1)*UT, (C*(-S*X*X - X) + S*X + 1)*UT]
+                        HE3_Efficiency[CrossSection_Index][:] += [ UT, 0.0, 0.0, 0.0]
                         Det_Index = 0
                         for dshort in short_detectors:
                             data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
-                            #bb = np.array(BlockBeam_per_second[dshort])
                             unc = np.sqrt(data)
-                            data = data - Count_time*BB[dshort]
+                            data = (data - Count_time*BB[dshort])/Number_UU
                             Scaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*data.flatten()
                             UncScaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*unc.flatten()
                             Det_Index += 1
                     elif type == "DU":
-                        #Note these seem to be the UD files by counts and behaviour
                         CrossSection_Index = 1
-                        #Pol_Efficiency[CrossSection_Index][:] += [0.25*((1.0 + PSM)*(T_MIN)),0.25*((1.0 - PSM)*(T_MIN)),0.25*((1.0 - PSM)*(T_MAJ)),0.25*((1.0 + PSM)*(T_MAJ))]
-                        #Pol_Efficiency[CrossSection_Index][:] += [0.25*(1.0 - PSM*PF)*(T_MAJ), 0.25*(1.0 + PSM*PF)*(T_MAJ), 0.25*(1.0 + PSM*PF)*(T_MIN), 0.25*(1.0 - PSM*PF)*(T_MIN)]
-                        #Pol_Efficiency[CrossSection_Index][:] += [0, T_MAJ, 0, 0]
+                        UT = UT / Number_DU
                         Pol_Efficiency[CrossSection_Index][:] += [(C*(-S*X*X + X) - S*X + 1)*UT, (C*(S*X*X + X) + S*X + 1)*UT, (C*(-S*X*X - X) + S*X + 1)*UT, (C*(S*X*X - X) - S*X + 1)*UT]
+                        HE3_Efficiency[CrossSection_Index][:] += [ 0.0, UT, 0.0, 0.0]
                         Det_Index = 0
                         for dshort in short_detectors:
                             data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
-                            #bb = np.array(BlockBeam_per_second[dshort])
                             unc = np.sqrt(data)
-                            data = data - Count_time*BB[dshort]
+                            data = (data - Count_time*BB[dshort])/Number_DU
                             Scaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*data.flatten()
                             UncScaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*unc.flatten()
                             Det_Index += 1
                     elif type == "DD":
                         CrossSection_Index = 2
-                        #Pol_Efficiency[CrossSection_Index][:] += [0.25*((1.0 - PSM*PF)*(T_MIN)),0.25*((1.0 + PSM*PF)*(T_MIN)),0.25*((1.0 + PSM*PF)*(T_MAJ)), 0.25*((1.0 - PSM*PF)*(T_MAJ))]
-                        #Pol_Efficiency[CrossSection_Index][:] += [0, 0, T_MAJ, 0]
+                        UT = UT / Number_DD
                         Pol_Efficiency[CrossSection_Index][:] += [(C*(S*X*X - X) - S*X + 1)*UT, (C*(-S*X*X - X) + S*X + 1)*UT, (C*(S*X*X + X) + S*X + 1)*UT, (C*(-S*X*X + X) - S*X + 1)*UT]
+                        HE3_Efficiency[CrossSection_Index][:] += [ 0.0, 0.0, UT, 0.0]
                         Det_Index = 0
                         for dshort in short_detectors:
                             data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
-                            #bb = np.array(BlockBeam_per_second[dshort])
                             unc = np.sqrt(data)
-                            data = data - Count_time*BB[dshort]
+                            data = (data - Count_time*BB[dshort])/Number_DD
                             Scaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*data.flatten()
                             UncScaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*unc.flatten()
                             Det_Index += 1
                     elif type == "UD":
-                        #Note these seem to be the S_DU files by counts and behaviour
                         CrossSection_Index = 3
-                        #Pol_Efficiency[CrossSection_Index][:] += [0.25*(1.0 - PSM*PF)*(T_MAJ), 0.25*(1.0 + PSM*PF)*(T_MAJ), 0.25*(1.0 + PSM*PF)*(T_MIN), 0.25*(1.0 - PSM*PF)*(T_MIN)]
-                        #Pol_Efficiency[CrossSection_Index][:] += [0.25*((1.0 + PSM)*(T_MIN)),0.25*((1.0 - PSM)*(T_MIN)),0.25*((1.0 - PSM)*(T_MAJ)),0.25*((1.0 + PSM)*(T_MAJ))] 
-                        #Pol_Efficiency[CrossSection_Index][:] += [0, 0, 0, T_MAJ]
+                        UT = UT / Number_UD
                         Pol_Efficiency[CrossSection_Index][:] += [(C*(-S*X*X - X) + S*X + 1)*UT, (C*(S*X*X - X) - S*X + 1)*UT, (C*(-S*X*X + X) - S*X + 1)*UT, (C*(S*X*X + X) + S*X + 1)*UT]
+                        HE3_Efficiency[CrossSection_Index][:] += [ 0.0, 0.0, 0.0, UT]
                         Det_Index = 0
                         for dshort in short_detectors:
                             data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
-                            #bb = np.array(BlockBeam_per_second[dshort])
                             unc = np.sqrt(data)
-                            data = data - Count_time*BB[dshort]
+                            data = (data - Count_time*BB[dshort])/Number_UD
                             Scaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*data.flatten()
                             UncScaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*unc.flatten()
                             Det_Index += 1
                             
                 filenumber_counter += 1
-
+        
         Prefactor = inv(Pol_Efficiency)
+        PrefactorII = inv(HE3_Efficiency)
         Det_Index = 0
         for dshort in short_detectors:
             UncData_Per_Detector = UncScaled_Data[Det_Index][:][:]
             Data_Per_Detector = Scaled_Data[Det_Index][:][:]
+            HE3Corr_Data = np.dot(PrefactorII, Data_Per_Detector)
+            if YesNoSubtraction > 0:
+                if dshort in middle_detectors:
+                    Data_Per_Detector = Data_Per_Detector - (SubtractionArray[dshort]*Plex[dshort]*Solid_Angle[dshort])
+                    print('Subtracting background')
             PolCorr_Data = np.dot(Prefactor, Data_Per_Detector)
+            '''
             #Below is the code that allows true matrix error propagation, but it takes a while...so may want to optimize more before impleneting.
             #Also will need to uncomment from uncertainties import unumpy (top).
-            #Data_Per_Detector2 = unumpy.umatrix(Scaled_Data[Det_Index][:][:], UncScaled_Data[Det_Index][:][:])
-            #PolCorr_Data2 = np.dot(Prefactor, Data_Per_Detector2)
-            #PolCorr_Data = unumpy.nominal_values(PolCorr_Data2)
-            #PolCorr_Unc = unumpy.std_devs(PolCorr_Data2)
+            Data_Per_Detector2 = unumpy.umatrix(Scaled_Data[Det_Index][:][:], UncScaled_Data[Det_Index][:][:])
+            PolCorr_Data2 = np.dot(Prefactor, Data_Per_Detector2)
+            PolCorr_Data = unumpy.nominal_values(PolCorr_Data2)
+            PolCorr_Unc = unumpy.std_devs(PolCorr_Data2)
+            '''
             PolCorr_AllDetectors[dshort] = PolCorr_Data / (Plex[dshort]*Solid_Angle[dshort])
             Uncertainty_PolCorr_AllDetectors[dshort] = UncData_Per_Detector / (Plex[dshort]*Solid_Angle[dshort])
+            HE3Corr_AllDetectors[dshort] = HE3Corr_Data / (Plex[dshort]*Solid_Angle[dshort])
             Det_Index += 1
 
-    return PolCorr_AllDetectors, Uncertainty_PolCorr_AllDetectors, Have_FullPol
-
-def AbsScaleAndPolarizationCorrectData(GroupID, configuration, Pol_Trans, Pol_Scatt):
-
-    BB = {}
-    #Populate matricies
-    PSM =  Pol_Trans[GroupID]['P_SM']
-    PF = Pol_Trans[GroupID]['P_F']
-    if GroupID in Pol_Trans:
-        ABS_Scale = np.average(Pol_Trans[GroupID]['AbsScale'])
-    else:
-        ABS_Scale = 1.0
-    Pol_Efficiency = np.zeros((4,4))
-    #Q = np.zeros((8,6144))
-    Scaled_Data = np.zeros((8,4,6144))
-    UncScaled_Data = np.zeros((8,4,6144))
-    Scatt_Type = ["S_UU_files", "S_DU_files", "S_DD_files", "S_UD_files"]
-    for type in Scatt_Type:
-        for filenumber in Pol_Scatt[GroupID][configuration][type]:
-            filename = path + "sans" + str(filenumber) + ".nxs.ngv"
-            config = Path(filename)
-            if config.is_file():
-                f = h5py.File(filename)
-                MonCounts = f['entry/control/monitor_counts'][0]
-                Count_time = f['entry/collection_time'][0]
-
-                for dshort in short_detectors:
-                    if configuration in BlockBeam_ScattPerPixel:
-                        BB[dshort] = BlockBeam_ScattPerPixel[configuration][dshort]['AvePerSec']*Count_time
-                        print('Using BB')
-                    else:
-                        BB[dshort] = 0.0
-                        print('Not using BB')
-                    
-                
-                End_time = dateutil.parser.parse(f['entry/end_time'][0])
-                entry = (End_time.timestamp() - Count_time/2)/3600.0
-                NP, UT, T_MAJ, T_MIN = HE3_Pol_AtGivenTime(entry, HE3_Cell_Summary)
-                if type == "S_UU_files":
-                    CrossSection_Index = 0
-                    #Pol_Efficiency[CrossSection_Index][:] += [0.25*UT*(1.0 + PSM)*(1.0 + NP), 0.25*UT*(1.0 - PSM)*(1.0 + NP), 0.25*UT*(1.0 - PSM)*(1.0 - NP), 0.25*UT*(1.0 + PSM)*(1.0 - NP)]
-                    Pol_Efficiency[CrossSection_Index][:] += [0.25*(1.0 + PSM)*(T_MAJ), 0.25*(1.0 - PSM)*(T_MAJ), 0.25*(1.0 - PSM)*(T_MIN), 0.25*(1.0 + PSM)*(T_MIN)]
-                    Det_Index = 0
-                    for dshort in short_detectors:
-                        data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)]) #- BlockBeam_Scatt[configuration][dshort]*Count_time
-                        unc = np.sqrt(data)
-                        data = data - BB[dshort]
-                        Scaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*data.flatten()
-                        UncScaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*unc.flatten()
-                        Det_Index += 1
-                elif type == "S_DU_files":
-                    #Note these seem to be the S_UD files by counts and behaviour
-                    CrossSection_Index = 1
-                    #Pol_Efficiency[CrossSection_Index][:] += [0.25*UT*(1.0 - PSM*PF)*(1.0 + NP), 0.25*UT*(1.0 + PSM*PF)*(1.0 + NP), 0.25*UT*(1.0 + PSM*PF)*(1.0 - NP), 0.25*UT*(1.0 - PSM*PF)*(1.0 - NP)]   
-                    #Pol_Efficiency[CrossSection_Index][:] += [0.25*((1.0 + PSM)*(1.0 - NP)*UT),0.25*((1.0 - PSM)*(1.0 - NP)*UT),0.25*((1.0 - PSM)*(1.0 + NP)*UT),0.25*((1.0 + PSM)*(1.0 + NP)*UT)]
-                    Pol_Efficiency[CrossSection_Index][:] += [0.25*((1.0 + PSM)*(T_MIN)),0.25*((1.0 - PSM)*(T_MIN)),0.25*((1.0 - PSM)*(T_MAJ)),0.25*((1.0 + PSM)*(T_MAJ))]   
-                    Det_Index = 0
-                    for dshort in short_detectors:
-                        data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)]) #- BlockBeam_Scatt[configuration][dshort]*Count_time
-                        unc = np.sqrt(data)
-                        data = data - BB[dshort]
-                        Scaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*data.flatten()
-                        UncScaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*unc.flatten()
-                        Det_Index += 1
-                elif type == "S_DD_files":
-                    CrossSection_Index = 2
-                    #Pol_Efficiency[CrossSection_Index][:] += [0.25*((1.0 - PSM*PF)*(1.0 - NP)*UT),0.25*((1.0 + PSM*PF)*(1.0 - NP)*UT),0.25*((1.0 + PSM*PF)*(1.0 + NP)*UT), 0.25*((1.0 - PSM*PF)*(1.0 + NP)*UT)]
-                    Pol_Efficiency[CrossSection_Index][:] += [0.25*((1.0 - PSM*PF)*(T_MIN)),0.25*((1.0 + PSM*PF)*(T_MIN)),0.25*((1.0 + PSM*PF)*(T_MAJ)), 0.25*((1.0 - PSM*PF)*(T_MAJ))]
-                    Det_Index = 0
-                    for dshort in short_detectors:
-                        data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)]) #- BlockBeam_Scatt[configuration][dshort]*Count_time
-                        unc = np.sqrt(data)
-                        data = data - BB[dshort]
-                        Scaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*data.flatten()
-                        UncScaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*unc.flatten()
-                        Det_Index += 1
-                elif type == "S_UD_files":
-                    #Note these seem to be the S_DU files by counts and behaviour
-                    CrossSection_Index = 3
-                    #Pol_Efficiency[CrossSection_Index][:] += [0.25*((1.0 + PSM)*(1.0 - NP)*UT),0.25*((1.0 - PSM)*(1.0 - NP)*UT),0.25*((1.0 - PSM)*(1.0 + NP)*UT),0.25*((1.0 + PSM)*(1.0 + NP)*UT)]
-                    #Pol_Efficiency[CrossSection_Index][:] += [0.25*UT*(1.0 - PSM*PF)*(1.0 + NP), 0.25*UT*(1.0 + PSM*PF)*(1.0 + NP), 0.25*UT*(1.0 + PSM*PF)*(1.0 - NP), 0.25*UT*(1.0 - PSM*PF)*(1.0 - NP)]
-                    Pol_Efficiency[CrossSection_Index][:] += [0.25*(1.0 - PSM*PF)*(T_MAJ), 0.25*(1.0 + PSM*PF)*(T_MAJ), 0.25*(1.0 + PSM*PF)*(T_MIN), 0.25*(1.0 - PSM*PF)*(T_MIN)]   
-                    Det_Index = 0
-                    for dshort in short_detectors:
-                        data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)]) #- BlockBeam_Scatt[configuration][dshort]*Count_time
-                        unc = np.sqrt(data)
-                        data = data - BB[dshort]
-                        Scaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*data.flatten()
-                        UncScaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*unc.flatten()
-                        Det_Index += 1
-    PolCorr_AllDetectors = {}
-    Uncertainty_PolCorr_AllDetectors = {}
-    Prefactor = inv(Pol_Efficiency)
-    Det_Index = 0
-    for dshort in short_detectors:
-        UncData_Per_Detector = UncScaled_Data[Det_Index][:][:]
-        Data_Per_Detector = Scaled_Data[Det_Index][:][:]
-        PolCorr_Data = np.dot(Prefactor, Data_Per_Detector)
-        #Below is the code that allows true matrix error propagation, but it takes a while...so may want to optimize more before impleneting.
-        #Also will need to uncomment from uncertainties import unumpy (top).
-        #Data_Per_Detector2 = unumpy.umatrix(Scaled_Data[Det_Index][:][:], UncScaled_Data[Det_Index][:][:])
-        #PolCorr_Data2 = np.dot(Prefactor, Data_Per_Detector2)
-        #PolCorr_Data = unumpy.nominal_values(PolCorr_Data2)
-        #PolCorr_Unc = unumpy.std_devs(PolCorr_Data2)
-        PolCorr_AllDetectors[dshort] = PolCorr_Data
-        Uncertainty_PolCorr_AllDetectors[dshort] = UncData_Per_Detector
-        Det_Index += 1
-
-    return PolCorr_AllDetectors, Uncertainty_PolCorr_AllDetectors
+    return PolCorr_AllDetectors, Uncertainty_PolCorr_AllDetectors, HE3Corr_AllDetectors, Have_FullPol
 
 def SliceData(Slice_Type, Q_min, Q_max, Q_bins, QGridPerDetector, masks, PolCorr_AllDetectors, Unc_PolCorr_AllDetectors, dimXX, dimYY, ID, Config, PlotYesNo):
     
@@ -2525,11 +1515,6 @@ def SliceData(Slice_Type, Q_min, Q_max, Q_bins, QGridPerDetector, masks, PolCorr
     Sigma_DUM = np.sqrt(MiddleDU_Unc[nonzero_middle_mask]) / MiddlePixels[nonzero_middle_mask]
     Sigma_DDM = np.sqrt(MiddleDD_Unc[nonzero_middle_mask]) / MiddlePixels[nonzero_middle_mask]
     Sigma_UDM = np.sqrt(MiddleUD_Unc[nonzero_middle_mask]) / MiddlePixels[nonzero_middle_mask]
-
-    UUM = UUM - LowQ_Offset_NSF
-    DUM = DUM - LowQ_Offset_SF
-    DDM = DDM - LowQ_Offset_NSF
-    UDM = UDM - LowQ_Offset_SF
     
     Q_Common = np.concatenate((Q_Middle, Q_Front), axis=0)
     Q_Mean = np.concatenate((MeanQ_Middle, MeanQ_Front), axis=0)
@@ -2749,132 +1734,33 @@ for Config in Configs:
         if Sample in Scatt:
             if str(Scatt[Sample]['Intent']).find('Empty') != -1:
                 if Config in Scatt[Sample]['Config(s)']:
-                    PolCorr_AllDetectors, Uncertainty_PolCorr_AllDetectors, FullPolGo = GlobalAbsScaleAndPolCorr(Sample, Config, BB_per_second, Solid_Angle)
+                    YesNoSubtraction = 0
+                    Holder = np.array([0,0,0,0])
+                    PolCorr_AllDetectors, Uncertainty_PolCorr_AllDetectors, Empty_HE3Corr_AllDetectors, FullPolGo = GlobalAbsScaleAndPolCorr(Sample, Config, BB_per_second, Solid_Angle, YesNoSubtraction, Holder)
                     if FullPolGo > 0:
-                        FullPolResults['Empty'] = SliceData('Vert', Q_min, Q_max, Q_bins, QValues_All, Trunc_mask, PolCorr_AllDetectors, Uncertainty_PolCorr_AllDetectors, dimXX, dimYY, Sample, Config, PlotYesNo)
+                        FullPolResults['Empty'] = SliceData('Horz', Q_min, Q_max, Q_bins, QValues_All, Trunc_mask, PolCorr_AllDetectors, Uncertainty_PolCorr_AllDetectors, dimXX, dimYY, Sample, Config, PlotYesNo)
                         HaveFullPolEmpty = 1
     for Sample in Sample_Names:
         if Sample in Scatt:                
             if str(Scatt[Sample]['Intent']).find('Sample') != -1:
                 if Config in Scatt[Sample]['Config(s)']:
-                    PolCorr_AllDetectors, Uncertainty_PolCorr_AllDetectors, FullPolGo = GlobalAbsScaleAndPolCorr(Sample, Config, BB_per_second, Solid_Angle)
+                    YesNoSubtraction = 1
+                    PolCorr_AllDetectors, Uncertainty_PolCorr_AllDetectors, HE3Corr_AllDetectors, FullPolGo = GlobalAbsScaleAndPolCorr(Sample, Config, BB_per_second, Solid_Angle, YesNoSubtraction, Empty_HE3Corr_AllDetectors)
                     if FullPolGo > 0:
-                        FullPolResults['Vert'] = SliceData('Vert', Q_min, Q_max, Q_bins, QValues_All, Trunc_mask, PolCorr_AllDetectors, Uncertainty_PolCorr_AllDetectors, dimXX, dimYY, Sample, Config, PlotYesNo)
-                        Q = FullPolResults['Vert']['Q_Common']
-                        NSF = FullPolResults['Vert']['NSF'] - FullPolResults['Empty']['NSF']
-                        SF = FullPolResults['Vert']['SF'] - FullPolResults['Empty']['SF']
+                        FullPolResults['Horz'] = SliceData('Horz', Q_min, Q_max, Q_bins, QValues_All, Trunc_mask, PolCorr_AllDetectors, Uncertainty_PolCorr_AllDetectors, dimXX, dimYY, Sample, Config, PlotYesNo)
+                        Q = FullPolResults['Horz']['Q_Common']
+                        NSF = FullPolResults['Horz']['NSF'] - FullPolResults['Empty']['NSF']
+                        SF = FullPolResults['Horz']['SF'] - FullPolResults['Empty']['SF']
                         fig = plt.figure()
+                        plt.semilogx(Q, SF, 'b*', label='NSF')
                         #plt.loglog(Q, NSF, 'b*', label='NSF')
-                        plt.semilogx(Q, SF, 'r*', label='SF')
+                        #plt.loglog(Q, SF, 'r*', label='SF')
                         plt.xlabel('Q')
                         plt.ylabel('Intensity')
                         plt.title('Test')
                         plt.legend()
                         plt.show()
                     
-
-'''
-Plex = Plex_File()
-
-Trans_masks = Trans_Mask()
-
-Measured_Masks = {} #Measured_Masks[ConfigID][dshort][1 and 0 mask]
-threshold_counter = 0
-for filenumber in Mask_Files:
-    front_mask_threshold = Mask_Thresholds_Front[threshold_counter]
-    middle_mask_threshold = Mask_Thresholds_Middle[threshold_counter]
-    MM = Make_Mask_From_File(filenumber, front_mask_threshold, middle_mask_threshold)
-    Config_ID = Unique_Config_ID(filenumber)
-    Measured_Masks[Config_ID] = MM
-    threshold_counter += 1
-
-BlockBeam_Trans, BlockBeam_ScattPerPixel = BlockedBeam_Averaged(BlockedBeamFiles, Measured_Masks, Trans_masks)
-
-Unpol_Trans, Unpol_Scatt, HE3_Trans, Pol_Trans, Pol_Scatt, Scatt_ConfigIDs = SortData(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues, start_number, end_number)
-
-print(HE3_Trans)
-
-dim_All = {} #dim_All[ConfigID][X or Y][dshort]
-Solid_Angle_All = {} #Solid_Angle_All[ConfigID][dshort]
-Geometric_Masks = {} #Masks_Geometric[ConfigID][dshort]
-QValues_All = {} #Masks_Geometric[ConfigID][dshort]
-for Config_ID in Scatt_ConfigIDs:
-    for filenumber in Scatt_ConfigIDs[Config_ID]['Example_File']:
-        Solid_Angle_All[Config_ID] = SolidAngle_AllDetectors(filenumber)
-        QX, QY, QZ, Q_total, Q_perp_unc, Q_parl_unc, dimXX, dimYY, Right_mask, Top_mask, Left_mask, Bottom_mask, DiagCW_mask, DiagCCW_mask, No_mask, Mask_User_Definedm, Shadow = QCalculationAndMasks_AllDetectors(filenumber, SectorCutAngles)
-        dim_All[Config_ID] = {'X' : dimXX, 'Y' : dimYY}
-        Shadow_mask = {}
-        Circ_mask = {}
-        Horz_mask = {}
-        Vert_mask = {}
-        Diag_mask = {}
-        for dshort in short_detectors:
-            Shadow_mask[dshort] = Shadow[dshort]
-            Circ_mask[dshort] = No_mask[dshort] #*Mask_User_Defined[dshort]
-            Horz_mask[dshort] = (Right_mask[dshort] + Left_mask[dshort]) #*Mask_User_Defined[dshort]
-            Vert_mask[dshort] = (Top_mask[dshort] + Bottom_mask[dshort]) #*Mask_User_Defined[dshort]
-            Diag_mask[dshort] = (DiagCW_mask[dshort] + DiagCCW_mask[dshort]) #*Mask_User_Defined[dshort]
-        Geometric_Masks[Config_ID] = {'Horz': Horz_mask,'Vert':Vert_mask,'Diag':Diag_mask,'Circ':Circ_mask,'Shadow':Shadow_mask}
-        QValues_All[Config_ID] = {'QX':QX,'QY':QY,'QZ':QZ,'Q_total':Q_total,'Q_perp_unc':Q_perp_unc,'Q_parl_unc':Q_parl_unc}
-
-Masks_All = Geometric_Masks
-for Config_ID in Masks_All:
-    if Config_ID in Measured_Masks:
-        for Type in Masks_All[Config_ID]:
-            for dshort in short_detectors:
-                Masks_All[Config_ID][Type][dshort] = Measured_Masks[Config_ID][dshort]*Geometric_Masks[Config_ID][Type][dshort]
-
-Trunc_mask = {}
-
-DataType = 'Unpol'
-if UnpolYesNo == 1:            
-    UnpolToSubtract_AllDetectors = {}            
-    for ID in Unpol_Scatt:
-        for Config_ID in Unpol_Scatt[ID]:
-            UnpolData_AllDetectors, Unc_UnpolData_AllDetectors = AbsScale(ID, Config_ID, Unpol_Trans, Unpol_Scatt)#UnPolData_AllDetectors[dshort][128 x 48 = 6144]
-            for dshort in short_detectors:
-                Unc_UnpolData_AllDetectors[dshort] = Unc_UnpolData_AllDetectors[dshort]/(Solid_Angle_All[Config_ID][dshort]*Plex[dshort])
-                if Config_ID in UnpolToSubtract_AllDetectors:
-                    UnpolData_AllDetectors[dshort] = UnpolData_AllDetectors[dshort]/(Solid_Angle_All[Config_ID][dshort]*Plex[dshort]) - UnpolToSubtract_AllDetectors[Config_ID][dshort]
-                else:
-                    UnpolData_AllDetectors[dshort] = UnpolData_AllDetectors[dshort]/(Solid_Angle_All[Config_ID][dshort]*Plex[dshort])
-            PlotYesNo = 1 #1 means yes
-            for Key in Unpol_Key_list:
-                Trunc_mask['label'] = Key
-                for dshort in short_detectors:
-                    Trunc_mask[dshort] = Masks_All[Config_ID][Key][dshort]
-                QQ, QM, Intensity = SliceDataUnpolData(Q_min, Q_max, Q_bins, QValues_All[Config_ID], Trunc_mask, UnpolData_AllDetectors, Unc_UnpolData_AllDetectors, dim_All[Config_ID]['X'], dim_All[Config_ID]['Y'], ID, Config_ID, PlotYesNo)
-        if Print_ASCII == 1:
-            ASCIIlike_Output(DataType, ID, Config_ID, UnpolData_AllDetectors, Unc_UnpolData_AllDetectors, QValues_All[Config_ID]) #QX, QY, QZ, Q_perp_unc, Q_parl_unc)
-
-DataType = 'Fullpol'
-FullPolResults = {}
-if FullPolYeseNo == 1:
-    HE3_Cell_Summary = HE3_DecayCurves(HE3_Trans)
-
-    Pol_SuppermirrorAndFlipper(Pol_Trans, HE3_Cell_Summary)
-
-    PolToSubtract_AllDetectors = {}            
-    for ID in Pol_Scatt:
-        for Config_ID in Pol_Scatt[ID]:
-            PolData_AllDetectors, Unc_PolData_AllDetectors = AbsScaleAndPolarizationCorrectData(ID, Config_ID, Pol_Trans, Pol_Scatt)#PolData_AllDetectors[dshort][0-3 cross-section][128 x 48 = 6144]
-            for dshort in short_detectors:
-                Unc_PolData_AllDetectors[dshort] = Unc_PolData_AllDetectors[dshort]/(Solid_Angle_All[Config_ID][dshort]*Plex[dshort])
-                if Config_ID in PolToSubtract_AllDetectors:
-                    PolData_AllDetectors[dshort] = PolData_AllDetectors[dshort]/(Solid_Angle_All[Config_ID][dshort]*Plex[dshort]) - PolToSubtract_AllDetectors[Config_ID][dshort]
-                else:
-                    PolData_AllDetectors[dshort] = PolData_AllDetectors[dshort]/(Solid_Angle_All[Config_ID][dshort]*Plex[dshort])
-            PlotYesNo = 1 #1 means yes
-            for Key in FullPol_Key_list:
-                Trunc_mask['label'] = Key
-                for dshort in short_detectors:
-                    Trunc_mask[dshort] = Masks_All[Config_ID][Key][dshort]
-                FullPolResults[Key] = SliceDataPolData(Q_min, Q_max, Q_bins, QValues_All[Config_ID], Trunc_mask, PolData_AllDetectors, Unc_PolData_AllDetectors, dimXX, dimYY, ID, Config_ID, PlotYesNo)
-                #Q_Common, Q_Mean, SF, SF_Unc, NSF, NSFDiff, NSF_Unc, Q_Uncertainty, Q_Mean, Shadow
-                
-        if Print_ASCII == 1:
-            ASCIIlike_Output(DataType, ID, Config_ID, PolData_AllDetectors, Unc_PolData_AllDetectors, QValues_All[Config_ID])
-'''
 
 #*************************************************
 #***           End of 'The Program'            ***
