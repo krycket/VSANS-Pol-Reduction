@@ -10,30 +10,28 @@ from numpy.linalg import inv
 from uncertainties import unumpy
 import os
 
-#The following is from Fe3O4Cal_Nov2019.py:
 path = ''
 TransPanel = 'MR' #Default is 'MR'
-SectorCutAngles = 15.0
-UsePolCorr = 1
-PlotYesNo = 1 #1 means yes
-#SubtractEmptyIfAvailable = 1
-YesNoManualHe3Entry = 0 #0 for no (default), 1 for yes
-New_HE3_Files = {}
-MuValues = {} #[3.374, 3.105]=[Fras, Bur]; should not be needed after July 2019
-TeValues = {} #[0.86, 0.86]=[Fras, Bur]; should not be needed after July 2019
+SectorCutAngles = 10.0 #Default is 10.0 (degrees)
+UsePolCorr = 1 #Default is 1 to pol-ccorrect full-pol data, 0 means no
+PlotYesNo = 1 #Default is 1 where 1 means yes, 0 means no
+
+YesNoManualHe3Entry = 0 #0 for no (default), 1 for yes; should not be needed for data taken after July 2019 if He3 cells are properly registered
+New_HE3_Files = {} #These would be the starting files for each new cell IF YesNoManualHe3Entry = 1
+MuValues = {} #Values only used IF YesNoManualHe3Entry = 1; example [3.374, 3.105]=[Fras, Bur]; should not be needed after July 2019
+TeValues = {} #Values only used IF YesNoManualHe3Entry = 1; example [0.86, 0.86]=[Fras, Bur]; should not be needed after July 2019
 
 '''
 This program is set to reduce VSANS data using middle and front detectors - umnpol, fullpol available.
-To do: BS shadow, deadtime corr., check abs. scaling, uncertainty propagation through , choice of 2 cross-section empty files, half-pol
 '''
 
 #*************************************************
 #***        Definitions, Functions             ***
 #*************************************************
 
-short_detectors = ["MT", "MB", "ML", "MR", "FT", "FB", "FL", "FR"]
-middle_detectors = ["MT", "MB", "ML", "MR"]
-sector_slices = ["Left", "Right"] #["Horz", "Vert", "Diag"]
+short_detectors = ["MT", "MB", "MR", "ML", "FT", "FB", "FR", "FL"]
+middle_detectors = ["MT", "MB", "MR", "ML"]
+sector_slices = ["Horz", "Vert"]
 
 def Unique_Config_ID(filenumber):
     
@@ -58,7 +56,8 @@ def File_Type(filenumber):
     config = Path(filename)
     if config.is_file():
         f = h5py.File(filename)
-        Purpose = f['entry/reduction/file_purpose'][()] #SCATT, TRANS, HE3
+        Purpose = f['entry/reduction/file_purpose'][()]
+        '''Purpose means SCATT, TRANS, HE3'''
         if str(Purpose).find("SCATT") != -1:
             Type = 'SCATT'
         else:
@@ -146,14 +145,16 @@ def SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues):
 
                     Purpose = f['entry/reduction/file_purpose'][()] #SCATT, TRANS, HE3
                     Intent = f['entry/reduction/intent'][()] #Sample, Empty, Blocked Beam, Open Beam
-                    #ID = str(f['entry/sample/group_id'][0])
                     End_time = dateutil.parser.parse(f['entry/end_time'][0])
                     TimeOfMeasurement = (End_time.timestamp() - Count_time/2)/3600.0 #in hours
                     Trans_Counts = f['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
+                    '''
+                    #ID = str(f['entry/sample/group_id'][0])
                     #trans_mask = Trans_masks['MR']
                     #trans_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
                     #trans_data = trans_data*trans_mask
                     #Trans_Counts = trans_data.sum()
+                    '''
                     MonCounts = f['entry/control/monitor_counts'][0]
                     Trans_Distance = f['entry/instrument/detector_{ds}/distance'.format(ds=TransPanel)][0]
                     Attenuation = f['entry/DAS_logs/attenuator/attenuator'][0]
@@ -207,7 +208,6 @@ def SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues):
                             if Sample_Name not in Scatt:
                                 Scatt[Sample_Name] = {'Intent': Intent_short, 'Sample_Base': Sample_Base, 'Config(s)' : {Config : {'Unpol': 'NA', 'U' : 'NA', 'D' : 'NA','UU' : 'NA', 'DU' : 'NA', 'DD' : 'NA', 'UD' : 'NA', 'UU_Time' : 'NA', 'DU_Time' : 'NA', 'DD_Time' : 'NA', 'UD_Time' : 'NA'}}}
                             if Config not in Scatt[Sample_Name]['Config(s)']:
-                                #Check that multipe configurations per sample are processed properly; Scatt[Sample_Name]['Config(s)'].append(Config)
                                 Scatt[Sample_Name]['Config(s)'][Config] = {'Unpol': 'NA', 'U' : 'NA', 'D' : 'NA','UU' : 'NA', 'DU' : 'NA', 'DD' : 'NA', 'UD' : 'NA', 'UU_Time' : 'NA', 'DU_Time' : 'NA', 'DD_Time' : 'NA', 'UD_Time' : 'NA'}
                             if str(FrontPolDirection).find("UNPOLARIZED") != -1 and str(BackPolDirection).find("UNPOLARIZED") != -1:
                                 if 'NA' in Scatt[Sample_Name]['Config(s)'][Config]['Unpol']:
@@ -392,9 +392,6 @@ def SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues):
                                             HE3_Trans[CellTimeIdentifier]['HE3_OUT_file'].append(HE3OUT_filenumber)
                                             HE3_Trans[CellTimeIdentifier]['HE3_IN_file'].append(HE3IN_filenumber)
                                             HE3_Trans[CellTimeIdentifier]['Elasped_time'].append(Elasped_time)
-                                            
-
-
 
     return Sample_Names, Configs, BlockBeam, Scatt, Trans, Pol_Trans, HE3_Trans
 
@@ -584,7 +581,7 @@ def Process_Transmissions(BlockBeam, Masks, HE3_Trans, Pol_Trans, Trans):
                         Pol_Trans[Samp]['T_DD']['Trans'].append(DD_value)
                         Pol_Trans[Samp]['T_UD']['Trans'].append(UD_value)
                         Pol_Trans[Samp]['T_SM']['Trans_Cts'].append(SM_value)
-                else: #no mask for Full_Pol trans
+                else:
                     UU = path + "sans" + str(UUFile) + ".nxs.ngv"
                     DU = path + "sans" + str(DUFile) + ".nxs.ngv"
                     DD = path + "sans" + str(DDFile) + ".nxs.ngv"
@@ -692,7 +689,7 @@ def Process_Transmissions(BlockBeam, Masks, HE3_Trans, Pol_Trans, Trans):
                                 Trans[Samp]['Config(s)'][Config]['U_Trans_Cts'] = [U_Trans]
                             else:
                                 Trans[Samp]['Config(s)'][Config]['U_Trans_Cts'].append(U_Trans)
-                else: #no mask for Trans
+                else:
                     if BBFile == 0:
                         BB_counts = 0.0
                         BBCount_time = 1.0
@@ -759,7 +756,6 @@ def Plex_File():
     Plex_file = [fn for fn in os.listdir("./") if fn.startswith("PLEX")]
     if len(Plex_file) >= 1:
         filename = str(Plex_file[0])
-    #filename = path + "PLEX_" + str(filenumber) + "_VSANS_DIV.h5"
     config = Path(filename)
     if config.is_file():
         print('Reading in ', filename)
@@ -847,14 +843,11 @@ def BlockedBeam_Averaged(BlockedBeamFiles, MeasMasks, Trans_masks):
         if config.is_file():
             print('Reading in block beam file number:', filenumber)
             f = h5py.File(filename)
-            Config_ID = Unique_Config_ID(filenumber) #int(f['entry/DAS_logs/carriage2Trans/desiredSoftPosition'][0]) #int(f['entry/instrument/detector_{ds}/distance'.format(ds=TransPanel)][0])
-
+            Config_ID = Unique_Config_ID(filenumber)
             Purpose = f['entry/reduction/file_purpose'][()]
             Count_time = f['entry/collection_time'][0]
-            if str(Purpose).find("TRANS") != -1 or str(Purpose).find("HE3") != -1:
-                
-                #Trans_Counts = f['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
-                
+            if str(Purpose).find("TRANS") != -1 or str(Purpose).find("HE3") != -1: 
+                '''#Trans_Counts = f['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]'''  
                 trans_mask = Trans_masks['MR']
                 trans_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
                 trans_data = trans_data*trans_mask
@@ -862,7 +855,6 @@ def BlockedBeam_Averaged(BlockedBeamFiles, MeasMasks, Trans_masks):
                 
                 BlockBeam_Trans[Config_ID] = {'File' : filenumber,
                                                              'CountsPerSecond' : Trans_Counts/Count_time}
-            #if str(Purpose).find("SCATT") != -1:
             if str(Purpose).find("TRANS") != -1 or str(Purpose).find("HE3") != -1:
                 print('BB scattering number is ', filenumber)
                 BlockBeam_ScattPerPixel[Config_ID] = {'File' : filenumber}
@@ -924,10 +916,6 @@ def QCalculationAndMasks_AllDetectors(representative_filenumber, AngleWidth):
     dimXX = {}
     dimYY = {}
 
-    #Kludge:
-    beamcenter_x_offset_KK = 0.0
-    beamcenter_y_offset_KK = 0.0
-
     filename = path + "sans" + str(representative_filenumber) + ".nxs.ngv"
     config = Path(filename)
     if config.is_file():
@@ -940,8 +928,8 @@ def QCalculationAndMasks_AllDetectors(representative_filenumber, AngleWidth):
             dimY = f['entry/instrument/detector_{ds}/pixel_num_y'.format(ds=dshort)][0]
             dimXX[dshort] = f['entry/instrument/detector_{ds}/pixel_num_x'.format(ds=dshort)][0]
             dimYY[dshort] = f['entry/instrument/detector_{ds}/pixel_num_y'.format(ds=dshort)][0]
-            beam_center_x = f['entry/instrument/detector_{ds}/beam_center_x'.format(ds=dshort)][0] + beamcenter_x_offset_KK
-            beam_center_y = f['entry/instrument/detector_{ds}/beam_center_y'.format(ds=dshort)][0] + beamcenter_y_offset_KK
+            beam_center_x = f['entry/instrument/detector_{ds}/beam_center_x'.format(ds=dshort)][0]
+            beam_center_y = f['entry/instrument/detector_{ds}/beam_center_y'.format(ds=dshort)][0]
             beamstop_diameter = f['/entry/DAS_logs/C2BeamStop/diameter'][0]/10.0 #beam stop in cm; sits right in front of middle detector?
             detector_distance = f['entry/instrument/detector_{ds}/distance'.format(ds=dshort)][0]
             x_pixel_size = f['entry/instrument/detector_{ds}/x_pixel_size'.format(ds=dshort)][0]/10.0
@@ -953,15 +941,17 @@ def QCalculationAndMasks_AllDetectors(representative_filenumber, AngleWidth):
             SourceAp = f['/entry/DAS_logs/geometry/sourceApertureHeight'][0] #source aperture in cm, assumes circular aperture(?) #0.75, 1.5, or 3 for guides; otherwise 6 cm for >= 1 guides
             FrontDetToGateValve = f['/entry/DAS_logs/carriage/frontTrans'][0] #400
             MiddleDetToGateValve = f['/entry/DAS_logs/carriage/middleTrans'][0] #1650
-            #GateValveToSample = f['/entry/DAS_logs/geometry/samplePositionOffset'][0] #e.g. 91.4; gate valve to sample in cm ("Hand-measured distance from the center of the table the sample is mounted on to the sample. A positive value means the sample is offset towards the guides.")
             FrontDetToSample = f['/entry/DAS_logs/geometry/sampleToFrontLeftDetector'][0] #491.4
             MiddleDetToSample = f['/entry/DAS_logs/geometry/sampleToMiddleLeftDetector'][0] #1741.4
-            #SampleToSampleAp = f['/entry/DAS_logs/geometry/SampleApertureOffset'][0] #e.g. 106.9; sample to sample aperture in cm ("Hand-measured distance between the Sample aperture and the sample.")            
             SampleToSourceAp = f['/entry/DAS_logs/geometry/sourceApertureToSample'][0] #1490.6; "Calculated distance between sample and source aperture" in cm
+            '''
+            #GateValveToSample = f['/entry/DAS_logs/geometry/samplePositionOffset'][0] #e.g. 91.4; gate valve to sample in cm ("Hand-measured distance from the center of the table the sample is mounted on to the sample. A positive value means the sample is offset towards the guides.")
+            #SampleToSampleAp = f['/entry/DAS_logs/geometry/SampleApertureOffset'][0] #e.g. 106.9; sample to sample aperture in cm ("Hand-measured distance between the Sample aperture and the sample.")            
             #SampleApToSourceAp = f['/entry/DAS_logs/geometry/sourceApertureToSampleAperture'][0] #1383.7; "Calculated distance between sample aperture and source aperture" in cm
             #Note gate valve to source aperture distances are based on the number of guides used:
             #0=2441; 1=2157; 2=1976; 3=1782; 4=1582; 5=1381; 6=1181; 7=980; 8=780; 9=579 in form of # guides=distance in cm
-
+            '''
+                
             if dshort == 'MT' or dshort == 'MB' or dshort == 'FT' or dshort == 'FB':
                 setback = f['entry/instrument/detector_{ds}/setback'.format(ds=dshort)][0]
                 vertical_offset = f['entry/instrument/detector_{ds}/vertical_offset'.format(ds=dshort)][0]
@@ -996,9 +986,8 @@ def QCalculationAndMasks_AllDetectors(representative_filenumber, AngleWidth):
             BeamStopShadow[dshort] = BSS
             twotheta = np.arctan2(InPlane0_pos,realDistZ)
             phi = np.arctan2(y0_pos,x0_pos)
-
-            #Q resolution from J. of Appl. Cryst. 44, 1127-1129 (2011) and file:///C:/Users/kkrycka/Downloads/SANS_2D_Resolution.pdf where
-            #there seems to be an extra factor of wavelength listed that shouldn't be there in (delta_wavelength/wavelength):
+            '''#Q resolution from J. of Appl. Cryst. 44, 1127-1129 (2011) and file:///C:/Users/kkrycka/Downloads/SANS_2D_Resolution.pdf where
+            #there seems to be an extra factor of wavelength listed that shouldn't be there in (delta_wavelength/wavelength):'''
             carriage_key = dshort[0]
             if carriage_key == 'F':
                 L2 = FrontDetToSample
@@ -1016,19 +1005,17 @@ def QCalculationAndMasks_AllDetectors(representative_filenumber, AngleWidth):
             SigmaQParlSqr = (k*k/12.0)*(3*np.power(R1/L1,2) + 3.0*np.power(R2*Inv_LPrime,2)+ np.power(Sigma_D_Parl/L2,2))
             R = np.sqrt(np.power(x0_pos,2)+np.power(y0_pos,2))
             Q0 = k*R/L2
+            '''
             #If no gravity correction:
             #SigmaQParlSqr = SigmaQParlSqr + np.power(Q0,2)*np.power(Wavelength_spread/np.sqrt(6.0),2)
             #Else, if adding gravity correction:
+            '''
             g = 981 #in cm/s^2
             m_div_h = 252.77 #in s cm^-2
             A = -0.5*981*L2*(L1+L2)*np.power(m_div_h , 2)
             WL = Wavelength*1E-8
             SigmaQParlSqr = SigmaQParlSqr + np.power(Wavelength_spread*k/(L2),2)*(R*R -4*A*np.sin(phi)*WL*WL + 4*A*A*np.power(WL,4))/6.0 #gravity correction makes vary little difference for wavelength spread < 20%
-            #VSANS IGOR 2D ASCII delta_Q seems to be way off the mark, but this 2D calculaation matches the VSANS circular average closely when pixels are converted to circular average...
-            
-            #This is what Greta had in comperaison, with Pixel size set to 0.82 cm:
-            #deltaQ_geometry = (2.0*np.pi/(Wavelength*L2))*np.sqrt( np.power((L2*R1)/(4*L1),2) + np.power((L1+L2)/(4*L1*R1),2)+ np.power( (Pix/2.0),(2.0/3.0)) )
-            #deltaQ_wavelength = Wavelength_spread/np.sqrt(6.0)
+            '''VSANS IGOR 2D ASCII delta_Q seems to be way off the mark, but this 2D calculaation matches the VSANS circular average closely when pixels are converted to circular average...'''
             
             Q_total[dshort] = (4.0*np.pi/Wavelength)*np.sin(twotheta/2.0)
             QQ_total = (4.0*np.pi/Wavelength)*np.sin(twotheta/2.0)
@@ -1037,8 +1024,8 @@ def QCalculationAndMasks_AllDetectors(representative_filenumber, AngleWidth):
             Qz[dshort] = QQ_total*np.sin(twotheta/2.0)     
             Q_perp_unc[dshort] = np.ones_like(Q_total[dshort])*np.sqrt(SigmaQPerpSqr)
             Q_parl_unc[dshort] = np.sqrt(SigmaQParlSqr)
-            #Theta_deg = 180.0*np.arctan2(Qy[dshort], Qx[dshort])/np.pi #returns values between -180.0 degrees and +180.0 degrees
             Theta_deg = phi*180.0/np.pi
+            '''#returns values between -180.0 degrees and +180.0 degrees'''
         
             NM = np.ones_like(data)
             TM = np.zeros_like(data)
@@ -1054,7 +1041,6 @@ def QCalculationAndMasks_AllDetectors(representative_filenumber, AngleWidth):
             BM[np.absolute(Theta_deg + 90.0) <= AngleWidth] = 1.0
             
             RM[np.absolute(Theta_deg - 0.0) <= AngleWidth] = 1.0
-            RM[np.absolute(Theta_deg - 360.0) <= AngleWidth] = 1.0
             LUM[np.absolute(Theta_deg - 180.0) <= AngleWidth] = 1.0
             LLM[np.absolute(Theta_deg + 180.0) <= AngleWidth] = 1.0
             LM = (LUM + LLM)
@@ -1090,31 +1076,16 @@ def QCalculationAndMasks_AllDetectors(representative_filenumber, AngleWidth):
             else:
                 Mask_User_Defined[dshort] = Shadow
 
-            #Kludge
-            if dshort == "MR":
-                Mask_Right[dshort] = np.ones_like(data)
-            elif dshort == "ML":
-                Mask_Left[dshort] = np.ones_like(data)
-            else:
-                Mask_Right[dshort] = np.zeros_like(data)
-                Mask_Left[dshort] = np.zeros_like(data)
-            '''    
-            if dshort == "MR" or dshort == "FR":
-                Mask_Right[dshort] = np.ones_like(data)
-                print('Right mask assigned')
-            if dshort == "ML" or dshort == "FL":
-                Mask_Left[dshort] = np.ones_like(data)
-                print('Left mask assigned')
-            '''
-
     return Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, dimXX, dimYY, Mask_Right, Mask_Top, Mask_Left, Mask_Bottom, Mask_DiagonalCW, Mask_DiagonalCCW, Mask_None, Mask_User_Defined, BeamStopShadow
 
 def He3Decay_func(t, p, gamma):
     return p * np.exp(-t / gamma)
 
 def HE3_Pol_AtGivenTime(entry_time, HE3_Cell_Summary):
+    '''
     #Predefine HE3_Cell_Summary[HE3_Trans[entry]['Insert_time']] = {'Atomic_P0' : P0, 'Gamma(hours)' : gamma, 'Mu' : Mu, 'Te' : Te}
     #He3Decay_func must be predefined
+    '''
 
     counter = 0
     for time in HE3_Cell_Summary:
@@ -1140,8 +1111,10 @@ def HE3_Pol_AtGivenTime(entry_time, HE3_Cell_Summary):
     return NeutronPol, UnpolHE3Trans, T_MAJ, T_MIN
 
 def HE3_DecayCurves(HE3_Trans):
+    '''
     #Uses predefined He3Decay_func
     #Creates and returns HE3_Cell_Summary
+    '''
 
     HE3_Cell_Summary = {}
     entry_number = 0
@@ -1156,12 +1129,12 @@ def HE3_DecayCurves(HE3_Trans):
 
         if xdata.size < 2:
             P0 = ydata[0]
-            gamma = 1000.0 #assumes no appreciable time decay until more data obtained
+            gamma = 1000.0
+            '''#assumes no appreciable time decay until more data obtained'''
             PCell0 = np.tanh(Mu * P0)
         else:
             popt, pcov = curve_fit(He3Decay_func, xdata, ydata)
             P0, gamma = popt
-            #fit = He3Decay_func(xdata, popt[0], popt[1])
             PCell0 = np.tanh(Mu * P0)
 
         HE3_Cell_Summary[HE3_Trans[entry]['Insert_time']] = {'Atomic_P0' : P0, 'Gamma(hours)' : gamma, 'Mu' : Mu, 'Te' : Te}
@@ -1206,18 +1179,21 @@ def HE3_DecayCurves(HE3_Trans):
             plt.title('Predicted He3 Cell Transmission')
             plt.legend()
             plt.show()
-            
+
+        '''    
         #NeutronPol = np.tanh(Mu * AtomicPol)
         #UnpolHE3Trans = Te * np.exp(-Mu)*np.cosh(Mu * AtomicPol)
         #T_MAJ = Te * np.exp(-Mu*(1.0 - AtomicPol))
         #T_MIN = Te * np.exp(-Mu*(1.0 + AtomicPol))
+        '''
 
     return HE3_Cell_Summary
 
 def Pol_SuppermirrorAndFlipper(Pol_Trans, HE3_Cell_Summary):
-    #Uses time of measurement from Pol_Trans,
+    '''#Uses time of measurement from Pol_Trans,
     #saves PSM and PF values into Pol_Trans.
     #Uses prefefined HE3_Pol_AtGivenTime function.
+    '''
     
     for ID in Pol_Trans:
         if 'Meas_Time' in Pol_Trans[ID]['T_UU']:
@@ -1279,18 +1255,6 @@ def Pol_SuppermirrorAndFlipper(Pol_Trans, HE3_Cell_Summary):
             print('DD_Cell', DD_NeutronPol, DD_UnpolHe3Trans)
             print('UD_Cell', UD_NeutronPol, UD_UnpolHe3Trans)
 
-            '''
-            #Division method:
-            print('  ')
-            PF = 1.00
-            Pol_Trans[ID]['P_F'] = np.average(PF)
-            PSM1 = (DD/DD_UnpolHe3Trans - DU/DU_UnpolHe3Trans)/(DU_NeutronPol*DD/DD_UnpolHe3Trans+DD_NeutronPol*DU/DU_UnpolHe3Trans)
-            PSM2 = (UU/UU_UnpolHe3Trans - UD/UD_UnpolHe3Trans)/(UD_NeutronPol*UU/UU_UnpolHe3Trans+UU_NeutronPol*UD/UD_UnpolHe3Trans)
-            PSM = (PSM1 + PSM2)/ 2.0
-            Pol_Trans[ID]['P_SM'] = np.average(PSM)
-            print('Ave P_SM is', Pol_Trans[ID]['P_SM'])
-            '''
-            #Direct transmission method:
             PF = 1.00
             Pol_Trans[ID]['P_F'] = np.average(PF)
             PSMUU = (UU/UU_UnpolHe3Trans - 1.0)/(UU_NeutronPol)
@@ -1302,7 +1266,8 @@ def Pol_SuppermirrorAndFlipper(Pol_Trans, HE3_Cell_Summary):
             print('PSM', Pol_Trans[ID]['P_SM'])
             
 
-            if UsePolCorr == 0:#0 Means no, turn it off
+            if UsePolCorr == 0:
+                '''#0 Means no, turn it off'''
                 Pol_Trans[ID]['P_SM'] = 1.0
                 Pol_Trans[ID]['P_F'] = 1.0
                 print('Manually reset P_SM and P_F to unity')
@@ -1311,7 +1276,7 @@ def Pol_SuppermirrorAndFlipper(Pol_Trans, HE3_Cell_Summary):
 
 def GlobalAbsScaleAndPolCorr(Sample, Config, BlockBeam_per_second, Solid_Angle, YesNoSubtraction, SubtractionArray):
 
-    #Full-Pol Reduction
+    '''#Full-Pol Reduction:'''
     Scaled_Data = np.zeros((8,4,6144))
     UncScaled_Data = np.zeros((8,4,6144))
     masks = {}
@@ -1336,7 +1301,9 @@ def GlobalAbsScaleAndPolCorr(Sample, Config, BlockBeam_per_second, Solid_Angle, 
             print(Sample, Config, 'missing P_F and P_SM; will proceed without pol-correction!')
             PF = 1.0
             PSM = 1.0
-        #Calculating an average block beam counts per pixel and time (seems to work better than a pixel-by-pixel subtraction, at least for shorter count times)
+        '''#Calculating an average block beam counts per pixel and time (seems to work better than a pixel-by-pixel subtraction,
+        at least for shorter count times)'''
+        
         for dshort in short_detectors:
             Holder =  np.array(BlockBeam_per_second[dshort])
             '''Optional:
@@ -1376,8 +1343,9 @@ def GlobalAbsScaleAndPolCorr(Sample, Config, BlockBeam_per_second, Solid_Angle, 
                     entry = Scatt[Sample]['Config(s)'][Config][type_time][filenumber_counter]
                     NP, UT, T_MAJ, T_MIN = HE3_Pol_AtGivenTime(entry, HE3_Cell_Summary)
                     C = NP
-                    S = 0.998 #0.9985 is the highest I've recently gotten at 5.5 Ang and it could even be 1.0 with tight slits..., from EuSe 60 nm 0.95 V and 2.0 K
-                    X = np.sqrt(PSM/S) #also try np.sqrt(PSM*1.005/S with S = 1.0
+                    S = 0.998
+                    '''#0.9985 is the highest I've recently gotten at 5.5 Ang and it could even be 1.0 with tight slits..., from EuSe 60 nm 0.95 V and 2.0 K'''
+                    X = np.sqrt(PSM/S)
                     if type == "UU":
                         CrossSection_Index = 0
                         UT = UT / Number_UU
@@ -1388,8 +1356,6 @@ def GlobalAbsScaleAndPolCorr(Sample, Config, BlockBeam_per_second, Solid_Angle, 
                             data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
                             unc = np.sqrt(data)
                             data = (data - Count_time*BB[dshort])/Number_UU
-                            #Hold = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
-                            #data = np.ones_like(Hold)*1000/Number_UU
                             Scaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*data.flatten()
                             UncScaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*unc.flatten()
                             Det_Index += 1
@@ -1403,8 +1369,6 @@ def GlobalAbsScaleAndPolCorr(Sample, Config, BlockBeam_per_second, Solid_Angle, 
                             data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
                             unc = np.sqrt(data)
                             data = (data - Count_time*BB[dshort])/Number_DU
-                            #Hold = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
-                            #data = np.ones_like(Hold)*1000/Number_DU
                             unc = unc/Number_DU
                             Scaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*data.flatten()
                             UncScaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*unc.flatten()
@@ -1419,8 +1383,6 @@ def GlobalAbsScaleAndPolCorr(Sample, Config, BlockBeam_per_second, Solid_Angle, 
                             data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
                             unc = np.sqrt(data)
                             data = (data - Count_time*BB[dshort])/Number_DD
-                            #Hold = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
-                            #data = np.ones_like(Hold)*1000/Number_DD
                             Scaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*data.flatten()
                             UncScaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*unc.flatten()
                             Det_Index += 1
@@ -1434,8 +1396,6 @@ def GlobalAbsScaleAndPolCorr(Sample, Config, BlockBeam_per_second, Solid_Angle, 
                             data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
                             unc = np.sqrt(data)
                             data = (data - Count_time*BB[dshort])/Number_UD
-                            #Hold = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
-                            #data = np.ones_like(Hold)*1000/Number_UD
                             unc = unc/Number_UD
                             Scaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*data.flatten()
                             UncScaled_Data[Det_Index][CrossSection_Index][:] += ((1E8/MonCounts)/ABS_Scale)*unc.flatten()
@@ -1556,7 +1516,8 @@ def SliceData(Slice_Type, Q_min, Q_max, Q_bins, QGridPerDetector, masks, PolCorr
         
         MeanQSum, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=Q_tot[masks[dshort] > 0])
         MeanQUnc, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=np.power(Q_unc[masks[dshort] > 0],2)) 
-        pixels, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=np.ones_like(UU)[masks[dshort] > 0])  
+        pixels, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=np.ones_like(UU)[masks[dshort] > 0])
+        
         carriage_key = dshort[0]
         if carriage_key == 'F':
             FrontUU += countsUU
@@ -1585,6 +1546,9 @@ def SliceData(Slice_Type, Q_min, Q_max, Q_bins, QGridPerDetector, masks, PolCorr
 
     nonzero_front_mask = (FrontPixels > 0) #True False map
     nonzero_middle_mask = (MiddlePixels > 0) #True False map
+    CombinedPixels = FrontPixels + MiddlePixels
+    nonzero_global_mask = (CombinedPixels > 0) #True False map
+    
     Q_Front = Q_Values[nonzero_front_mask]
     MeanQ_Front = FrontMeanQ[nonzero_front_mask] / FrontPixels[nonzero_front_mask]
     MeanQUnc_Front = np.sqrt(FrontMeanQUnc[nonzero_front_mask]) / FrontPixels[nonzero_front_mask]
@@ -1599,6 +1563,8 @@ def SliceData(Slice_Type, Q_min, Q_max, Q_bins, QGridPerDetector, masks, PolCorr
     DUM = MiddleDU[nonzero_middle_mask] / MiddlePixels[nonzero_middle_mask]
     DDM = MiddleDD[nonzero_middle_mask] / MiddlePixels[nonzero_middle_mask]
     UDM = MiddleUD[nonzero_middle_mask] / MiddlePixels[nonzero_middle_mask]
+
+    Q_Combined = Q_Values[nonzero_global_mask]
 
     Sigma_UUF = np.sqrt(FrontUU_Unc[nonzero_front_mask]) / FrontPixels[nonzero_front_mask]
     Sigma_DUF = np.sqrt(FrontDU_Unc[nonzero_front_mask]) / FrontPixels[nonzero_front_mask]
@@ -1622,31 +1588,30 @@ def SliceData(Slice_Type, Q_min, Q_max, Q_bins, QGridPerDetector, masks, PolCorr
     SigmaUD = np.concatenate((Sigma_UDM, Sigma_UDF), axis=0)
     Shadow = np.ones_like(Q_Common)
 
+    ErrorBarsYesNo = 0
     if PlotYesNo == 1:
         fig = plt.figure()
-        '''
-        ax = plt.axes()
-        ax.set_xscale("log")
-        ax.set_yscale("log")
-        ax.errorbar(Q_Front, UUF, yerr=Sigma_UUF, fmt = 'b*', label='Front, UU')
-        ax.errorbar(Q_Middle, UUM, yerr=Sigma_UUM, fmt = 'g*', label='Middle, UU')
-        ax.errorbar(Q_Front, DDF, yerr=Sigma_DDF, fmt = 'm*', label='Front, DD')
-        ax.errorbar(Q_Middle, DDM, yerr=Sigma_DDM, fmt = 'r*', label='Middle, DD')
-        ax.errorbar(Q_Front, DUF, yerr=Sigma_DUF, fmt = 'c.', label='Front, DU')
-        ax.errorbar(Q_Middle, DUM, yerr=Sigma_DUM, fmt = 'm.', label='Middle, DU')
-        ax.errorbar(Q_Front, UDF, yerr=Sigma_UDF, fmt = 'y.', label='Front, UD')
-        ax.errorbar(Q_Middle, UDM, yerr=Sigma_UDM, fmt = 'b.', label='Middle, UD')
-        '''
-        #If don't want to plot error bars, use something like plt.loglog(Q_Front, UUF, 'b*', label='Front, UU')
-        plt.loglog(Q_Front, UUF, 'b*', label='Front, UU')
-        plt.loglog(Q_Middle, UUM, 'g*', label='Middle, UU')
-        plt.loglog(Q_Front, DDF, 'm*', label='Front, DD')
-        plt.loglog(Q_Middle, DDM, 'r*', label='Middle, DD')
-        plt.loglog(Q_Front, DUF, 'c.', label='Front, DU')
-        plt.loglog(Q_Middle, DUM, 'm.', label='Middle, DU')
-        plt.loglog(Q_Front, UDF, 'y.', label='Front, UD')
-        plt.loglog(Q_Middle, UDM, 'b.', label='Middle, UD')
-
+        if ErrorBarsYesNo == 1:
+            ax = plt.axes()
+            ax.set_xscale("log")
+            ax.set_yscale("log")
+            ax.errorbar(Q_Front, UUF, yerr=Sigma_UUF, fmt = 'b*', label='Front, UU')
+            ax.errorbar(Q_Middle, UUM, yerr=Sigma_UUM, fmt = 'g*', label='Middle, UU')
+            ax.errorbar(Q_Front, DDF, yerr=Sigma_DDF, fmt = 'm*', label='Front, DD')
+            ax.errorbar(Q_Middle, DDM, yerr=Sigma_DDM, fmt = 'r*', label='Middle, DD')
+            ax.errorbar(Q_Front, DUF, yerr=Sigma_DUF, fmt = 'c.', label='Front, DU')
+            ax.errorbar(Q_Middle, DUM, yerr=Sigma_DUM, fmt = 'm.', label='Middle, DU')
+            ax.errorbar(Q_Front, UDF, yerr=Sigma_UDF, fmt = 'y.', label='Front, UD')
+            ax.errorbar(Q_Middle, UDM, yerr=Sigma_UDM, fmt = 'b.', label='Middle, UD')
+        else:
+            plt.loglog(Q_Front, UUF, 'b*', label='Front, UU')
+            plt.loglog(Q_Middle, UUM, 'g*', label='Middle, UU')
+            plt.loglog(Q_Front, DDF, 'm*', label='Front, DD')
+            plt.loglog(Q_Middle, DDM, 'r*', label='Middle, DD')
+            plt.loglog(Q_Front, DUF, 'c.', label='Front, DU')
+            plt.loglog(Q_Middle, DUM, 'm.', label='Middle, DU')
+            plt.loglog(Q_Front, UDF, 'y.', label='Front, UD')
+            plt.loglog(Q_Middle, UDM, 'b.', label='Middle, UD')
         plt.xlabel('Q')
         plt.ylabel('Intensity')
         plt.title('FullPol_{keyword}Cuts for ID = {idnum} and Config = {cf}'.format(keyword=Key, idnum=ID, cf = Config))
@@ -1655,31 +1620,6 @@ def SliceData(Slice_Type, Q_min, Q_max, Q_bins, QGridPerDetector, masks, PolCorr
         plt.show()
 
         '''
-
-        SFF = DUF + DUF
-        Sigma_SFF = np.sqrt(np.power(Sigma_DUF,2) + np.power(Sigma_UDF,2))
-        SFM = DUM + DUM
-        Sigma_SFM = np.sqrt(np.power(Sigma_DUM,2) + np.power(Sigma_UDM,2))
-
-        NSFF = UUF + DDF
-        Sigma_NSFF = np.sqrt(np.power(Sigma_UUF,2) + np.power(Sigma_DDF,2))
-        NSFM = UUM + DDM
-        Sigma_NSFM = np.sqrt(np.power(Sigma_UUM,2) + np.power(Sigma_DDM,2))
- 
-        fig = plt.figure()
-        #If don't want to plot error bars, use something like plt.loglog(Q_Front, UUF, 'b*', label='Front, UU')
-        plt.loglog(Q_Middle, NSFM, 'm*', label='Middle, UU + DD')
-        plt.loglog(Q_Front, NSFF, 'r*', label='Front, UU + DD')
-        plt.loglog(Q_Middle, SFM, 'b*', label='Middle, UD + DU')
-        plt.loglog(Q_Front, SFF, 'g*', label='Front, UD + DU')
-        plt.xlabel('Q')
-        plt.ylabel('Intensity')
-        plt.title('FullPol_{keyword}Cuts for ID = {idnum} and Config = {cf}'.format(keyword=Key, idnum=ID, cf = Config))
-        plt.legend()
-        fig.savefig('{keyword}FullPol_Combined_ID{idnum}_CF{cf}.png'.format(keyword=Key, idnum=ID, cf = Config))
-        plt.show()
-        
-
         SF = UD + DU
         SF_Unc = np.sqrt(np.power(SigmaDU,2) + np.power(SigmaUD,2))
         NSF = UU + DD
@@ -1712,6 +1652,22 @@ def SliceData(Slice_Type, Q_min, Q_max, Q_bins, QGridPerDetector, masks, PolCorr
      
     return Output
 
+def Raw_Data(filenumber):
+
+    RawData_AllDetectors = {}
+    Unc_RawData_AllDetectors = {}
+
+    filename = path + "sans" + str(filenumber) + ".nxs.ngv"
+    config = Path(filename)
+    if config.is_file():
+        f = h5py.File(filename)
+
+        for dshort in short_detectors:
+            data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
+            RawData_AllDetectors[dshort] = data
+            Unc_RawData_AllDetectors[dshort] = np.sqrt(data)
+                    
+    return RawData_AllDetectors, Unc_RawData_AllDetectors
 
 def ASCIIlike_Output(Type, ID, Config, Data_AllDetectors, Unc_Data_AllDetectors, QGridPerDetector):
 
@@ -1773,6 +1729,17 @@ def ASCIIlike_Output(Type, ID, Config, Data_AllDetectors, Unc_Data_AllDetectors,
 #***        Start of 'The Program'             ***
 #*************************************************
 
+'''
+RawData_AllDetectors, Unc_RawData_AllDetectors = Raw_Data(51310)
+
+QX, QY, QZ, Q_total, Q_perp_unc, Q_parl_unc, dimXX, dimYY, Right_mask, Top_mask, Left_mask, Bottom_mask, DiagCW_mask, DiagCCW_mask, No_mask, Mask_User_Definedm, Shadow = QCalculationAndMasks_AllDetectors(51310, SectorCutAngles)
+
+QValues_All = {}
+QValues_All = {'QX':QX,'QY':QY,'QZ':QZ,'Q_total':Q_total,'Q_perp_unc':Q_perp_unc,'Q_parl_unc':Q_parl_unc}
+
+ASCIIlike_Output('Unpol', 'UU', 'NG4', RawData_AllDetectors, Unc_RawData_AllDetectors, QValues_All)
+
+'''
 Sample_Names, Configs, BlockBeam, Scatt, Trans, Pol_Trans, HE3_Trans = SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues)
 
 Process_ScattFiles()
@@ -1799,7 +1766,9 @@ for Config in Configs:
     QX, QY, QZ, Q_total, Q_perp_unc, Q_parl_unc, dimXX, dimYY, Right_mask, Top_mask, Left_mask, Bottom_mask, DiagCW_mask, DiagCCW_mask, No_mask, Mask_User_Definedm, Shadow = QCalculationAndMasks_AllDetectors(representative_filenumber, SectorCutAngles)
     QValues_All = {'QX':QX,'QY':QY,'QZ':QZ,'Q_total':Q_total,'Q_perp_unc':Q_perp_unc,'Q_parl_unc':Q_parl_unc}
     Q_min, Q_max = MinMaxQ(Q_total)
-    Q_bins = 180 #120
+    Q_min = 0.001
+    Q_max = 0.15
+    Q_bins = 120 #180
     for Slice in sector_slices:
         for dshort in short_detectors:
             if str(Slice).find('Circ') != -1:
@@ -1818,7 +1787,6 @@ for Config in Configs:
                 Trunc_mask[dshort] = Right_mask[dshort]
             elif str(Slice).find('Diag') != -1:
                 Trunc_mask[dshort] = DiagCW_mask[dshort] +  DiagCCW_mask[dshort]
-        '''
         if Config in Masks:
             if 'NA' not in Masks[Config]['Scatt_WithSolenoid']:
                 for dshort in short_detectors:
@@ -1826,7 +1794,6 @@ for Config in Configs:
             elif 'NA' not in Masks[Config]['Scatt_Standard']:
                 for dshort in short_detectors:
                     Trunc_mask[dshort] = Trunc_mask[dshort]*Masks[Config]['Scatt_Standard'][dshort]
-                    '''
         HaveFullPolEmpty = 0
         Empty_HE3Corr_AllDetectors = np.array([0,0,0,0])
         for Sample in Sample_Names:
@@ -1840,8 +1807,7 @@ for Config in Configs:
                             EmptyPlotYesNo = 1
                             FullPolEmpty[Slice] = SliceData(Slice, Q_min, Q_max, Q_bins, QValues_All, Trunc_mask, PolCorr_AllDetectors, Uncertainty_PolCorr_AllDetectors, dimXX, dimYY, Sample, Config, EmptyPlotYesNo)
                             HaveFullPolEmpty = 1
-        #Kludge:
-        HaveFullPolEmpty = 0                        
+                       
         for Sample in Sample_Names:
             if Sample in Scatt:                
                 if str(Scatt[Sample]['Intent']).find('Sample') != -1:
@@ -1866,58 +1832,37 @@ for Config in Configs:
                                 FullPolResults[Slice]['NSFUnc'] = np.sqrt(np.power(FullPolResults[Slice]['DD_Unc'],2) + np.power(FullPolResults[Slice]['UU_Unc'],2))
                                 FullPolResults[Slice]['SFUnc'] = np.sqrt(np.power(FullPolResults[Slice]['UD_Unc'],2) + np.power(FullPolResults[Slice]['DU_Unc'],2))
 
-                            '''
-                            YesNoErrorBars = 1
-                            fig = plt.figure()
-                            if YesNoErrorBars == 1:
-                                ax = plt.axes()
-                                ax.set_xscale("log")
-                                ax.set_yscale("log")
-                                ax.errorbar(Q, FullPolResults[Slice]['NSFAdd'], yerr=FullPolResults[Slice]['NSFUnc'], fmt = 'b*', label='NSF')
-                                ax.errorbar(Q, FullPolResults[Slice]['NSFDiff'], yerr=FullPolResults[Slice]['NSFUnc'], fmt = 'g*', label='NSFDiff')
-                                ax.errorbar(Q, FullPolResults[Slice]['SFAdd'], yerr=FullPolResults[Slice]['SFUnc'], fmt = 'r*', label='SF')
-                            else:
-                                plt.loglog(Q, FullPolResults[Slice]['NSFAdd'], 'b*', label='NSF')
-                                plt.loglog(Q, FullPolResults[Slice]['NSFDiff'], 'g*', label='NSFDiff')
-                                plt.loglog(Q, FullPolResults[Slice]['SFAdd'], 'r*', label='SF')
-                            plt.xlabel('Q')
-                            plt.ylabel('Intensity')
-                            plt.title(Slice)
-                            plt.legend()
-                            plt.show()
-                            '''
-                            
-    if 'Left' in sector_slices and 'Right' in sector_slices:
-        Q_Left = FullPolResults['Left']['Q_Common']
-        NSF_Left =  FullPolResults['Left']['NSFAdd']
-        Q_Right = FullPolResults['Right']['Q_Common']
-        NSF_Right =  FullPolResults['Right']['NSFAdd']
+    if 'Horz' in sector_slices and 'Vert' in sector_slices:
+        Q_Vert = FullPolResults['Vert']['Q_Common']
+        NSF_Vert =  FullPolResults['Vert']['NSFAdd']
+        SF_Vert =  FullPolResults['Vert']['SFAdd']
+        
+        Q_Horz = FullPolResults['Horz']['Q_Common']
+        NSF_Horz =  FullPolResults['Horz']['NSFAdd']
+        SF_Horz =  FullPolResults['Horz']['SFAdd']
+
+        YesNoErrorBars = 1
         fig = plt.figure()
-        plt.loglog(Q_Left, NSF_Left, 'b*', label='NSF Left')
-        plt.loglog(Q_Right, NSF_Right, 'm*', label='NSF Right')
+        if YesNoErrorBars == 1:
+            ax = plt.axes()
+            ax.set_xscale("log")
+            ax.set_yscale("log")
+            ax.errorbar(Q_Vert, FullPolResults['Vert']['NSFAdd'], yerr=FullPolResults['Vert']['NSFUnc'], fmt = 'b*', label='NSF Vert')
+            ax.errorbar(Q_Horz, FullPolResults['Horz']['NSFAdd'], yerr=FullPolResults['Horz']['NSFUnc'], fmt = 'g*', label='NSF Horz')
+            ax.errorbar(Q_Vert, FullPolResults['Vert']['SFAdd'], yerr=FullPolResults['Vert']['SFUnc'], fmt = 'r*', label='SF Vert')
+            ax.errorbar(Q_Horz, FullPolResults['Horz']['SFAdd'], yerr=FullPolResults['Horz']['SFUnc'], fmt = 'm*', label='SF Horz')
+        else:
+            plt.loglog(Q_Vert, NSF_Vert, 'b*', label='NSF Vert')
+            plt.loglog(Q_Vert, SF_Vert, 'g*', label='SF Vert')
+            plt.loglog(Q_Horz, NSF_Horz, 'm*', label='NSF Horz')
+            plt.loglog(Q_Horz, SF_Horz, 'r*', label='SF Horz')
         plt.xlabel('Q')
         plt.ylabel('Intensity')
-        plt.title('Left and Right Slices')
+        plt.title('Vert and Horz Slices')
         plt.legend()
+        fig.savefig('FullPol_Cuts_{idnum}_{cf}.png'.format(idnum=Sample, cf = Config))
         plt.show()
 
-    if 'Top' in sector_slices and 'Bottom' in sector_slices:
-        Q_Top = FullPolResults['Top']['Q_Common']
-        NSF_Top =  FullPolResults['Top']['NSFAdd']
-        Q_Bottom = FullPolResults['Bottom']['Q_Common']
-        NSF_Bottom =  FullPolResults['Bottom']['NSFAdd']
-        fig = plt.figure()
-        plt.loglog(Q_Top, NSF_Top, 'b*', label='NSF Top')
-        plt.loglog(Q_Bottom, NSF_Bottom, 'm*', label='NSF Bottom')
-        plt.xlabel('Q')
-        plt.ylabel('Intensity')
-        plt.title('Top and Bottom Slices')
-        plt.legend()
-        plt.show()
-        
-        
-        
-                            
     '''
     if 'Vert' in sector_slices and 'Horz' in sector_slices:
         Matched_Vert = {}
