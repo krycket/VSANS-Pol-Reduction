@@ -9,12 +9,16 @@ import datetime
 from numpy.linalg import inv
 from uncertainties import unumpy
 import os
+#from matplotlib.gridspec import GridSpec
 
 path = ''
 TransPanel = 'MR' #Default is 'MR'
 SectorCutAngles = 10.0 #Default is 10.0 (degrees)
 UsePolCorr = 1 #Default is 1 to pol-ccorrect full-pol data, 0 means no
 PlotYesNo = 1 #Default is 1 where 1 means yes, 0 means no
+Absolute_Q_min = 0.005 #Default 0; Will take the maximum of Q_min_Calc from all detectors and this value
+Absolute_Q_max = 0.145 #Default 0.6; Will take the minimum of Q_max_Calc from all detectors and this value
+#Excluded_Filenumbers = [51289] #Default is []
 
 YesNoManualHe3Entry = 0 #0 for no (default), 1 for yes; should not be needed for data taken after July 2019 if He3 cells are properly registered
 New_HE3_Files = {} #These would be the starting files for each new cell IF YesNoManualHe3Entry = 1
@@ -165,13 +169,19 @@ def SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues):
                         BackPolDirection = f['entry/DAS_logs/backPolarization/direction'][()]
                     else:
                         BackPolDirection = [b'UNPOLARIZED']
+
+                    '''Want to populate Config representative filenumbers on scattering filenumber'''
+                    config_filenumber = 0
+                    if str(Purpose).find("SCATT") != -1:
+                        config_filenumber = filenumber
                     if len(Configs) < 1:
-                        Configs = {Config : filenumber}
+                        Configs = {Config : config_filenumber}
                     else:
                         if Config not in Configs:
-                            Configs.append({Config : filenumber})
-
-                    
+                            Configs.append({Config : config_filenumber})
+                    if Configs[Config] == 0 and config_filenumber != 0:
+                        Configs[Config] = config_filenumber
+                        
                     if str(Intent).find("Blocked") != -1: #i.e. a blocked beam
                         if Config not in BlockBeam:
                              BlockBeam[Config] = {'Scatt':{'File' : 'NA'}, 'Trans':{'File' : 'NA', 'CountsPerSecond' : 'NA'}}
@@ -393,7 +403,7 @@ def SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues):
                                             HE3_Trans[CellTimeIdentifier]['HE3_IN_file'].append(HE3IN_filenumber)
                                             HE3_Trans[CellTimeIdentifier]['Elasped_time'].append(Elasped_time)
 
-    return Sample_Names, Configs, BlockBeam, Scatt, Trans, Pol_Trans, HE3_Trans
+    return Sample_Names, Configs, BlockBeam, Scatt, Trans, Pol_Trans, HE3_Trans, start_number
 
 def ReadIn_Masks():
 
@@ -748,7 +758,7 @@ def Process_ScattFiles():
     return
 
 
-def Plex_File():
+def Plex_File(start_number):
 
     PlexData = {}
 
@@ -1075,6 +1085,8 @@ def QCalculationAndMasks_AllDetectors(representative_filenumber, AngleWidth):
                 Mask_User_Defined[dshort] = Shadow
             else:
                 Mask_User_Defined[dshort] = Shadow
+        
+        #plt.imshow[LM.T, origin='lower']
 
     return Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, dimXX, dimYY, Mask_Right, Mask_Top, Mask_Left, Mask_Bottom, Mask_DiagonalCW, Mask_DiagonalCCW, Mask_None, Mask_User_Defined, BeamStopShadow
 
@@ -1343,8 +1355,8 @@ def GlobalAbsScaleAndPolCorr(Sample, Config, BlockBeam_per_second, Solid_Angle, 
                     entry = Scatt[Sample]['Config(s)'][Config][type_time][filenumber_counter]
                     NP, UT, T_MAJ, T_MIN = HE3_Pol_AtGivenTime(entry, HE3_Cell_Summary)
                     C = NP
-                    S = 0.998
-                    '''#0.9985 is the highest I've recently gotten at 5.5 Ang and it could even be 1.0 with tight slits..., from EuSe 60 nm 0.95 V and 2.0 K'''
+                    S = 0.9985
+                    '''#0.9985 is the highest I've recently gotten at 5.5 Ang from EuSe 60 nm 0.95 V and 2.0 K'''
                     X = np.sqrt(PSM/S)
                     if type == "UU":
                         CrossSection_Index = 0
@@ -1544,10 +1556,10 @@ def SliceData(Slice_Type, Q_min, Q_max, Q_bins, QGridPerDetector, masks, PolCorr
             MiddleMeanQUnc += MeanQUnc
             MiddlePixels += pixels
 
+    CombinedPixels = FrontPixels + MiddlePixels
     nonzero_front_mask = (FrontPixels > 0) #True False map
     nonzero_middle_mask = (MiddlePixels > 0) #True False map
-    CombinedPixels = FrontPixels + MiddlePixels
-    nonzero_global_mask = (CombinedPixels > 0) #True False map
+    nonzero_combined_mask = (CombinedPixels > 0) #True False map
     
     Q_Front = Q_Values[nonzero_front_mask]
     MeanQ_Front = FrontMeanQ[nonzero_front_mask] / FrontPixels[nonzero_front_mask]
@@ -1556,6 +1568,7 @@ def SliceData(Slice_Type, Q_min, Q_max, Q_bins, QGridPerDetector, masks, PolCorr
     DUF = FrontDU[nonzero_front_mask] / FrontPixels[nonzero_front_mask]
     DDF = FrontDD[nonzero_front_mask] / FrontPixels[nonzero_front_mask]
     UDF = FrontUD[nonzero_front_mask] / FrontPixels[nonzero_front_mask]
+    
     Q_Middle = Q_Values[nonzero_middle_mask]
     MeanQ_Middle = MiddleMeanQ[nonzero_middle_mask] / MiddlePixels[nonzero_middle_mask]
     MeanQUnc_Middle = np.sqrt(MiddleMeanQUnc[nonzero_middle_mask]) / MiddlePixels[nonzero_middle_mask]
@@ -1563,8 +1576,6 @@ def SliceData(Slice_Type, Q_min, Q_max, Q_bins, QGridPerDetector, masks, PolCorr
     DUM = MiddleDU[nonzero_middle_mask] / MiddlePixels[nonzero_middle_mask]
     DDM = MiddleDD[nonzero_middle_mask] / MiddlePixels[nonzero_middle_mask]
     UDM = MiddleUD[nonzero_middle_mask] / MiddlePixels[nonzero_middle_mask]
-
-    Q_Combined = Q_Values[nonzero_global_mask]
 
     Sigma_UUF = np.sqrt(FrontUU_Unc[nonzero_front_mask]) / FrontPixels[nonzero_front_mask]
     Sigma_DUF = np.sqrt(FrontDU_Unc[nonzero_front_mask]) / FrontPixels[nonzero_front_mask]
@@ -1574,19 +1585,6 @@ def SliceData(Slice_Type, Q_min, Q_max, Q_bins, QGridPerDetector, masks, PolCorr
     Sigma_DUM = np.sqrt(MiddleDU_Unc[nonzero_middle_mask]) / MiddlePixels[nonzero_middle_mask]
     Sigma_DDM = np.sqrt(MiddleDD_Unc[nonzero_middle_mask]) / MiddlePixels[nonzero_middle_mask]
     Sigma_UDM = np.sqrt(MiddleUD_Unc[nonzero_middle_mask]) / MiddlePixels[nonzero_middle_mask]
-    
-    Q_Common = np.concatenate((Q_Middle, Q_Front), axis=0)
-    Q_Mean = np.concatenate((MeanQ_Middle, MeanQ_Front), axis=0)
-    Q_Uncertainty = np.concatenate((MeanQUnc_Middle, MeanQUnc_Front), axis=0)
-    UU = np.concatenate((UUM, UUF), axis=0)
-    DU = np.concatenate((DUM, DUF), axis=0)
-    DD = np.concatenate((DDM, DDF), axis=0)
-    UD = np.concatenate((UDM, UDF), axis=0)
-    SigmaUU = np.concatenate((Sigma_UUM, Sigma_UUF), axis=0)
-    SigmaDU = np.concatenate((Sigma_DUM, Sigma_DUF), axis=0)
-    SigmaDD = np.concatenate((Sigma_DDM, Sigma_DDF), axis=0)
-    SigmaUD = np.concatenate((Sigma_UDM, Sigma_UDF), axis=0)
-    Shadow = np.ones_like(Q_Common)
 
     ErrorBarsYesNo = 0
     if PlotYesNo == 1:
@@ -1619,22 +1617,52 @@ def SliceData(Slice_Type, Q_min, Q_max, Q_bins, QGridPerDetector, masks, PolCorr
         fig.savefig('{keyword}FullPol_Cuts_ID{idnum}_CF{cf}.png'.format(keyword=Key, idnum=ID, cf = Config))
         plt.show()
 
-        '''
-        SF = UD + DU
-        SF_Unc = np.sqrt(np.power(SigmaDU,2) + np.power(SigmaUD,2))
-        NSF = UU + DD
-        NSF_Unc = np.sqrt(np.power(SigmaUU,2) + np.power(SigmaDD,2))
-        NSFDiff = DD - UU
+    Q_Common = Q_Values[nonzero_combined_mask]
+    CombinedMeanQ = MiddleMeanQ + FrontMeanQ
+    CombinedMeanQUnc = MiddleMeanQUnc + FrontMeanQUnc  
+    Q_Mean = CombinedMeanQ[nonzero_combined_mask] / CombinedPixels[nonzero_combined_mask]
+    Q_Uncertainty = np.sqrt(CombinedMeanQUnc[nonzero_combined_mask]) / CombinedPixels[nonzero_combined_mask]
+    CombinedUU = MiddleUU + FrontUU
+    CombinedDU = MiddleDU + FrontDU
+    CombinedDD = MiddleDD + FrontDD
+    CombinedUD = MiddleUD + FrontUD
+    UU = CombinedUU[nonzero_combined_mask] / CombinedPixels[nonzero_combined_mask]
+    DU = CombinedDU[nonzero_combined_mask] / CombinedPixels[nonzero_combined_mask]
+    DD = CombinedDD[nonzero_combined_mask] / CombinedPixels[nonzero_combined_mask]
+    UD = CombinedUD[nonzero_combined_mask] / CombinedPixels[nonzero_combined_mask]
+    UU_UncC = FrontUU_Unc + MiddleUU_Unc
+    DU_UncC = FrontDU_Unc + MiddleDU_Unc
+    DD_UncC = FrontDD_Unc + MiddleDD_Unc
+    UD_UncC = FrontUD_Unc + MiddleUD_Unc
+    SigmaUU = np.sqrt(UU_UncC[nonzero_combined_mask]) / CombinedPixels[nonzero_combined_mask]
+    SigmaDU = np.sqrt(DU_UncC[nonzero_combined_mask]) / CombinedPixels[nonzero_combined_mask]
+    SigmaDD = np.sqrt(DD_UncC[nonzero_combined_mask]) / CombinedPixels[nonzero_combined_mask]
+    SigmaUD = np.sqrt(UD_UncC[nonzero_combined_mask]) / CombinedPixels[nonzero_combined_mask]
+    Shadow = np.ones_like(Q_Common)
 
-        text_output = np.array([Q_Common, UU, SigmaUU, DU, SigmaDU, DD, SigmaDD, UD, SigmaUD, Q_Uncertainty, Q_Mean, Shadow])
-        text_output = text_output.T
-        np.savetxt('{key}FullPol_ID={idnum}Config={cf}.txt'.format(key=Key, idnum=ID, cf = Config), text_output, header='Q, UU, DelUU, DU, DelUD, DD, DelDD, UD, DelUD, DQ, MeanQ, Shadow', fmt='%1.4e')
+    text_output = np.array([Q_Common, UU, SigmaUU, DU, SigmaDU, DD, SigmaDD, UD, SigmaUD, Q_Uncertainty, Q_Mean, Shadow])
+    text_output = text_output.T
+    np.savetxt('{key}FullPol_{idnum}_{cf}.txt'.format(key=Key, idnum=ID, cf = Config), text_output, header='Q, UU, DelUU, DU, DelUD, DD, DelDD, UD, DelUD, DQ, MeanQ, Shadow', fmt='%1.4e')
 
-        text_output2 = np.array([Q_Common, SF, SF_Unc, NSF, NSF_Unc, NSFDiff, Q_Uncertainty, Q_Mean, Shadow])
-        text_output2 = text_output2.T
-        np.savetxt('{key}FullPol_ID={idnum}Config={cf}.txt'.format(key=Key, idnum=ID, cf = Config), text_output2, header='Q, SF, DelSF, NSF, DelNSF, NSFDiff, DelQ, MeanQ, Shadow', fmt='%1.4e')
-        '''
-        
+    '''
+    Q_Common = np.concatenate((Q_Middle, Q_Front), axis=0)
+    Q_Mean = np.concatenate((MeanQ_Middle, MeanQ_Front), axis=0)
+    Q_Uncertainty = np.concatenate((MeanQUnc_Middle, MeanQUnc_Front), axis=0)
+    UU = np.concatenate((UUM, UUF), axis=0)
+    DU = np.concatenate((DUM, DUF), axis=0)
+    DD = np.concatenate((DDM, DDF), axis=0)
+    UD = np.concatenate((UDM, UDF), axis=0)
+    SigmaUU = np.concatenate((Sigma_UUM, Sigma_UUF), axis=0)
+    SigmaDU = np.concatenate((Sigma_DUM, Sigma_DUF), axis=0)
+    SigmaDD = np.concatenate((Sigma_DDM, Sigma_DDF), axis=0)
+    SigmaUD = np.concatenate((Sigma_UDM, Sigma_UDF), axis=0)
+    Shadow = np.ones_like(Q_Common)
+
+    text_output = np.array([Q_Common, UU, SigmaUU, DU, SigmaDU, DD, SigmaDD, UD, SigmaUD, Q_Uncertainty, Q_Mean, Shadow])
+    text_output = text_output.T
+    np.savetxt('{key}FullPol_{idnum}_{cf}.txt'.format(key=Key, idnum=ID, cf = Config), text_output, header='Q, UU, DelUU, DU, DelUD, DD, DelDD, UD, DelUD, DQ, MeanQ, Shadow', fmt='%1.4e')
+    '''
+
     Output = {}
     Output['Q_Common'] = Q_Common
     Output['Q_Mean'] = Q_Mean
@@ -1647,7 +1675,6 @@ def SliceData(Slice_Type, Q_min, Q_max, Q_bins, QGridPerDetector, masks, PolCorr
     Output['UD'] = UD
     Output['UD_Unc'] = SigmaUD
     Output['Q_Uncertainty'] = Q_Uncertainty
-    Output['Q_Mean'] = Q_Mean
     Output['Shadow'] = Shadow
      
     return Output
@@ -1730,17 +1757,16 @@ def ASCIIlike_Output(Type, ID, Config, Data_AllDetectors, Unc_Data_AllDetectors,
 #*************************************************
 
 '''
-RawData_AllDetectors, Unc_RawData_AllDetectors = Raw_Data(51310)
-
+To check ASCII Q-Values agaist IGOR:
+filenumber_of_interest = 51310
+RawData_AllDetectors, Unc_RawData_AllDetectors = Raw_Data(ilenumber_of_interest)
 QX, QY, QZ, Q_total, Q_perp_unc, Q_parl_unc, dimXX, dimYY, Right_mask, Top_mask, Left_mask, Bottom_mask, DiagCW_mask, DiagCCW_mask, No_mask, Mask_User_Definedm, Shadow = QCalculationAndMasks_AllDetectors(51310, SectorCutAngles)
-
 QValues_All = {}
 QValues_All = {'QX':QX,'QY':QY,'QZ':QZ,'Q_total':Q_total,'Q_perp_unc':Q_perp_unc,'Q_parl_unc':Q_parl_unc}
-
 ASCIIlike_Output('Unpol', 'UU', 'NG4', RawData_AllDetectors, Unc_RawData_AllDetectors, QValues_All)
-
 '''
-Sample_Names, Configs, BlockBeam, Scatt, Trans, Pol_Trans, HE3_Trans = SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues)
+
+Sample_Names, Configs, BlockBeam, Scatt, Trans, Pol_Trans, HE3_Trans, start_number = SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues)
 
 Process_ScattFiles()
 
@@ -1752,7 +1778,7 @@ HE3_Cell_Summary = HE3_DecayCurves(HE3_Trans)
 
 Pol_SuppermirrorAndFlipper(Pol_Trans, HE3_Cell_Summary)
 
-Plex = Plex_File()
+Plex = Plex_File(start_number)
 
 Trunc_mask = {}
 Slice_mask = {}
@@ -1765,10 +1791,10 @@ for Config in Configs:
     BB_per_second = BlockedBeamScattCountsPerSecond(Config, representative_filenumber)
     QX, QY, QZ, Q_total, Q_perp_unc, Q_parl_unc, dimXX, dimYY, Right_mask, Top_mask, Left_mask, Bottom_mask, DiagCW_mask, DiagCCW_mask, No_mask, Mask_User_Definedm, Shadow = QCalculationAndMasks_AllDetectors(representative_filenumber, SectorCutAngles)
     QValues_All = {'QX':QX,'QY':QY,'QZ':QZ,'Q_total':Q_total,'Q_perp_unc':Q_perp_unc,'Q_parl_unc':Q_parl_unc}
-    Q_min, Q_max = MinMaxQ(Q_total)
-    Q_min = 0.001
-    Q_max = 0.15
-    Q_bins = 120 #180
+    Q_minCalc, Q_maxCalc = MinMaxQ(Q_total)
+    Q_min = np.maximum(Absolute_Q_min, Q_minCalc)
+    Q_max = np.minimum(Absolute_Q_max, Q_maxCalc)
+    Q_bins = int(150*(Q_max - Q_min)/(Q_maxCalc - Q_minCalc))
     for Slice in sector_slices:
         for dshort in short_detectors:
             if str(Slice).find('Circ') != -1:
@@ -1836,10 +1862,45 @@ for Config in Configs:
         Q_Vert = FullPolResults['Vert']['Q_Common']
         NSF_Vert =  FullPolResults['Vert']['NSFAdd']
         SF_Vert =  FullPolResults['Vert']['SFAdd']
+        MParl_Div = FullPolResults['Vert']['NSFDiff']*FullPolResults['Vert']['NSFDiff']/(4.0*FullPolResults['Vert']['NSFAdd'])
+        #MParl_Sub = FullPolResults['Vert']['NSFAdd'] - FullPolResults['Horz']['NSFAdd']
         
         Q_Horz = FullPolResults['Horz']['Q_Common']
         NSF_Horz =  FullPolResults['Horz']['NSFAdd']
         SF_Horz =  FullPolResults['Horz']['SFAdd']
+
+        Vert_Matched = {}
+        Horz_Matched = {}
+        Vert_Matched['Q'] = [0]
+        Horz_Matched['Q'] = [0]
+        Vert_Matched['NSFADD'] = [0]
+        Horz_Matched['NSFADD'] = [0]
+        Vert_Matched['NSFUNC'] = [0]
+        Horz_Matched['NSFUNC'] = [0]
+        Vert_counter = 0
+        for Q1 in FullPolResults['Vert']['Q_Common']:
+            if Q1 in FullPolResults['Horz']['Q_Common']:
+                Vert_Matched['Q'].append(FullPolResults['Vert']['Q_Common'][Vert_counter])
+                Vert_Matched['NSFADD'].append(FullPolResults['Vert']['NSFAdd'][Vert_counter])
+                Vert_Matched['NSFUNC'].append(FullPolResults['Vert']['NSFUnc'][Vert_counter])
+            Vert_counter += 1
+        Horz_counter = 0
+        for Q1 in FullPolResults['Horz']['Q_Common']:
+            if Q1 in FullPolResults['Vert']['Q_Common']:
+                Horz_Matched['Q'].append(FullPolResults['Horz']['Q_Common'][Horz_counter])
+                Horz_Matched['NSFADD'].append(FullPolResults['Horz']['NSFAdd'][Horz_counter])
+                Horz_Matched['NSFUNC'].append(FullPolResults['Horz']['NSFUnc'][Horz_counter])
+            Horz_counter += 1
+        del Vert_Matched['Q'][0]
+        del Vert_Matched['NSFADD'][0]
+        del Vert_Matched['NSFUNC'][0]
+        del Horz_Matched['Q'][0]
+        del Horz_Matched['NSFADD'][0]
+        del Horz_Matched['NSFUNC'][0]
+        
+        Q_Shared = np.array(Vert_Matched['Q'])
+        MParl_Sub = 0.5*(np.array(Vert_Matched['NSFADD']) - np.array(Horz_Matched['NSFADD']))
+        MParl_Sub_Unc = 0.25*np.sqrt(np.power(np.array(Vert_Matched['NSFUNC']),2) + np.power(np.array(Horz_Matched['NSFUNC']),2))      
 
         YesNoErrorBars = 1
         fig = plt.figure()
@@ -1851,111 +1912,21 @@ for Config in Configs:
             ax.errorbar(Q_Horz, FullPolResults['Horz']['NSFAdd'], yerr=FullPolResults['Horz']['NSFUnc'], fmt = 'g*', label='NSF Horz')
             ax.errorbar(Q_Vert, FullPolResults['Vert']['SFAdd'], yerr=FullPolResults['Vert']['SFUnc'], fmt = 'r*', label='SF Vert')
             ax.errorbar(Q_Horz, FullPolResults['Horz']['SFAdd'], yerr=FullPolResults['Horz']['SFUnc'], fmt = 'm*', label='SF Horz')
+            ax.errorbar(Q_Vert, MParl_Div, yerr=FullPolResults['Vert']['NSFUnc'], fmt = 'c*', label='MParl via Division')
+            #ax.errorbar(Q_Shared, MParl_Sub, yerr=MParl_Sub_Unc, fmt = 'y*', label='MParl via Subtraction')
         else:
             plt.loglog(Q_Vert, NSF_Vert, 'b*', label='NSF Vert')
             plt.loglog(Q_Vert, SF_Vert, 'g*', label='SF Vert')
             plt.loglog(Q_Horz, NSF_Horz, 'm*', label='NSF Horz')
             plt.loglog(Q_Horz, SF_Horz, 'r*', label='SF Horz')
+            plt.loglog(Q_Vert, MParl_Div, 'c*', label='MParl via Division')
         plt.xlabel('Q')
         plt.ylabel('Intensity')
         plt.title('Vert and Horz Slices')
         plt.legend()
         fig.savefig('FullPol_Cuts_{idnum}_{cf}.png'.format(idnum=Sample, cf = Config))
         plt.show()
-
-    '''
-    if 'Vert' in sector_slices and 'Horz' in sector_slices:
-        Matched_Vert = {}
-        Matched_Vert['Q'] = [0]
-        Matched_Vert['NSFADD'] = [0]
-        Matched_Vert['NSFDIFF'] = [0]
-        Matched_Vert['SFADD'] = [0]
-        Vert_counter = 0
-        for Q1 in FullPolResults['Vert']['Q_Common']:
-            if Q1 in FullPolResults['Horz']['Q_Common']:
-                Matched_Vert['Q'].append(FullPolResults['Vert']['Q_Common'][Vert_counter])
-                Matched_Vert['NSFADD'].append(FullPolResults['Vert']['NSFAdd'][Vert_counter])
-                Matched_Vert['NSFDIFF'].append(FullPolResults['Vert']['NSFDiff'][Vert_counter])
-                Matched_Vert['SFADD'].append(FullPolResults['Vert']['SFAdd'][Vert_counter])
-            Vert_counter += 1
-            
-        Matched_Horz = {}
-        Matched_Horz['Q'] = [0]
-        Matched_Horz['NSFADD'] = [0]
-        Matched_Horz['NSFDIFF'] = [0]
-        Matched_Horz['SFADD'] = [0]
-        Horz_counter = 0
-        for Q2 in FullPolResults['Horz']['Q_Common']:
-            if Q2 in FullPolResults['Vert']['Q_Common']:
-                Matched_Horz['Q'].append(FullPolResults['Horz']['Q_Common'][Horz_counter])
-                Matched_Horz['NSFADD'].append(FullPolResults['Horz']['NSFAdd'][Horz_counter])
-                Matched_Horz['NSFDIFF'].append(FullPolResults['Horz']['NSFDiff'][Horz_counter])
-                Matched_Horz['SFADD'].append(FullPolResults['Horz']['SFAdd'][Horz_counter])
-            Horz_counter += 1
-            
-        del Matched_Vert['Q'][0]
-        del Matched_Vert['NSFADD'][0]
-        del Matched_Vert['NSFDIFF'][0]
-        del Matched_Vert['SFADD'][0]
-        del Matched_Horz['Q'][0]
-        del Matched_Horz['NSFADD'][0]
-        del Matched_Horz['NSFDIFF'][0]
-        del Matched_Horz['SFADD'][0]
-
-        for i in range(0, len(Matched_Vert['Q'])):
-            if Matched_Vert['Q'][i] != Matched_Horz['Q'][i]:
-                if Matched_Vert['Q'][i] < Matched_Horz['Q'][i]:
-                    j = i
-                    while Matched_Vert['Q'][j] < Matched_Horz['Q'][i] and j < len(Matched_Vert['Q']):
-                        del Matched_Vert['Q'][j]
-                        del Matched_Vert['NSFADD'][j]
-                        del Matched_Vert['NSFDIFF'][j]
-                        del Matched_Vert['SFADD'][j]
-                        j += 1
-                elif Matched_Horz['Q'][i] < Matched_Vert['Q'][i]:
-                    j = i
-                    while Matched_Horz['Q'][j] < Matched_Vert['Q'][i] and j < len(Matched_Vert['Q']):
-                        del Matched_Horz['Q'][j]
-                        del Matched_Horz['NSFADD'][j]
-                        del Matched_Horz['NSFDIFF'][j]
-                        del Matched_Horz['SFADD'][j]
-                        j += 1
-                        
-        print(len(Matched_Vert['Q']), len(Matched_Horz['Q']))
-
-        Q = np.array(Matched_Vert['Q'])
-        SF_Horz = np.array(Matched_Horz['SFADD'])
-        SF_Vert = np.array(Matched_Vert['SFADD'])
-        SF_Diff = SF_Horz - SF_Vert
-        fig = plt.figure()
-        #plt.semilogx(Q, SF_Horz, 'b*', label='SF_Horz')
-        plt.loglog(Q, SF_Horz, 'b*', label='SF_Horz')
-        plt.loglog(Q, SF_Vert, 'g*', label='SF_Vert')
-        plt.xlabel('Q')
-        plt.ylabel('Intensity')
-        plt.title(Slice)
-        plt.legend()
-        plt.show()
-
-        Nucl_Horz = np.array(Matched_Horz['NSFADD'])/2.0
-        Nucl_Vert = np.array(Matched_Vert['NSFADD'])/2.0
-        MParl_Diff = (np.array(Matched_Vert['NSFADD']) - np.array(Matched_Horz['NSFADD']))/2.0
-        Marl_Div = np.power(np.array(Matched_Vert['NSFDIFF']),2) / (8.0*np.array(Matched_Horz['NSFADD']))
-        fig = plt.figure()
-        plt.loglog(Q, Nucl_Horz, 'r*', label='Nucl_Horz')
-        plt.loglog(Q, Nucl_Vert, 'm*', label='Nucl_Vert')
-        plt.loglog(Q, MParl_Diff, 'b*', label='MParl Diff Method')
-        plt.loglog(Q, Marl_Div, 'g*', label='MParl Div Method')
-        plt.xlabel('Q')
-        plt.ylabel('Intensity')
-        plt.title(Slice)
-        plt.legend()
-        plt.show()
-        '''
         
-                        
-    
-
 #*************************************************
 #***           End of 'The Program'            ***
 #*************************************************
