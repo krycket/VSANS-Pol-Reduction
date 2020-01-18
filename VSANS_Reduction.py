@@ -897,6 +897,7 @@ def Plex_File(start_number):
 def BlockedBeamScattCountsPerSecond(Config, representative_filenumber):
 
     BB_per_second = {}
+    print('BlockBeams(s) for', Config, ':')
 
     if Config in BlockBeam:
         if 'NA' not in BlockBeam[Config]['Trans']['File']:
@@ -911,7 +912,7 @@ def BlockedBeamScattCountsPerSecond(Config, representative_filenumber):
                     bb_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
                     BB_per_second[dshort] = bb_data / Count_time
                 print('Trans BB', BBFile)
-        elif 'NA' not in BlockBeam[Config]['Scatt']['File']:
+        if 'NA' not in BlockBeam[Config]['Scatt']['File']:
             BBFile = BlockBeam[Config]['Scatt']['File'][0]
             BB = path + "sans" + str(BBFile) + ".nxs.ngv"
             filename = str(BB)
@@ -923,7 +924,7 @@ def BlockedBeamScattCountsPerSecond(Config, representative_filenumber):
                     bb_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
                     BB_per_second[dshort] = bb_data / Count_time
                 print('Scatt BB', BBFile)
-        else:
+        if 'NA' in BlockBeam[Config]['Trans']['File'] and 'NA' in BlockBeam[Config]['Scatt']['File']:
             BB = path + "sans" + str(representative_filenumber) + ".nxs.ngv"
             filename = str(BB)
             config = Path(filename)
@@ -944,7 +945,7 @@ def BlockedBeamScattCountsPerSecond(Config, representative_filenumber):
                 bb_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
                 zero_data = np.zeros_like(bb_data)
                 BB_per_second[dshort] = zero_data
-        print('No BB')    
+        print('BB set to be zero')    
 
     return BB_per_second
 
@@ -1994,7 +1995,7 @@ for Config in Configs:
                                 plt.loglog(FullPolResultsVert['Q'], MParl_Div, fmt = 'c*', label='MParl via Division')
                             plt.xlabel('Q')
                             plt.ylabel('Intensity')
-                            plt.title('Vert and Horz Slices')
+                            plt.title('Vert and Horz Slices for {idnum},{cf}'.format(idnum=Sample, cf = Config))
                             plt.legend()
                             fig.savefig('FullPol_Cuts_{idnum}_{cf}.png'.format(idnum=Sample, cf = Config))
                             plt.show()
