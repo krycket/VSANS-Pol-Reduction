@@ -26,7 +26,7 @@ PlotYesNo = 1 #Default is 1 where 1 means yes, 0 means no
 Absolute_Q_min = 0.005 #Default 0; Will take the maximum of Q_min_Calc from all detectors and this value
 Absolute_Q_max = 0.145 #Default 0.6; Will take the minimum of Q_max_Calc from all detectors and this value
 
-Excluded_Filenumbers = [51289] #Default is []
+Excluded_Filenumbers = [51289, 56641, 56642, 56643, 56644, 56645, 56646, 56706, 56707] #Default is []
 ReAssignBlockBeam = [] #Default is []
 ReAssignEmpty = [] #Default is []
 
@@ -34,7 +34,6 @@ YesNoManualHe3Entry = 0 #0 for no (default), 1 for yes; should not be needed for
 New_HE3_Files = [28422, 28498, 28577, 28673, 28755, 28869] #Default is []; These would be the starting files for each new cell IF YesNoManualHe3Entry = 1
 MuValues = [3.105, 3.374, 3.105, 3.374, 3.105, 3.374] #Default is []; Values only used IF YesNoManualHe3Entry = 1; example [3.374, 3.105]=[Fras, Bur]; should not be needed after July 2019
 TeValues = [0.86, 0.86, 0.86, 0.86, 0.86, 0.86] #Default is []; Values only used IF YesNoManualHe3Entry = 1; example [0.86, 0.86]=[Fras, Bur]; should not be needed after July 2019
-
 
 #*************************************************
 #***        Definitions, Functions             ***
@@ -52,7 +51,11 @@ def Unique_Config_ID(filenumber):
         Desired_FrontCarriage_Distance = int(f['entry/DAS_logs/carriage1Trans/desiredSoftPosition'][0]) #in cm
         Desired_MiddleCarriage_Distance = int(f['entry/DAS_logs/carriage2Trans/desiredSoftPosition'][0]) #in cm
         Wavelength = f['entry/DAS_logs/wavelength/wavelength'][0]
-        Guides = int(f['entry/DAS_logs/guide/guide'][0])
+        GuideHolder = f['entry/DAS_logs/guide/guide'][0]
+        if str(GuideHolder).find("CONV") != -1:
+            Guides =  20
+        else:
+            Guides = int(f['entry/DAS_logs/guide/guide'][0])
         Configuration_ID = str(Guides) + "Gd" + str(Desired_FrontCarriage_Distance) + "cmF" + str(Desired_MiddleCarriage_Distance) + "cmM" + str(Wavelength) + "Ang"
         
     return Configuration_ID
@@ -1012,6 +1015,150 @@ def SolidAngle_AllDetectors(representative_filenumber):
             Solid_Angle[dshort] = theta_x_step * theta_y_step
 
     return Solid_Angle
+
+def QCalculation_AllDetectors(representative_filenumber):
+
+    Q_total = {}
+    deltaQ = {}
+    Qx = {}
+    Qy = {}
+    Qz = {}
+    Q_perp_unc = {}
+    Q_parl_unc = {}
+    InPlaneAngleMap = {}
+    dimXX = {}
+    dimYY = {}
+
+    filename = path + "sans" + str(representative_filenumber) + ".nxs.ngv"
+    config = Path(filename)
+    if config.is_file():
+        f = h5py.File(filename)
+        for dshort in short_detectors:
+            #data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
+            Wavelength = f['entry/instrument/beam/monochromator/wavelength'][0]
+            Wavelength_spread = f['entry/instrument/beam/monochromator/wavelength_spread'][0]
+            dimX = f['entry/instrument/detector_{ds}/pixel_num_x'.format(ds=dshort)][0]
+            dimY = f['entry/instrument/detector_{ds}/pixel_num_y'.format(ds=dshort)][0]
+            dimXX[dshort] = f['entry/instrument/detector_{ds}/pixel_num_x'.format(ds=dshort)][0]
+            dimYY[dshort] = f['entry/instrument/detector_{ds}/pixel_num_y'.format(ds=dshort)][0]
+            beam_center_x = f['entry/instrument/detector_{ds}/beam_center_x'.format(ds=dshort)][0]
+            beam_center_y = f['entry/instrument/detector_{ds}/beam_center_y'.format(ds=dshort)][0]
+            beamstop_diameter = f['/entry/DAS_logs/C2BeamStop/diameter'][0]/10.0 #beam stop in cm; sits right in front of middle detector?
+            detector_distance = f['entry/instrument/detector_{ds}/distance'.format(ds=dshort)][0]
+            x_pixel_size = f['entry/instrument/detector_{ds}/x_pixel_size'.format(ds=dshort)][0]/10.0
+            y_pixel_size = f['entry/instrument/detector_{ds}/y_pixel_size'.format(ds=dshort)][0]/10.0
+            panel_gap = f['entry/instrument/detector_{ds}/panel_gap'.format(ds=dshort)][0]/10.0
+            coeffs = f['entry/instrument/detector_{ds}/spatial_calibration'.format(ds=dshort)][0][0]/10.0
+            SampleApInternal = f['/entry/DAS_logs/geometry/internalSampleApertureHeight'][0] #internal sample aperture in cm
+            SampleApExternal = f['/entry/DAS_logs/geometry/externalSampleApertureHeight'][0] #external sample aperture in cm
+            SourceAp = f['/entry/DAS_logs/geometry/sourceApertureHeight'][0] #source aperture in cm, assumes circular aperture(?) #0.75, 1.5, or 3 for guides; otherwise 6 cm for >= 1 guides
+            FrontDetToGateValve = f['/entry/DAS_logs/carriage/frontTrans'][0] #400
+            MiddleDetToGateValve = f['/entry/DAS_logs/carriage/middleTrans'][0] #1650
+            FrontDetToSample = f['/entry/DAS_logs/geometry/sampleToFrontLeftDetector'][0] #491.4
+            MiddleDetToSample = f['/entry/DAS_logs/geometry/sampleToMiddleLeftDetector'][0] #1741.4
+            SampleToSourceAp = f['/entry/DAS_logs/geometry/sourceApertureToSample'][0] #1490.6; "Calculated distance between sample and source aperture" in cm
+            '''
+            #GateValveToSample = f['/entry/DAS_logs/geometry/samplePositionOffset'][0] #e.g. 91.4; gate valve to sample in cm ("Hand-measured distance from the center of the table the sample is mounted on to the sample. A positive value means the sample is offset towards the guides.")
+            #SampleToSampleAp = f['/entry/DAS_logs/geometry/SampleApertureOffset'][0] #e.g. 106.9; sample to sample aperture in cm ("Hand-measured distance between the Sample aperture and the sample.")            
+            #SampleApToSourceAp = f['/entry/DAS_logs/geometry/sourceApertureToSampleAperture'][0] #1383.7; "Calculated distance between sample aperture and source aperture" in cm
+            #Note gate valve to source aperture distances are based on the number of guides used:
+            #0=2441; 1=2157; 2=1976; 3=1782; 4=1582; 5=1381; 6=1181; 7=980; 8=780; 9=579 in form of # guides=distance in cm
+            '''
+                
+            if dshort == 'MT' or dshort == 'MB' or dshort == 'FT' or dshort == 'FB':
+                setback = f['entry/instrument/detector_{ds}/setback'.format(ds=dshort)][0]
+                vertical_offset = f['entry/instrument/detector_{ds}/vertical_offset'.format(ds=dshort)][0]
+                lateral_offset = 0
+            else:
+                setback = 0
+                vertical_offset = 0
+                lateral_offset = f['entry/instrument/detector_{ds}/lateral_offset'.format(ds=dshort)][0]
+
+            realDistZ = detector_distance + setback
+
+            position_key = dshort[1]
+            if position_key == 'T':
+                realDistX =  coeffs
+                realDistY =  0.5 * y_pixel_size + vertical_offset + panel_gap/2.0
+            elif position_key == 'B':
+                realDistX =  coeffs
+                realDistY =  vertical_offset - (dimY - 0.5)*y_pixel_size - panel_gap/2.0
+            elif position_key == 'L':
+                realDistX =  lateral_offset - (dimX - 0.5)*x_pixel_size - panel_gap/2.0
+                realDistY =  coeffs
+            elif position_key == 'R':
+                realDistX =  x_pixel_size*(0.5) + lateral_offset + panel_gap/2.0
+                realDistY =  coeffs
+
+            X, Y = np.indices(data.shape)
+            BSS = np.ones_like(data)
+            x0_pos =  realDistX - beam_center_x + (X)*x_pixel_size 
+            y0_pos =  realDistY - beam_center_y + (Y)*y_pixel_size
+            InPlane0_pos = np.sqrt(x0_pos**2 + y0_pos**2)
+            BSS[InPlane0_pos < beamstop_diameter/2.0] = 0.0
+            BeamStopShadow[dshort] = BSS
+            twotheta = np.arctan2(InPlane0_pos,realDistZ)
+            phi = np.arctan2(y0_pos,x0_pos)
+            '''#Q resolution from J. of Appl. Cryst. 44, 1127-1129 (2011) and file:///C:/Users/kkrycka/Downloads/SANS_2D_Resolution.pdf where
+            #there seems to be an extra factor of wavelength listed that shouldn't be there in (delta_wavelength/wavelength):'''
+            carriage_key = dshort[0]
+            if carriage_key == 'F':
+                L2 = FrontDetToSample
+            elif carriage_key == 'M':
+                L2 = MiddleDetToSample
+            L1 = SampleToSourceAp
+            Pix = 0.82
+            R1 = SourceAp #source aperture radius in cm
+            R2 = SampleApExternal #sample aperture radius in cm
+            Inv_LPrime = 1.0/L1 + 1.0/L2
+            k = 2*np.pi/Wavelength
+            Sigma_D_Perp = np.sin(phi)*x_pixel_size + np.cos(phi)*y_pixel_size
+            Sigma_D_Parl = np.cos(phi)*x_pixel_size + np.sin(phi)*y_pixel_size
+            SigmaQPerpSqr = (k*k/12.0)*(3*np.power(R1/L1,2) + 3.0*np.power(R2*Inv_LPrime,2)+ np.power(Sigma_D_Perp/L2,2))
+            SigmaQParlSqr = (k*k/12.0)*(3*np.power(R1/L1,2) + 3.0*np.power(R2*Inv_LPrime,2)+ np.power(Sigma_D_Parl/L2,2))
+            R = np.sqrt(np.power(x0_pos,2)+np.power(y0_pos,2))
+            Q0 = k*R/L2
+            '''
+            #If no gravity correction:
+            #SigmaQParlSqr = SigmaQParlSqr + np.power(Q0,2)*np.power(Wavelength_spread/np.sqrt(6.0),2)
+            #Else, if adding gravity correction:
+            '''
+            g = 981 #in cm/s^2
+            m_div_h = 252.77 #in s cm^-2
+            A = -0.5*981*L2*(L1+L2)*np.power(m_div_h , 2)
+            WL = Wavelength*1E-8
+            SigmaQParlSqr = SigmaQParlSqr + np.power(Wavelength_spread*k/(L2),2)*(R*R -4*A*np.sin(phi)*WL*WL + 4*A*A*np.power(WL,4))/6.0 #gravity correction makes vary little difference for wavelength spread < 20%
+            '''VSANS IGOR 2D ASCII delta_Q seems to be way off the mark, but this 2D calculaation matches the VSANS circular average closely when pixels are converted to circular average...'''
+            
+            Q_total[dshort] = (4.0*np.pi/Wavelength)*np.sin(twotheta/2.0)
+            QQ_total = (4.0*np.pi/Wavelength)*np.sin(twotheta/2.0)
+            Qx[dshort] = QQ_total*np.cos(twotheta/2.0)*np.cos(phi)
+            Qy[dshort] = QQ_total*np.cos(twotheta/2.0)*np.sin(phi)
+            Qz[dshort] = QQ_total*np.sin(twotheta/2.0)     
+            Q_perp_unc[dshort] = np.ones_like(Q_total[dshort])*np.sqrt(SigmaQPerpSqr)
+            Q_parl_unc[dshort] = np.sqrt(SigmaQParlSqr)
+            Theta_deg = phi*180.0/np.pi
+            InPlaneAngleMap[dshort] = Theta_deg
+            '''#returns values between -180.0 degrees and +180.0 degrees'''
+        
+        #plt.imshow[LM.T, origin='lower']
+
+    return Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, InPlaneAngleMap, dimXX, dimYY
+
+def SectorMask_AllDetectors(InPlaneAngleMap, PrimaryAngle, AngleWidth):
+
+    SectorMask = {}
+
+    for dshort in short_detectors:
+        Angles = InPlaneAngleMap[dshort]
+        SM = np.ones_like(Angles)
+        SM[np.absolute(Angles - PrimaryAngle) <= AngleWidth] = 1.0
+        SM[np.absolute(Angles + 360 - PrimaryAngle) <= AngleWidth] = 1.0
+        SM[np.absolute(Angles - 360 - PrimaryAngle) <= AngleWidth] = 1.0
+
+        SectorMask[dshort] = SM
+
+    return SectorMask
             
 def QCalculationAndMasks_AllDetectors(representative_filenumber, AngleWidth):
 
@@ -1265,12 +1412,14 @@ def HE3_DecayCurves(HE3_Trans):
         if xdata.size >= 2:
             print('Graphing He3 decay curve....(close generated plot to continue)')
             fit = He3Decay_func(xdata, popt[0], popt[1])
+            fig = plt.figure()
             plt.plot(xdata, ydata, 'b*', label='data')
             plt.plot(xdata, fit, 'r-', label='fit of data')
             plt.xlabel('time (hours)')
             plt.ylabel('3He atomic polarization')
             plt.title('He3 Cell Decay')
             plt.legend()
+            fig.savefig('He3Curve_AtomicPolarization_Cell{cell}.png'.format(cell = entry))
             plt.show()
 
         if xdata.size >= 2 and entry_number == len(HE3_Trans):
@@ -1288,6 +1437,7 @@ def HE3_DecayCurves(HE3_Trans):
             TMAJ_fit = Te * np.exp(-Mu*(1.0 - AtomicPol_fitlonger))
             TMIN_fit = Te * np.exp(-Mu*(1.0 + AtomicPol_fitlonger))
             
+            fig = plt.figure()
             plt.plot(xdata, TMAJ_data, 'b*', label='T_MAJ data')
             plt.plot(xdataextended, TMAJ_fit, 'c-', label='T_MAJ predicted')
 
@@ -1298,6 +1448,7 @@ def HE3_DecayCurves(HE3_Trans):
             plt.ylabel('Spin Transmission')
             plt.title('Predicted He3 Cell Transmission')
             plt.legend()
+            fig.savefig('PredictedHe3DecayCurve_{cell}.png'.format(cell = entry))
             plt.show()
 
         '''    
@@ -1394,9 +1545,17 @@ def Pol_SuppermirrorAndFlipper(Pol_Trans, HE3_Cell_Summary):
 
     return
 
-def GlobalAbsScaleAndPolCorr(Sample, Config, BlockBeam_per_second, Solid_Angle, YesNoSubtraction, SubtractionArray):
+def GlobalAbsScaleAndPolCorr(dimXX, dimYY, Sample, Config, BlockBeam_per_second, Solid_Angle, YesNoSubtraction, SubtractionArray):
 
     '''#Full-Pol Reduction:'''
+    PolCorr_UU = {}
+    PolCorr_DU = {}
+    PolCorr_DD = {}
+    PolCorr_UD = {}
+    PolCorr_UU_Unc = {}
+    PolCorr_DU_Unc = {}
+    PolCorr_DD_Unc = {}
+    PolCorr_UD_Unc = {}
     Scaled_Data = np.zeros((8,4,6144))
     UncScaled_Data = np.zeros((8,4,6144))
     masks = {}
@@ -1549,7 +1708,19 @@ def GlobalAbsScaleAndPolCorr(Sample, Config, BlockBeam_per_second, Solid_Angle, 
             HE3Corr_AllDetectors[dshort] = HE3Corr_Data / (Plex[dshort]*Solid_Angle[dshort])
             Det_Index += 1
 
-    return PolCorr_AllDetectors, Uncertainty_PolCorr_AllDetectors, HE3Corr_AllDetectors, Have_FullPol
+            dimX = dimXX[dshort]
+            dimY = dimYY[dshort]
+            PolCorr_UU[dshort] = PolCorr_AllDetectors[dshort][0][:][:].reshape((dimX, dimY))
+            PolCorr_DU[dshort] = PolCorr_AllDetectors[dshort][1][:][:].reshape((dimX, dimY))
+            PolCorr_DD[dshort] = PolCorr_AllDetectors[dshort][2][:][:].reshape((dimX, dimY))
+            PolCorr_UD[dshort] = PolCorr_AllDetectors[dshort][3][:][:].reshape((dimX, dimY))
+
+            PolCorr_UU_Unc[dshort] = Uncertainty_PolCorr_AllDetectors[dshort][0][:][:].reshape((dimX, dimY))
+            PolCorr_DU_Unc[dshort] = Uncertainty_PolCorr_AllDetectors[dshort][1][:][:].reshape((dimX, dimY))
+            PolCorr_DD_Unc[dshort] = Uncertainty_PolCorr_AllDetectors[dshort][2][:][:].reshape((dimX, dimY))
+            PolCorr_UD_Unc[dshort] = Uncertainty_PolCorr_AllDetectors[dshort][3][:][:].reshape((dimX, dimY))
+
+    return PolCorr_AllDetectors, Uncertainty_PolCorr_AllDetectors, HE3Corr_AllDetectors, Have_FullPol, PolCorr_UU, PolCorr_DU, PolCorr_DD, PolCorr_UD, PolCorr_UU_Unc, PolCorr_DU_Unc, PolCorr_DD_Unc, PolCorr_UD_Unc
 
 def MinMaxQ(Q_total):
 
@@ -1826,6 +1997,8 @@ def ASCIIlike_Output(Type, ID, Config, Data_AllDetectors, Unc_Data_AllDetectors,
         QPR = QPR.T
         QParlUnc = QPR.flatten()
         Shadow = np.ones_like(Q_tot)
+        Shadow = Shadow.T
+        ShadowHolder = Shadow.flatten()
 
         if Type == 'Unpol':
             print('Outputting Unpol data into ASCII-like format for {det}, GroupID = {idnum} '.format(det=dshort, idnum=ID))
@@ -1835,11 +2008,13 @@ def ASCIIlike_Output(Type, ID, Config, Data_AllDetectors, Unc_Data_AllDetectors,
             IntensityUnc = Unc_Data_AllDetectors[dshort]
             IntensityUnc = IntensityUnc.T
             DeltaInt = IntensityUnc.flatten()
-            ASCII_like = np.array([QXData, QYData, Int, DeltaInt, QZData, QParlUnc, QPerpUnc])
+            ASCII_like = np.array([QXData, QYData, Int, DeltaInt, QZData, QParlUnc, QPerpUnc, ShadowHolder])
             ASCII_like = ASCII_like.T
-            np.savetxt('UnpolScatt_{det}.DAT'.format(det=dshort), ASCII_like, header='Qx, Qy, I, DI, Qz, UncQParl, UncQPerp', fmt='%1.4e')
+            #np.savetxt('UnpolScatt_{det}.DAT'.format(det=dshort), ASCII_like, delimiter = ' ',header='Qx, Qy, I, DI, Qz, UncQParl, UncQPerp, Shadow', fmt='%1.4e')
             #np.savetxt('UnpolScatt_ID={idnum}_{CF}_{det}.DAT'.format(idnum=ID, CF=Config, det=dshort), ASCII_like, header='Qx, Qy, I, DI, Qz, UncQParl, UncQPerp, Shadow', fmt='%1.4e')
             #np.savetxt('Unpol_ID={idnum}_(CF}_{det}.DAT'.format(idnum=ID, CF=Config, det=dshort), ASCII_like, header='Qx, Qy, I, DI, QZ, UncQParl, UncQPerp, Shadow', fmt='%1.4e')
+            #np.savetxt('UnpolScatt_{det}.DAT'.format(det=dshort), ASCII_like, delimiter = ' ',header='Qx, Qy, I, DI, Qz, UncQParl, UncQPerp, Shadow')
+            np.savetxt('UnpolScatt_{det}.DAT'.format(det=dshort), ASCII_like, delimiter = ' ')
         if Type == 'Fullpol':
             print('Outputting Fullpol data into ASCII-like format for {det}, GroupID = {idnum} '.format(det=dshort, idnum=ID))
             Intensity_FourCrossSections = Data_AllDetectors[dshort]
@@ -1933,7 +2108,7 @@ for Config in Configs:
                         HaveFullPolEmpty = 0
                         SubtractionForEmpty = 0
                         Holder = np.array([0,0,0,0])
-                        PolCorr_AllDetectors, Uncertainty_PolCorr_AllDetectors, Empty_HE3Corr_AllDetectors, FullPolGo = GlobalAbsScaleAndPolCorr(Sample, Config, BB_per_second, Solid_Angle, SubtractionForEmpty, Holder)
+                        PolCorr_AllDetectors, Uncertainty_PolCorr_AllDetectors, Empty_HE3Corr_AllDetectors, FullPolGo, PolCorr_UU, PolCorrDU, PolCorr_DD, PolCorr_UD, PolCorr_UU_Unc, PolCorrDU_Unc, PolCorr_DD_Unc, PolCorr_UD_Unc = GlobalAbsScaleAndPolCorr(dimXX, dimYY, Sample, Config, BB_per_second, Solid_Angle, SubtractionForEmpty, Holder)
                         if FullPolGo > 0:
                             EmptyPlotYesNo = 1
                             FullPolEmptyHorz = SliceData('Horz', Q_min, Q_max, Q_bins, QValues_All, Trunc_maskHorz, PolCorr_AllDetectors, Uncertainty_PolCorr_AllDetectors, dimXX, dimYY, Sample, Config, EmptyPlotYesNo)
@@ -1945,8 +2120,9 @@ for Config in Configs:
                 if str(Scatt[Sample]['Intent']).find('Sample') != -1:
                     if Config in Scatt[Sample]['Config(s)']:
                         YesNoSubtraction = 0
-                        PolCorr_AllDetectors, Uncertainty_PolCorr_AllDetectors, HE3Corr_AllDetectors, FullPolGo = GlobalAbsScaleAndPolCorr(Sample, Config, BB_per_second, Solid_Angle, YesNoSubtraction, Empty_HE3Corr_AllDetectors)
+                        PolCorr_AllDetectors, Uncertainty_PolCorr_AllDetectors, HE3Corr_AllDetectors, FullPolGo, PolCorr_UU, PolCorrDU, PolCorr_DD, PolCorr_UD, PolCorr_UU_Unc, PolCorrDU_Unc, PolCorr_DD_Unc, PolCorr_UD_Unc = GlobalAbsScaleAndPolCorr(dimXX, dimYY, Sample, Config, BB_per_second, Solid_Angle, YesNoSubtraction, Empty_HE3Corr_AllDetectors)
                         if FullPolGo > 0:
+                            ASCIIlike_Output('Unpol', 'UD', 'NG4', PolCorr_UU, PolCorr_UU_Unc, QValues_All)
                             FullPolResultsHorz = SliceData('Horz', Q_min, Q_max, Q_bins, QValues_All, Trunc_maskHorz, PolCorr_AllDetectors, Uncertainty_PolCorr_AllDetectors, dimXX, dimYY, Sample, Config, PlotYesNo)
                             FullPolResultsVert = SliceData('Vert', Q_min, Q_max, Q_bins, QValues_All, Trunc_maskVert, PolCorr_AllDetectors, Uncertainty_PolCorr_AllDetectors, dimXX, dimYY, Sample, Config, PlotYesNo)
 
@@ -2025,7 +2201,7 @@ for Config in Configs:
                             text_outputH = np.array([Q, NSFADD, NSFDIFF, NSFUNC, SFADD, SFUNC, Q_mean, Q_Unc, Shadow])
                             text_outputH = text_outputH.T
                             np.savetxt('ProcessedFullPolHorz_{idnum}_{cf}.txt'.format(idnum=Sample, cf = Config), text_outputH, header= 'Q, NSFADD, NSFDIFF, NSF_UNC, SFADD, SFUNC, Q_mean, Q_Unc, Shadow', fmt='%1.4e')
-        
+                            
 #*************************************************
 #***           End of 'The Program'            ***
 #*************************************************
