@@ -41,6 +41,7 @@ TeValues = [0.86, 0.86, 0.86, 0.86, 0.86, 0.86] #Default is []; Values only used
 #***        Definitions, Functions             ***
 #*************************************************
 
+all_detectors = ["MT", "MB", "MR", "ML", "FT", "FB", "FR", "FL", "B"]
 short_detectors = ["MT", "MB", "MR", "ML", "FT", "FB", "FR", "FL"]
 middle_detectors = ["MT", "MB", "MR", "ML"]
 
@@ -546,13 +547,18 @@ def ReadIn_Masks(filenumberlisting):
                     print('Need scan for filenumber ', associated_filenumber, ' to proces its associated mask.')
                 else:    
                     ConfigID = Unique_Config_ID(associated_filenumber)
+                    
+                    relevant_detectors = short_detectors
+                    if str(ConfigID).find('CvB') != -1:
+                        relevant_detectors = all_detectors
+                        
                     if ConfigID not in Masks:
                         Masks[ConfigID] = {'Trans' : 'NA', 'Scatt_Standard' : 'NA', 'Scatt_WithSolenoid' : 'NA'}
                     Type, SolenoidPosition = File_Type(associated_filenumber)
                     config = Path(filename)
                     if config.is_file():
                         f = h5py.File(filename)
-                        for dshort in short_detectors:
+                        for dshort in relevant_detectors:
                             mask_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
                             '''
                             This reverses zeros and ones (assuming IGOR-made masks) so that zeros become the pixels to ignore:
@@ -897,7 +903,7 @@ def Plex_File(start_number):
     if config.is_file():
         print('Reading in ', filename)
         f = h5py.File(filename)
-        for dshort in short_detectors:
+        for dshort in all_detectors:
             data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
             PlexData[dshort] = data #.flatten()
     else:
@@ -906,7 +912,7 @@ def Plex_File(start_number):
         config = Path(filename)
         if config.is_file():
             f = h5py.File(filename)
-            for dshort in short_detectors:
+            for dshort in all_detectors:
                 data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
                 data_zeros = np.ones_like(data)
                 PlexData[dshort] = data_zeros #.flatten()
@@ -916,6 +922,10 @@ def Plex_File(start_number):
 
 def BlockedBeamScattCountsPerSecond(Config, representative_filenumber):
 
+    relevant_detectors = short_detectors
+    if str(Config).find('CvB') != -1:
+        relevant_detectors = all_detectors
+        
     BB_per_second = {}
     print('BlockBeams(s) for', Config, ':')
 
@@ -928,7 +938,7 @@ def BlockedBeamScattCountsPerSecond(Config, representative_filenumber):
             if config.is_file():
                 f = h5py.File(filename)
                 Count_time = f['entry/collection_time'][0]
-                for dshort in short_detectors:
+                for dshort in relevant_detectors:
                     bb_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
                     BB_per_second[dshort] = bb_data / Count_time
                 print('Trans BB', BBFile)
@@ -940,7 +950,7 @@ def BlockedBeamScattCountsPerSecond(Config, representative_filenumber):
             if config.is_file():
                 f = h5py.File(filename)
                 Count_time = f['entry/collection_time'][0]
-                for dshort in short_detectors:
+                for dshort in relevant_detectors:
                     bb_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
                     BB_per_second[dshort] = bb_data / Count_time
                 print('Scatt BB', BBFile)
@@ -950,7 +960,7 @@ def BlockedBeamScattCountsPerSecond(Config, representative_filenumber):
             config = Path(filename)
             if config.is_file():
                 f = h5py.File(filename)
-                for dshort in short_detectors:
+                for dshort in relevant_detectors:
                     bb_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
                     zero_data = np.zeros_like(bb_data)
                     BB_per_second[dshort] = zero_data
@@ -961,7 +971,7 @@ def BlockedBeamScattCountsPerSecond(Config, representative_filenumber):
         config = Path(filename)
         if config.is_file():
             f = h5py.File(filename)
-            for dshort in short_detectors:
+            for dshort in relevant_detectors:
                 bb_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
                 zero_data = np.zeros_like(bb_data)
                 BB_per_second[dshort] = zero_data
@@ -969,55 +979,20 @@ def BlockedBeamScattCountsPerSecond(Config, representative_filenumber):
 
     return BB_per_second
 
-def BlockedBeam_Averaged(BlockedBeamFiles, MeasMasks, Trans_masks):
 
-    BlockBeam_Trans = {}
-    BlockBeam_ScattPerPixel = {}
-    masks = {}
 
-    for filenumber in BlockedBeamFiles:
-        filename = path + "sans" + str(filenumber) + ".nxs.ngv"
-        config = Path(filename)
-        if config.is_file():
-            print('Reading in block beam file number:', filenumber)
-            f = h5py.File(filename)
-            Config_ID = Unique_Config_ID(filenumber)
-            Purpose = f['entry/reduction/file_purpose'][()]
-            Count_time = f['entry/collection_time'][0]
-            if str(Purpose).find("TRANS") != -1 or str(Purpose).find("HE3") != -1: 
-                '''#Trans_Counts = f['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]'''  
-                trans_mask = Trans_masks['MR']
-                trans_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
-                trans_data = trans_data*trans_mask
-                Trans_Counts = trans_data.sum()
-                
-                BlockBeam_Trans[Config_ID] = {'File' : filenumber,
-                                                             'CountsPerSecond' : Trans_Counts/Count_time}
-            if str(Purpose).find("TRANS") != -1 or str(Purpose).find("HE3") != -1:
-                print('BB scattering number is ', filenumber)
-                BlockBeam_ScattPerPixel[Config_ID] = {'File' : filenumber}
-                for dshort in short_detectors:
-                    Holder = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
-                    if Config_ID in MeasMasks:
-                        masks = MeasMasks[Config_ID]
-                    else:
-                        masks[dshort] = np.ones_like(Holder)
-                    Sum = np.sum(Holder[masks[dshort] > 0])
-                    Pixels = np.sum(masks[dshort])
-                    Unc = np.sqrt(Sum)/Pixels
-                    Ave = np.average(Holder[masks[dshort] > 0])
-                    
-                    BlockBeam_ScattPerPixel[Config_ID][dshort] = {'AvePerSec' : Ave/Count_time, 'Unc' : Unc/Count_time}
-                
-    return BlockBeam_Trans, BlockBeam_ScattPerPixel
+def SolidAngle_AllDetectors(representative_filenumber, Config):
 
-def SolidAngle_AllDetectors(representative_filenumber):
+    relevant_detectors = short_detectors
+    if str(Config).find('CvB') != -1:
+        relevant_detectors = all_detectors    
+    
     Solid_Angle = {}
     filename = path + "sans" + str(representative_filenumber) + ".nxs.ngv"
     config = Path(filename)
     if config.is_file():
         f = h5py.File(filename)
-        for dshort in short_detectors:
+        for dshort in relevant_detectors:
             detector_distance = f['entry/instrument/detector_{ds}/distance'.format(ds=dshort)][0]
             x_pixel_size = f['entry/instrument/detector_{ds}/x_pixel_size'.format(ds=dshort)][0]/10.0
             y_pixel_size = f['entry/instrument/detector_{ds}/y_pixel_size'.format(ds=dshort)][0]/10.0
@@ -1033,7 +1008,11 @@ def SolidAngle_AllDetectors(representative_filenumber):
 
     return Solid_Angle
 
-def QCalculation_AllDetectors(representative_filenumber):
+def QCalculation_AllDetectors(representative_filenumber, Config):
+
+    relevant_detectors = short_detectors
+    if str(Config).find('CvB') != -1:
+        relevant_detectors = all_detectors
 
     Q_total = {}
     deltaQ = {}
@@ -1045,12 +1024,13 @@ def QCalculation_AllDetectors(representative_filenumber):
     InPlaneAngleMap = {}
     dimXX = {}
     dimYY = {}
+        
 
     filename = path + "sans" + str(representative_filenumber) + ".nxs.ngv"
     config = Path(filename)
     if config.is_file():
         f = h5py.File(filename)
-        for dshort in short_detectors:
+        for dshort in relevant_detectors:
             data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
             Wavelength = f['entry/instrument/beam/monochromator/wavelength'][0]
             Wavelength_spread = f['entry/instrument/beam/monochromator/wavelength_spread'][0]
@@ -1064,15 +1044,18 @@ def QCalculation_AllDetectors(representative_filenumber):
             detector_distance = f['entry/instrument/detector_{ds}/distance'.format(ds=dshort)][0]
             x_pixel_size = f['entry/instrument/detector_{ds}/x_pixel_size'.format(ds=dshort)][0]/10.0
             y_pixel_size = f['entry/instrument/detector_{ds}/y_pixel_size'.format(ds=dshort)][0]/10.0
-            panel_gap = f['entry/instrument/detector_{ds}/panel_gap'.format(ds=dshort)][0]/10.0
-            coeffs = f['entry/instrument/detector_{ds}/spatial_calibration'.format(ds=dshort)][0][0]/10.0
+            if dshort != 'B':
+                panel_gap = f['entry/instrument/detector_{ds}/panel_gap'.format(ds=dshort)][0]/10.0
+                coeffs = f['entry/instrument/detector_{ds}/spatial_calibration'.format(ds=dshort)][0][0]/10.0
             SampleApInternal = f['/entry/DAS_logs/geometry/internalSampleApertureHeight'][0] #internal sample aperture in cm
             SampleApExternal = f['/entry/DAS_logs/geometry/externalSampleApertureHeight'][0] #external sample aperture in cm
             SourceAp = f['/entry/DAS_logs/geometry/sourceApertureHeight'][0] #source aperture in cm, assumes circular aperture(?) #0.75, 1.5, or 3 for guides; otherwise 6 cm for >= 1 guides
             FrontDetToGateValve = f['/entry/DAS_logs/carriage/frontTrans'][0] #400
             MiddleDetToGateValve = f['/entry/DAS_logs/carriage/middleTrans'][0] #1650
+            RearDetToGateValve = f['/entry/DAS_logs/carriage/rearTrans'][0]
             FrontDetToSample = f['/entry/DAS_logs/geometry/sampleToFrontLeftDetector'][0] #491.4
             MiddleDetToSample = f['/entry/DAS_logs/geometry/sampleToMiddleLeftDetector'][0] #1741.4
+            RearDetToSample = f['/entry/DAS_logs/geometry/sampleToRearDetector'][0]
             SampleToSourceAp = f['/entry/DAS_logs/geometry/sourceApertureToSample'][0] #1490.6; "Calculated distance between sample and source aperture" in cm
             '''
             #GateValveToSample = f['/entry/DAS_logs/geometry/samplePositionOffset'][0] #e.g. 91.4; gate valve to sample in cm ("Hand-measured distance from the center of the table the sample is mounted on to the sample. A positive value means the sample is offset towards the guides.")
@@ -1093,19 +1076,24 @@ def QCalculation_AllDetectors(representative_filenumber):
 
             realDistZ = detector_distance + setback
 
-            position_key = dshort[1]
-            if position_key == 'T':
-                realDistX =  coeffs
-                realDistY =  0.5 * y_pixel_size + vertical_offset + panel_gap/2.0
-            elif position_key == 'B':
-                realDistX =  coeffs
-                realDistY =  vertical_offset - (dimY - 0.5)*y_pixel_size - panel_gap/2.0
-            elif position_key == 'L':
-                realDistX =  lateral_offset - (dimX - 0.5)*x_pixel_size - panel_gap/2.0
-                realDistY =  coeffs
-            elif position_key == 'R':
-                realDistX =  x_pixel_size*(0.5) + lateral_offset + panel_gap/2.0
-                realDistY =  coeffs
+            if dshort == 'B':
+                realDistX =  x_pixel_size*(0.5)
+                realDistY =  y_pixel_size*(0.5)
+            else:
+                position_key = dshort[1]
+                if position_key == 'T':
+                    realDistX =  coeffs
+                    realDistY =  0.5 * y_pixel_size + vertical_offset + panel_gap/2.0
+                elif position_key == 'B':
+                    realDistX =  coeffs
+                    realDistY =  vertical_offset - (dimY - 0.5)*y_pixel_size - panel_gap/2.0
+                elif position_key == 'L':
+                    realDistX =  lateral_offset - (dimX - 0.5)*x_pixel_size - panel_gap/2.0
+                    realDistY =  coeffs
+                elif position_key == 'R':
+                    realDistX =  x_pixel_size*(0.5) + lateral_offset + panel_gap/2.0
+                    realDistY =  coeffs
+                
 
             X, Y = np.indices(data.shape)
             x0_pos =  realDistX - beam_center_x + (X)*x_pixel_size 
@@ -1120,6 +1108,8 @@ def QCalculation_AllDetectors(representative_filenumber):
                 L2 = FrontDetToSample
             elif carriage_key == 'M':
                 L2 = MiddleDetToSample
+            elif dshort == 'B':
+                L2 = RearDetToSample
             L1 = SampleToSourceAp
             Pix = 0.82
             R1 = SourceAp #source aperture radius in cm
@@ -1390,6 +1380,10 @@ def AbsScale(ScattType, Sample, Config, BlockBeam_per_second, Solid_Angle, Plex)
     masks = {}
     BB = {}
 
+    relevant_detectors = short_detectors
+    if str(Config).find('CvB') != -1:
+        relevant_detectors = all_detectors
+
     if Sample in Scatt:
         if Config in Scatt[Sample]['Config(s)']:
             Number_Files = 1.0*len(Scatt[Sample]['Config(s)'][Config][ScattType])
@@ -1415,7 +1409,7 @@ def AbsScale(ScattType, Sample, Config, BlockBeam_per_second, Solid_Angle, Plex)
                 '''#Calculating an average block beam counts per pixel and time (seems to work better than a pixel-by-pixel subtraction,
                 at least for shorter count times)'''
                 
-            for dshort in short_detectors:
+            for dshort in relevant_detectors:
                 Holder =  np.array(BlockBeam_per_second[dshort])
                 '''Optional:
                 if Config in Masks:
@@ -1448,7 +1442,7 @@ def AbsScale(ScattType, Sample, Config, BlockBeam_per_second, Solid_Angle, Plex)
                         f = h5py.File(filename)
                         MonCounts = f['entry/control/monitor_counts'][0]
                         Count_time = f['entry/collection_time'][0]
-                        for dshort in short_detectors:
+                        for dshort in relevant_detectors:
                             data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
                             unc = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
                             data = (data - Count_time*BB[dshort])/(Number_Files*Plex[dshort]*Solid_Angle[dshort])
@@ -1458,7 +1452,7 @@ def AbsScale(ScattType, Sample, Config, BlockBeam_per_second, Solid_Angle, Plex)
                             else:
                                 Scaled_Data[dshort] += ((1E8/MonCounts)/ABS_Scale)*data
                                 UncScaled_Data[dshort] += unc           
-                for dshort in short_detectors:
+                for dshort in relevant_detectors:
                     UncScaled_Data[dshort] = np.sqrt(UncScaled_Data[dshort])*((1E8/MonCounts)/ABS_Scale)/(Number_Files*Plex[dshort]*Solid_Angle[dshort])
 
         else:
@@ -1472,8 +1466,10 @@ def PolCorrScattFiles(dimXX, dimYY, Sample, Config, UUScaledData, DUScaledData, 
     Scaled_Data = np.zeros((8,4,6144))
     UncScaled_Data = np.zeros((8,4,6144))
 
+    relevant_detectors = short_detectors
+
     Det_counter = 0
-    for dshort in short_detectors:
+    for dshort in relevant_detectors:
         UUD = np.array(UUScaledData[dshort])
         Scaled_Data[Det_counter][0][:] += UUD.flatten()
         
@@ -1574,9 +1570,39 @@ def PolCorrScattFiles(dimXX, dimYY, Sample, Config, UUScaledData, DUScaledData, 
         
         Prefactor = inv(Pol_Efficiency)
         PrefactorII = inv(HE3_Efficiency)
+
+        if str(Config).find('CvB') != -1:
+            RearScaled_Data = np.zeros((4, 1126080))
+            UncRearScaled_Data = np.zeros((4, 1126080))
+            
+            UUR = np.array(UUScaledData['B'])
+            RearScaled_Data[0][:] += UUR.flatten()
+            DUR = np.array(DUScaledData['B'])
+            RearScaled_Data[1][:] += DUR.flatten()
+            DDR = np.array(DDScaledData['B'])
+            RearScaled_Data[2][:] += DDR.flatten()
+            UDR = np.array(UDScaledData['B'])
+            RearScaled_Data[3][:] += UDR.flatten()
+            UncRearScaled_Data[0][:] = RearScaled_Data[0][:]
+            UncRearScaled_Data[1][:] = RearScaled_Data[1][:]
+            UncRearScaled_Data[2][:] = RearScaled_Data[2][:]
+            UncRearScaled_Data[3][:] = RearScaled_Data[3][:]
+
+            BackPolCorr = np.dot(Prefactor, RearScaled_Data)
+            BackUncertainty_PolCorr = UncRearScaled_Data
+            
+            PolCorr_UU['B'] = BackPolCorr[0][:][:].reshape((680, 1656))
+            PolCorr_UU_Unc['B'] = BackUncertainty_PolCorr[0][:][:].reshape((680, 1656))
+            PolCorr_DU['B'] = BackPolCorr[1][:][:].reshape((680, 1656))
+            PolCorr_DU_Unc['B'] = BackUncertainty_PolCorr[1][:][:].reshape((680, 1656))
+            PolCorr_DD['B'] = BackPolCorr[2][:][:].reshape((680, 1656))
+            PolCorr_DD_Unc['B'] = BackUncertainty_PolCorr[2][:][:].reshape((680, 1656))
+            PolCorr_UD['B'] = BackPolCorr[3][:][:].reshape((680, 1656))
+            PolCorr_UD_Unc['B'] = BackUncertainty_PolCorr[3][:][:].reshape((680, 1656))
+
         
         Det_Index = 0
-        for dshort in short_detectors:
+        for dshort in relevant_detectors:
             UncData_Per_Detector = UncScaled_Data[Det_Index][:][:]
             Data_Per_Detector = Scaled_Data[Det_Index][:][:]
             
@@ -1755,8 +1781,15 @@ def Raw_Data(filenumber):
 
 def ASCIIlike_Output(Type, ID, Config, Data_AllDetectors, Unc_Data_AllDetectors, QGridPerDetector, GeneralMask):
 
+    relevant_detectors = short_detectors
+    if str(Config).find('CvB') != -1:
+        relevant_detectors = all_detectors
+
     if 'NA' not in Data_AllDetectors and 'NA' not in Unc_Data_AllDetectors:
-        for dshort in short_detectors:
+
+        for dshort in relevant_detectors:
+
+            #For back detector only need to save x [200:500] and y [630:930].
 
             Mask = np.array(GeneralMask[dshort])
             mini_mask = Mask > 0
@@ -1806,7 +1839,7 @@ def ASCIIlike_Output(Type, ID, Config, Data_AllDetectors, Unc_Data_AllDetectors,
                 np.savetxt('{TP}Scatt_{Samp}_{CF}_{det}.DAT'.format(TP=Type, Samp=ID, CF=Config, det=dshort), ASCII_like, delimiter = ' ', comments = ' ', header = 'ASCII data created Mon, Jan 13, 2020 2:39:54 PM')
            
 
-            if dshort == short_detectors[0]:
+            if dshort == relevant_detectors[0]:
                 Int_Combined = Intensity
                 DeltaInt_Combined = IntensityUnc
                 QXData_Combined = QXData
@@ -1837,6 +1870,10 @@ def ASCIIlike_Output(Type, ID, Config, Data_AllDetectors, Unc_Data_AllDetectors,
     return
 
 def PlotAndSaveFullPolSlices(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, PolCorrUU, PolCorrUU_Unc, PolCorrDU, PolCorrDU_Unc, PolCorrDD, PolCorrDD_Unc, PolCorrUD, PolCorrUD_Unc):
+
+    relevant_detectors = short_detectors
+    if str(Config).find('CvB') != -1:
+        relevant_detectors = all_detectors
 
     BothSides = 1
     HorzMask = SectorMask_AllDetectors(InPlaneAngleMap, 0, SectorCutAngles, BothSides)
@@ -1905,26 +1942,31 @@ QValues_All = {}
 for Config in Configs:
     representative_filenumber = Configs[Config]
     if representative_filenumber != 0:
-        Solid_Angle = SolidAngle_AllDetectors(representative_filenumber)
+        Solid_Angle = SolidAngle_AllDetectors(representative_filenumber, Config)
         BB_per_second = BlockedBeamScattCountsPerSecond(Config, representative_filenumber)
-        Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, InPlaneAngleMap, dimXX, dimYY = QCalculation_AllDetectors(representative_filenumber)
+        Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, InPlaneAngleMap, dimXX, dimYY = QCalculation_AllDetectors(representative_filenumber, Config)
         QValues_All = {'QX':Qx,'QY':Qy,'QZ':Qz,'Q_total':Q_total,'Q_perp_unc':Q_perp_unc,'Q_parl_unc':Q_parl_unc}
         Q_minCalc, Q_maxCalc = MinMaxQ(Q_total)
         Q_min = np.maximum(Absolute_Q_min, Q_minCalc)
         Q_max = np.minimum(Absolute_Q_max, Q_maxCalc)
         Q_bins = int(150*(Q_max - Q_min)/(Q_maxCalc - Q_minCalc))
-        for dshort in short_detectors:
+                    
+        relevant_detectors = short_detectors
+        if str(Config).find('CvB') != -1:
+            relevant_detectors = all_detectors
+            
+        for dshort in relevant_detectors:
             GeneralMaskWOSolenoid[dshort] = np.ones_like(Qx[dshort])
             GeneralMaskWSolenoid[dshort] = np.ones_like(Qx[dshort])
         if Config in Masks:
             if 'NA' not in Masks[Config]['Scatt_WithSolenoid']:
-                for dshort in short_detectors:
+                for dshort in relevant_detectors:
                     GeneralMaskWSolenoid[dshort] = Masks[Config]['Scatt_WithSolenoid'][dshort]
             if 'NA' not in Masks[Config]['Scatt_Standard']:
-                for dshort in short_detectors:
+                for dshort in relevant_detectors:
                     GeneralMaskWOSolenoid[dshort] = Masks[Config]['Scatt_Standard'][dshort]
             if 'NA' in Masks[Config]['Scatt_WithSolenoid'] and 'NA' not in Masks[Config]['Scatt_Standard']:
-                for dshort in short_detectors:
+                for dshort in relevant_detectors:
                     GeneralMaskWSolenoid[dshort] = Masks[Config]['Scatt_Standard'][dshort]
   
         for Sample in Sample_Names:
@@ -1937,7 +1979,11 @@ for Config in Configs:
                     UDScaledData, UDScaledData_Unc = AbsScale('UD', Sample, Config, BB_per_second, Solid_Angle, Plex)
                     FullPolGo = 0
                     if 'NA' not in UUScaledData and 'NA' not in DUScaledData and 'NA' not in DDScaledData and 'NA' not in UDScaledData:
+                        representative_filenumber = Scatt[Sample]['Config(s)'][Config]['UU'][0]
+                        Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, InPlaneAngleMap, dimXX, dimYY = QCalculation_AllDetectors(representative_filenumber, Config)
+                        QValues_All = {'QX':Qx,'QY':Qy,'QZ':Qz,'Q_total':Q_total,'Q_perp_unc':Q_perp_unc,'Q_parl_unc':Q_parl_unc}
                         FullPolGo, PolCorrUU, PolCorrDU, PolCorrDD, PolCorrUD, PolCorrUU_Unc, PolCorrDU_Unc, PolCorrDD_Unc, PolCorrUD_Unc = PolCorrScattFiles(dimXX, dimYY, Sample, Config, UUScaledData, DUScaledData, DDScaledData, UDScaledData, UUScaledData_Unc, DUScaledData_Unc, DDScaledData_Unc, UDScaledData_Unc)
+                        '''
                         if FullPolGo > 0:
                             ASCIIlike_Output('PolCorrUU', Sample, Config, PolCorrUU, PolCorrUU_Unc, QValues_All, GeneralMaskWSolenoid)
                             ASCIIlike_Output('PolCorrDU', Sample, Config, PolCorrDU, PolCorrDU_Unc, QValues_All, GeneralMaskWSolenoid)
@@ -1949,23 +1995,28 @@ for Config in Configs:
                             ASCIIlike_Output('NotPolCorrDU', Sample, Config, DUScaledData, DUScaledData_Unc, QValues_All, GeneralMaskWSolenoid)
                             ASCIIlike_Output('NotPolCorrDD', Sample, Config, DDScaledData, DDScaledData_Unc, QValues_All, GeneralMaskWSolenoid)
                             ASCIIlike_Output('NotPolCorrUD', Sample, Config, UDScaledData, UDScaledData_Unc, QValues_All, GeneralMaskWSolenoid)
+                            '''
 
                     
                     UScaledData, UScaledData_Unc = AbsScale('U', Sample, Config, BB_per_second, Solid_Angle, Plex)
                     DScaledData, DScaledData_Unc = AbsScale('D', Sample, Config, BB_per_second, Solid_Angle, Plex)
+                    '''
                     if 'NA' not in UScaledData and 'NA' not in DScaledData: #Scatt[Sample]['Config(s)'][Config]['UU']:
                         representative_filenumber = Scatt[Sample]['Config(s)'][Config]['U'][0]
-                        Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, InPlaneAngleMap, dimXX, dimYY = QCalculation_AllDetectors(representative_filenumber)
+                        Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, InPlaneAngleMap, dimXX, dimYY = QCalculation_AllDetectors(representative_filenumber, Config)
                         QValues_All = {'QX':Qx,'QY':Qy,'QZ':Qz,'Q_total':Q_total,'Q_perp_unc':Q_perp_unc,'Q_parl_unc':Q_parl_unc}
                         ASCIIlike_Output('U', Sample, Config, UScaledData, UScaledData_Unc, QValues_All, GeneralMaskWOSolenoid)
                         ASCIIlike_Output('D', Sample, Config, DScaledData, DScaledData_Unc, QValues_All, GeneralMaskWOSolenoid)
+                        '''
 
                     UnpolScaledData, UnpolScaledData_Unc = AbsScale('Unpol', Sample, Config, BB_per_second, Solid_Angle, Plex)
+                    '''
                     if 'NA' not in UnpolScaledData: #Scatt[Sample]['Config(s)'][Config]['Unpol']:
                         representative_filenumber = Scatt[Sample]['Config(s)'][Config]['Unpol'][0]
-                        Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, InPlaneAngleMap, dimXX, dimYY = QCalculation_AllDetectors(representative_filenumber)
+                        Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, InPlaneAngleMap, dimXX, dimYY = QCalculation_AllDetectors(representative_filenumber, Config)
                         QValues_All = {'QX':Qx,'QY':Qy,'QZ':Qz,'Q_total':Q_total,'Q_perp_unc':Q_perp_unc,'Q_parl_unc':Q_parl_unc}
                         ASCIIlike_Output('Unpol', Sample, Config, UnpolScaledData, UnpolScaledData_Unc, QValues_All, GeneralMaskWOSolenoid)
+                        '''
                         
                     
 
