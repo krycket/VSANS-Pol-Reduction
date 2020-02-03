@@ -24,9 +24,9 @@ TransPanel = 'MR' #Default is 'MR'
 SectorCutAngles = 10.0 #Default is 10.0 (degrees)
 UsePolCorr = 1 #Default is 1 to pol-ccorrect full-pol data, 0 means no
 PlotYesNo = 1 #Default is 1 where 1 means yes, 0 means no
-Absolute_Q_min = 0.005 #Default 0; Will take the maximum of Q_min_Calc from all detectors and this value
+Absolute_Q_min = 0.00001 #Default 0; Will take the maximum of Q_min_Calc from all detectors and this value
 Absolute_Q_max = 0.145 #Default 0.6; Will take the minimum of Q_max_Calc from all detectors and this value
-YesNo_2DFilesPerDetector = 0 #Default is 0 (no), 1 = yes; Note all detectors will be summed after beamline masking applied and can be read by SasView 4.2.2 (and higher?)
+YesNo_2DFilesPerDetector = 1 #Default is 0 (no), 1 = yes; Note all detectors will be summed after beamline masking applied and can be read by SasView 4.2.2 (and higher?)
 
 Excluded_Filenumbers = [] #Default is [] 56647, 56648
 ReAssignBlockBeam = [] #Default is []
@@ -1098,6 +1098,10 @@ def QCalculation_AllDetectors(representative_filenumber, Config):
             X, Y = np.indices(data.shape)
             x0_pos =  realDistX - beam_center_x + (X)*x_pixel_size 
             y0_pos =  realDistY - beam_center_y + (Y)*y_pixel_size
+            #Kludge:
+            if dshort == 'B':
+                x0_pos =  realDistX - beam_center_x*x_pixel_size + (X)*x_pixel_size 
+                y0_pos =  realDistY - beam_center_y*y_pixel_size + (Y)*y_pixel_size
             InPlane0_pos = np.sqrt(x0_pos**2 + y0_pos**2)
             twotheta = np.arctan2(InPlane0_pos,realDistZ)
             phi = np.arctan2(y0_pos,x0_pos)
@@ -1635,7 +1639,7 @@ def PolCorrScattFiles(dimXX, dimYY, Sample, Config, UUScaledData, DUScaledData, 
 
     return Have_FullPol, PolCorr_UU, PolCorr_DU, PolCorr_DD, PolCorr_UD, PolCorr_UU_Unc, PolCorr_DU_Unc, PolCorr_DD_Unc, PolCorr_UD_Unc
 
-def MinMaxQ(Q_total):
+def MinMaxQ(Q_total, Config):
 
     MinQ1 = np.amin(Q_total['MR'])
     MinQ2 = np.amin(Q_total['ML'])
@@ -1652,13 +1656,20 @@ def MinMaxQ(Q_total):
     Q_min = MinQ_Middle 
     Q_max = MaxQ_Front
 
+    if str(Config).find('CvB') != -1:
+        Q_min = 0.00001
+        
+
     return Q_min, Q_max
 
 def TwoDimToOneDim(Key, Q_min, Q_max, Q_bins, QGridPerDetector, generalmask, sectormask, PolCorr_AllDetectors, Unc_PolCorr_AllDetectors, ID, Config, PlotYesNo):
 
     masks = {}
-    for dshort in short_detectors:
-        masks[dshort] = generalmask[dshort]*sectormask[dshort]
+    relevant_detectors = short_detectors
+    if str(Config).find('CvB') != -1:
+        relevant_detectors = all_detectors
+    for dshort in relevant_detectors:
+        masks[dshort] = generalmask[dshort] #*sectormask[dshort]
     
     Q_Values = np.linspace(Q_min, Q_max, Q_bins, endpoint=True)
     Q_step = (Q_max - Q_min) / Q_bins
@@ -1674,8 +1685,14 @@ def TwoDimToOneDim(Key, Q_min, Q_max, Q_bins, QGridPerDetector, generalmask, sec
     MiddleMeanQ = np.zeros_like(Q_Values)
     MiddleMeanQUnc = np.zeros_like(Q_Values)
     MiddlePixels = np.zeros_like(Q_Values)
+
+    BackUU = np.zeros_like(Q_Values)
+    BackUU_Unc = np.zeros_like(Q_Values)
+    BackMeanQ = np.zeros_like(Q_Values)
+    BackMeanQUnc = np.zeros_like(Q_Values)
+    BackPixels = np.zeros_like(Q_Values)
     
-    for dshort in short_detectors:
+    for dshort in relevant_detectors:
         Q_tot = QGridPerDetector['Q_total'][dshort][:][:]
         Q_unc = np.sqrt(np.power(QGridPerDetector['Q_perp_unc'][dshort][:][:],2) + np.power(QGridPerDetector['Q_parl_unc'][dshort][:][:],2))
         UU = PolCorr_AllDetectors[dshort][:][:]
@@ -1703,10 +1720,18 @@ def TwoDimToOneDim(Key, Q_min, Q_max, Q_bins, QGridPerDetector, generalmask, sec
             MiddleMeanQ += MeanQSum
             MiddleMeanQUnc += MeanQUnc
             MiddlePixels += pixels
+        else:
+            print('Including Back Detector')
+            BackUU += countsUU
+            BackUU_Unc += UncUU
+            BackMeanQ += MeanQSum
+            BackMeanQUnc += MeanQUnc
+            BackPixels += pixels
 
-    CombinedPixels = FrontPixels + MiddlePixels
+    CombinedPixels = FrontPixels + MiddlePixels + BackPixels
     nonzero_front_mask = (FrontPixels > 0) #True False map
     nonzero_middle_mask = (MiddlePixels > 0) #True False map
+    nonzero_back_mask = (BackPixels > 0) #True False map
     nonzero_combined_mask = (CombinedPixels > 0) #True False map
     
     Q_Front = Q_Values[nonzero_front_mask]
@@ -1719,8 +1744,14 @@ def TwoDimToOneDim(Key, Q_min, Q_max, Q_bins, QGridPerDetector, generalmask, sec
     MeanQUnc_Middle = np.sqrt(MiddleMeanQUnc[nonzero_middle_mask]) / MiddlePixels[nonzero_middle_mask]
     UUM = MiddleUU[nonzero_middle_mask] / MiddlePixels[nonzero_middle_mask]
 
+    Q_Back = Q_Values[nonzero_back_mask]
+    MeanQ_Back = BackMeanQ[nonzero_back_mask] / BackPixels[nonzero_back_mask]
+    MeanQUnc_Back = np.sqrt(BackMeanQUnc[nonzero_back_mask]) / BackPixels[nonzero_back_mask]
+    UUB = BackUU[nonzero_back_mask] / BackPixels[nonzero_back_mask]
+
     Sigma_UUF = np.sqrt(FrontUU_Unc[nonzero_front_mask]) / FrontPixels[nonzero_front_mask]
     Sigma_UUM = np.sqrt(MiddleUU_Unc[nonzero_middle_mask]) / MiddlePixels[nonzero_middle_mask]
+    Sigma_UUB = np.sqrt(BackUU_Unc[nonzero_back_mask]) / BackPixels[nonzero_back_mask]
 
     ErrorBarsYesNo = 0
     if PlotYesNo == 1:
@@ -1731,9 +1762,16 @@ def TwoDimToOneDim(Key, Q_min, Q_max, Q_bins, QGridPerDetector, generalmask, sec
             ax.set_yscale("log")
             ax.errorbar(Q_Front, UUF, yerr=Sigma_UUF, fmt = 'b*', label='Front, UU')
             ax.errorbar(Q_Middle, UUM, yerr=Sigma_UUM, fmt = 'g*', label='Middle, UU')
+            if str(Config).find('CvB') != -1:
+                print('Plotting back detector')
+                ax.errorbar(Q_Back, UUB, yerr=Sigma_UUB, fmt = 'r*', label='HighRes, UU')
         else:
             plt.loglog(Q_Front, UUF, 'b*', label='Front, UU')
             plt.loglog(Q_Middle, UUM, 'g*', label='Middle, UU')
+            if str(Config).find('CvB') != -1:
+                print('Plotting back detector')
+                plt.loglog(Q_Back, UUB, 'r*', label='High Res UU')
+                
         plt.xlabel('Q')
         plt.ylabel('Intensity')
         plt.title('FullPol_{keyword}Cuts for ID = {idnum} and Config = {cf}'.format(keyword=Key, idnum=ID, cf = Config))
@@ -1832,7 +1870,7 @@ def ASCIIlike_Output(Type, ID, Config, Data_AllDetectors, Unc_Data_AllDetectors,
             IntensityUnc = IntensityUnc.T
             DeltaInt = IntensityUnc.flatten()
             IntensityUnc = IntensityUnc.flatten()
-            if YesNo_2DFilesPerDetector > 0:
+            if YesNo_2DFilesPerDetector > 0 and dshort == 'B':
                 print('Outputting Unpol data into ASCII-like format for {det}, GroupID = {idnum} '.format(det=dshort, idnum=ID))
                 ASCII_like = np.array([QXData, QYData, Int, DeltaInt, QZData, QParlUnc, QPerpUnc, ShadowHolder])
                 ASCII_like = ASCII_like.T
@@ -1878,12 +1916,13 @@ def PlotAndSaveFullPolSlices(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bi
     BothSides = 1
     HorzMask = SectorMask_AllDetectors(InPlaneAngleMap, 0, SectorCutAngles, BothSides)
     VertMask = SectorMask_AllDetectors(InPlaneAngleMap, 180, SectorCutAngles, BothSides)
+    CircMask = SectorMask_AllDetectors(InPlaneAngleMap, 0, 180, BothSides)
 
-    PlotYesNo = 0
-    UUHorz = TwoDimToOneDim('Horz', Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, HorzMask, PolCorrUU, PolCorrUU_Unc, Sample, Config, PlotYesNo)
-    DUHorz = TwoDimToOneDim('Horz', Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, HorzMask, PolCorrDU, PolCorrDU_Unc, Sample, Config, PlotYesNo)
-    DDHorz = TwoDimToOneDim('Horz', Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, HorzMask, PolCorrDD, PolCorrDD_Unc, Sample, Config, PlotYesNo)
-    UDHorz = TwoDimToOneDim('Horz', Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, HorzMask, PolCorrUD, PolCorrUD_Unc, Sample, Config, PlotYesNo)
+    PlotYesNo = 1
+    UUHorz = TwoDimToOneDim('Circ', Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, CircMask, PolCorrUU, PolCorrUU_Unc, Sample, Config, PlotYesNo)
+    DUHorz = TwoDimToOneDim('Circ', Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, CircMask, PolCorrDU, PolCorrDU_Unc, Sample, Config, PlotYesNo)
+    DDHorz = TwoDimToOneDim('Circ', Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, CircMask, PolCorrDD, PolCorrDD_Unc, Sample, Config, PlotYesNo)
+    UDHorz = TwoDimToOneDim('Circ', Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, CircMask, PolCorrUD, PolCorrUD_Unc, Sample, Config, PlotYesNo)
 
     Q = UUHorz['Q']
     UUCut = UUHorz['I']
@@ -1899,21 +1938,21 @@ def PlotAndSaveFullPolSlices(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bi
     Shadow = np.ones_like(Q)
     text_output = np.array([Q, UUCut, UUCutUnc, DUCut, DUCutUnc, DDCut, DDCutUnc, UDCut, UDCutUnc, Q_mean, Q_Unc, Shadow])
     text_output = text_output.T
-    np.savetxt('FullPolHorz{deg}_{idnum}_{cf}.txt'.format(deg=SectorCutAngles, idnum=Sample, cf = Config), text_output, header= 'Q, UU, DelUU, DU, DelDU, DD, DelDD, UD, DelUD, Q_mean, Q_Unc, Shadow', fmt='%1.4e')
+    np.savetxt('FullPolCirc{deg}_{idnum}_{cf}.txt'.format(deg=SectorCutAngles, idnum=Sample, cf = Config), text_output, header= 'Q, UU, DelUU, DU, DelDU, DD, DelDD, UD, DelUD, Q_mean, Q_Unc, Shadow', fmt='%1.4e')
     
     fig = plt.figure()
     ax = plt.axes()
     ax.set_xscale("log")
     ax.set_yscale("log")
-    ax.errorbar(UUHorz['Q'], UUHorz['I'], yerr=UUHorz['I_Unc'], fmt = 'b*', label='UU Horz')
-    ax.errorbar(DUHorz['Q'], DUHorz['I'], yerr=DUHorz['I_Unc'], fmt = 'g*', label='DU Horz')
-    ax.errorbar(DDHorz['Q'], DDHorz['I'], yerr=DDHorz['I_Unc'], fmt = 'r*', label='DD Vert')
-    ax.errorbar(UDHorz['Q'], UDHorz['I'], yerr=UDHorz['I_Unc'], fmt = 'm*', label='UD Horz')
+    ax.errorbar(UUHorz['Q'], UUHorz['I'], yerr=UUHorz['I_Unc'], fmt = 'b*', label='UU')
+    ax.errorbar(DUHorz['Q'], DUHorz['I'], yerr=DUHorz['I_Unc'], fmt = 'g*', label='DU')
+    ax.errorbar(DDHorz['Q'], DDHorz['I'], yerr=DDHorz['I_Unc'], fmt = 'r*', label='DD')
+    ax.errorbar(UDHorz['Q'], UDHorz['I'], yerr=UDHorz['I_Unc'], fmt = 'm*', label='UD')
     plt.xlabel('Q')
     plt.ylabel('Intensity')
-    plt.title('Horz Slices')
+    plt.title('Circ Average')
     plt.legend()
-    fig.savefig('FullPol_Horz{Deg}_{idnum}_{cf}.png'.format(Deg=SectorCutAngles, idnum=Sample, cf = Config))
+    fig.savefig('FullPol_Circ{Deg}_{idnum}_{cf}.png'.format(Deg=SectorCutAngles, idnum=Sample, cf = Config))
     plt.show()
 
     return
@@ -1941,15 +1980,16 @@ GeneralMaskWSolenoid = {}
 QValues_All = {}
 for Config in Configs:
     representative_filenumber = Configs[Config]
-    if representative_filenumber != 0:
+    if representative_filenumber != 0 and str(Config).find('CvB') != -1:
         Solid_Angle = SolidAngle_AllDetectors(representative_filenumber, Config)
         BB_per_second = BlockedBeamScattCountsPerSecond(Config, representative_filenumber)
         Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, InPlaneAngleMap, dimXX, dimYY = QCalculation_AllDetectors(representative_filenumber, Config)
         QValues_All = {'QX':Qx,'QY':Qy,'QZ':Qz,'Q_total':Q_total,'Q_perp_unc':Q_perp_unc,'Q_parl_unc':Q_parl_unc}
-        Q_minCalc, Q_maxCalc = MinMaxQ(Q_total)
+        Q_minCalc, Q_maxCalc = MinMaxQ(Q_total, Config)
         Q_min = np.maximum(Absolute_Q_min, Q_minCalc)
         Q_max = np.minimum(Absolute_Q_max, Q_maxCalc)
-        Q_bins = int(150*(Q_max - Q_min)/(Q_maxCalc - Q_minCalc))
+        #Kludge:
+        Q_bins = 5*int(150*(Q_max - Q_min)/(Q_maxCalc - Q_minCalc))
                     
         relevant_detectors = short_detectors
         if str(Config).find('CvB') != -1:
@@ -1968,6 +2008,31 @@ for Config in Configs:
             if 'NA' in Masks[Config]['Scatt_WithSolenoid'] and 'NA' not in Masks[Config]['Scatt_Standard']:
                 for dshort in relevant_detectors:
                     GeneralMaskWSolenoid[dshort] = Masks[Config]['Scatt_Standard'][dshort]
+
+        for Sample in Sample_Names:
+            if Sample in Scatt:                
+                if str(Scatt[Sample]['Intent']).find('Empty') != -1:
+                    
+                    UUEmptyData, UUEmptyData_Unc = AbsScale('UU', Sample, Config, BB_per_second, Solid_Angle, Plex)
+                    DUEmptyData, DUEmptyData_Unc = AbsScale('DU', Sample, Config, BB_per_second, Solid_Angle, Plex)
+                    DDEmptyData, DDEmptyData_Unc = AbsScale('DD', Sample, Config, BB_per_second, Solid_Angle, Plex)
+                    UDEmptyData, UDEmptyData_Unc = AbsScale('UD', Sample, Config, BB_per_second, Solid_Angle, Plex)
+                    FullPolGoMT = 0
+                    if 'NA' not in UUEmptyData and 'NA' not in DUEmptyData and 'NA' not in DDEmptyData and 'NA' not in UDEmptyData:
+                        print('Have MT full pol for', Config)
+                        #representative_filenumber = Scatt[Sample]['Config(s)'][Config]['UU'][0]
+                        #Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, InPlaneAngleMap, dimXX, dimYY = QCalculation_AllDetectors(representative_filenumber, Config)
+                        #QValues_All = {'QX':Qx,'QY':Qy,'QZ':Qz,'Q_total':Q_total,'Q_perp_unc':Q_perp_unc,'Q_parl_unc':Q_parl_unc}
+                        FullPolGoMT, PolCorrUUEmpty, PolCorrDUEmpty, PolCorrDDEmpty, PolCorrUDEmpty, PolCorrUUEmpty_Unc, PolCorrDUEmpty_Unc, PolCorrDDEmpty_Unc, PolCorrUDEmpty_Unc = PolCorrScattFiles(dimXX, dimYY, Sample, Config, UUEmptyData, DUEmptyData, DDEmptyData, UDEmptyData, UUEmptyData_Unc, DUEmptyData_Unc, DDEmptyData_Unc, UDEmptyData_Unc)
+
+                    UEmptyData, UEmptyData_Unc = AbsScale('U', Sample, Config, BB_per_second, Solid_Angle, Plex)
+                    DEmptyData, DEmptyData_Unc = AbsScale('D', Sample, Config, BB_per_second, Solid_Angle, Plex)
+                    if 'NA' not in UEmptyData and 'NA' not in DEmptyData:
+                        print('Have MT half pol for', Config)
+
+                    UnpolEmptyData, UnpolEmptyData_Unc = AbsScale('Unpol', Sample, Config, BB_per_second, Solid_Angle, Plex)
+                    if 'NA' not in UnpolEmptyData:
+                        print('Have MT unpol for', Config)
   
         for Sample in Sample_Names:
             if Sample in Scatt:                
@@ -1983,7 +2048,7 @@ for Config in Configs:
                         Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, InPlaneAngleMap, dimXX, dimYY = QCalculation_AllDetectors(representative_filenumber, Config)
                         QValues_All = {'QX':Qx,'QY':Qy,'QZ':Qz,'Q_total':Q_total,'Q_perp_unc':Q_perp_unc,'Q_parl_unc':Q_parl_unc}
                         FullPolGo, PolCorrUU, PolCorrDU, PolCorrDD, PolCorrUD, PolCorrUU_Unc, PolCorrDU_Unc, PolCorrDD_Unc, PolCorrUD_Unc = PolCorrScattFiles(dimXX, dimYY, Sample, Config, UUScaledData, DUScaledData, DDScaledData, UDScaledData, UUScaledData_Unc, DUScaledData_Unc, DDScaledData_Unc, UDScaledData_Unc)
-                        '''
+                        
                         if FullPolGo > 0:
                             ASCIIlike_Output('PolCorrUU', Sample, Config, PolCorrUU, PolCorrUU_Unc, QValues_All, GeneralMaskWSolenoid)
                             ASCIIlike_Output('PolCorrDU', Sample, Config, PolCorrDU, PolCorrDU_Unc, QValues_All, GeneralMaskWSolenoid)
@@ -1995,18 +2060,23 @@ for Config in Configs:
                             ASCIIlike_Output('NotPolCorrDU', Sample, Config, DUScaledData, DUScaledData_Unc, QValues_All, GeneralMaskWSolenoid)
                             ASCIIlike_Output('NotPolCorrDD', Sample, Config, DDScaledData, DDScaledData_Unc, QValues_All, GeneralMaskWSolenoid)
                             ASCIIlike_Output('NotPolCorrUD', Sample, Config, UDScaledData, UDScaledData_Unc, QValues_All, GeneralMaskWSolenoid)
-                            '''
+                            
 
-                    
+                    DiffData = {}
+                    DiffData_Unc = {}
                     UScaledData, UScaledData_Unc = AbsScale('U', Sample, Config, BB_per_second, Solid_Angle, Plex)
                     DScaledData, DScaledData_Unc = AbsScale('D', Sample, Config, BB_per_second, Solid_Angle, Plex)
                     '''
                     if 'NA' not in UScaledData and 'NA' not in DScaledData: #Scatt[Sample]['Config(s)'][Config]['UU']:
+                        for dshort in short_detectors:
+                            DiffData[dshort] = np.array(DScaledData[dshort]) - np.array(UScaledData[dshort])
+                            DiffData_Unc[dshort] = np.array(UScaledData_Unc[dshort])
                         representative_filenumber = Scatt[Sample]['Config(s)'][Config]['U'][0]
                         Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, InPlaneAngleMap, dimXX, dimYY = QCalculation_AllDetectors(representative_filenumber, Config)
                         QValues_All = {'QX':Qx,'QY':Qy,'QZ':Qz,'Q_total':Q_total,'Q_perp_unc':Q_perp_unc,'Q_parl_unc':Q_parl_unc}
                         ASCIIlike_Output('U', Sample, Config, UScaledData, UScaledData_Unc, QValues_All, GeneralMaskWOSolenoid)
                         ASCIIlike_Output('D', Sample, Config, DScaledData, DScaledData_Unc, QValues_All, GeneralMaskWOSolenoid)
+                        ASCIIlike_Output('DMinusU', Sample, Config, DiffData, DiffData_Unc, QValues_All, GeneralMaskWOSolenoid)
                         '''
 
                     UnpolScaledData, UnpolScaledData_Unc = AbsScale('Unpol', Sample, Config, BB_per_second, Solid_Angle, Plex)
