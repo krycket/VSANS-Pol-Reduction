@@ -22,15 +22,24 @@ the data with that filenumber must be in the data folder (used to match configur
 path = ''
 TransPanel = 'MR' #Default is 'MR'
 SectorCutAngles = 10.0 #Default is 10.0 (degrees)
-UsePolCorr = 1 #Default is 1 to pol-ccorrect full-pol data, 0 means no
-PlotYesNo = 1 #Default is 1 where 1 means yes, 0 means no
-Absolute_Q_min = 0.00001 #Default 0; Will take the maximum of Q_min_Calc from all detectors and this value
+UsePolCorr = 0 #Default is 1 to pol-ccorrect full-pol data, 0 means no
+PlotYesNo = 0 #Default is 1 where 1 means yes, 0 means no
+Absolute_Q_min = 0.0001 #Default 0; Will take the maximum of Q_min_Calc from all detectors and this value
 Absolute_Q_max = 0.145 #Default 0.6; Will take the minimum of Q_max_Calc from all detectors and this value
-YesNo_2DFilesPerDetector = 1 #Default is 0 (no), 1 = yes; Note all detectors will be summed after beamline masking applied and can be read by SasView 4.2.2 (and higher?)
+YesNo_2DFilesPerDetector = 0 #Default is 0 (no), 1 = yes; Note all detectors will be summed after beamline masking applied and can be read by SasView 4.2.2 (and higher?)
 
-Excluded_Filenumbers = [] #Default is [] 56647, 56648
+Excluded_Filenumbers = [56704] #Default is [] 56647, 56648
 ReAssignBlockBeam = [] #Default is []
 ReAssignEmpty = [] #Default is []
+
+#High Res Detector kicks in when using Converging Beam (at 6.7 angstroms)
+HighResMinX = 240 #Default 240
+HighResMaxX = 474 #Default 474
+HighResMinY = 668 #Default 656 or 668
+HighResMaxY = 917 #Default 917
+ConvertHighResToSubset = 1 #Default = 1 for yes (uses only a small subset of th million plus pixels)
+HighResGain = 320.0
+
 
 YesNoManualHe3Entry = 0 #0 for no (default), 1 for yes; should not be needed for data taken after July 2019 if He3 cells are properly registered
 New_HE3_Files = [28422, 28498, 28577, 28673, 28755, 28869] #Default is []; These would be the starting files for each new cell IF YesNoManualHe3Entry = 1
@@ -151,6 +160,7 @@ def SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues):
                     if "adam4021" in f['entry/DAS_logs/']:
                         Voltage = str(f['entry/DAS_logs/adam4021/voltage'][(0)])
                         record_adam4021 = 1
+                        
                     DT5 = Desired_Temp + " K,"
                     DT4 = Desired_Temp + " K"
                     DT3 = Desired_Temp + "K,"
@@ -560,6 +570,9 @@ def ReadIn_Masks(filenumberlisting):
                         f = h5py.File(filename)
                         for dshort in relevant_detectors:
                             mask_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
+                            if ConvertHighResToSubset > 0 and dshort == 'B':
+                                mask_holder = mask_data[HighResMinX:HighResMaxX+1,HighResMinY:HighResMaxY+1]
+                                mask_data = mask_holder
                             '''
                             This reverses zeros and ones (assuming IGOR-made masks) so that zeros become the pixels to ignore:
                             '''
@@ -806,6 +819,9 @@ def Process_Transmissions(BlockBeam, Masks, HE3_Trans, Pol_Trans, Trans):
                         BBMon = l['entry/control/monitor_counts'][0]
                         BBCount_time = l['entry/collection_time'][0]
                         BB_data = np.array(l['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
+                    #Kludge for this data set (need scaling transmission at 0 V):
+                    if 'NA' in Trans[Samp]['Config(s)'][Config]['U_Files'] and str(Config).find('CvB') != -1:
+                        Trans[Samp]['Config(s)'][Config]['U_Files'] = [56678]
                     if 'NA' not in Trans[Samp]['Config(s)'][Config]['Unpol_Files']:
                         for UNF in Trans[Samp]['Config(s)'][Config]['Unpol_Files']:
                             UN_file = path + "sans" + str(UNF) + ".nxs.ngv"
@@ -854,6 +870,9 @@ def Process_Transmissions(BlockBeam, Masks, HE3_Trans, Pol_Trans, Trans):
                                 Trans[Samp]['Config(s)'][Config]['Unpol_Trans_Cts'] = [UN_Trans]
                             else:
                                 Trans[Samp]['Config(s)'][Config]['Unpol_Trans_Cts'].append(UN_Trans)
+                    #Kludge for this data set (need scaling transmission at 0 V):
+                    if 'NA' in Trans[Samp]['Config(s)'][Config]['U_Files'] and str(Config).find('CvB') != -1:
+                        Trans[Samp]['Config(s)'][Config]['U_Files'] = [56678]
                     if 'NA' not in Trans[Samp]['Config(s)'][Config]['U_Files']:
                         for UF in Trans[Samp]['Config(s)'][Config]['U_Files']:
                             U_file = path + "sans" + str(UF) + ".nxs.ngv"
@@ -905,7 +924,14 @@ def Plex_File(start_number):
         f = h5py.File(filename)
         for dshort in all_detectors:
             data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
-            PlexData[dshort] = data #.flatten()
+            if ConvertHighResToSubset > 0:
+                if dshort == 'B':
+                    data_subset = data[HighResMinX:HighResMaxX+1,HighResMinY:HighResMaxY+1]
+                    PlexData[dshort] = data_subset
+                else:
+                    PlexData[dshort] = data #.flatten()
+            else:
+               PlexData[dshort] = data #.flatten() 
     else:
         filenumber = start_number
         filename = path + "sans" + str(filenumber) + ".nxs.ngv"
@@ -914,8 +940,16 @@ def Plex_File(start_number):
             f = h5py.File(filename)
             for dshort in all_detectors:
                 data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
-                data_zeros = np.ones_like(data)
-                PlexData[dshort] = data_zeros #.flatten()
+                data_filler = np.ones_like(data)
+                if ConvertHighResToSubset > 0:
+                    if dshort == 'B':
+                        data_subset = data_filler[HighResMinX:HighResMaxX+1,HighResMinY:HighResMaxY+1]
+                        print('B reduced is', np.shape(data_subset))
+                        PlexData[dshort] = data_subset
+                    else:
+                        PlexData[dshort] = data_filler #.flatten()
+                else:
+                    PlexData[dshort] = data_filler #.flatten()
         print('Plex file not found; populated with ones instead')   
             
     return PlexData
@@ -940,6 +974,9 @@ def BlockedBeamScattCountsPerSecond(Config, representative_filenumber):
                 Count_time = f['entry/collection_time'][0]
                 for dshort in relevant_detectors:
                     bb_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
+                    if ConvertHighResToSubset > 0 and dshort == 'B':
+                        data_holder = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
+                        bb_data = data_holder[HighResMinX:HighResMaxX+1,HighResMinY:HighResMaxY+1]/HighResGain
                     BB_per_second[dshort] = bb_data / Count_time
                 print('Trans BB', BBFile)
         if 'NA' not in BlockBeam[Config]['Scatt']['File']:
@@ -952,6 +989,9 @@ def BlockedBeamScattCountsPerSecond(Config, representative_filenumber):
                 Count_time = f['entry/collection_time'][0]
                 for dshort in relevant_detectors:
                     bb_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
+                    if ConvertHighResToSubset > 0 and dshort == 'B':
+                        data_holder = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
+                        bb_data = data_holder[HighResMinX:HighResMaxX+1,HighResMinY:HighResMaxY+1]/HighResGain
                     BB_per_second[dshort] = bb_data / Count_time
                 print('Scatt BB', BBFile)
         if 'NA' in BlockBeam[Config]['Trans']['File'] and 'NA' in BlockBeam[Config]['Scatt']['File']:
@@ -963,6 +1003,9 @@ def BlockedBeamScattCountsPerSecond(Config, representative_filenumber):
                 for dshort in relevant_detectors:
                     bb_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
                     zero_data = np.zeros_like(bb_data)
+                    if ConvertHighResToSubset > 0 and dshort == 'B':
+                        data_holder = np.zeros_like(bb_data)
+                        zero_data = data_holder[HighResMinX:HighResMaxX+1,HighResMinY:HighResMaxY+1]/HighResGain
                     BB_per_second[dshort] = zero_data
             print('No BB')
     else:
@@ -974,6 +1017,9 @@ def BlockedBeamScattCountsPerSecond(Config, representative_filenumber):
             for dshort in relevant_detectors:
                 bb_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
                 zero_data = np.zeros_like(bb_data)
+                if ConvertHighResToSubset > 0 and dshort == 'B':
+                        data_holder = np.zeros_like(bb_data)
+                        zero_data = data_holder[HighResMinX:HighResMaxX+1,HighResMinY:HighResMaxY+1]/HighResGain
                 BB_per_second[dshort] = zero_data
         print('BB set to be zero')    
 
@@ -1093,15 +1139,21 @@ def QCalculation_AllDetectors(representative_filenumber, Config):
                 elif position_key == 'R':
                     realDistX =  x_pixel_size*(0.5) + lateral_offset + panel_gap/2.0
                     realDistY =  coeffs
-                
 
             X, Y = np.indices(data.shape)
-            x0_pos =  realDistX - beam_center_x + (X)*x_pixel_size 
-            y0_pos =  realDistY - beam_center_y + (Y)*y_pixel_size
-            #Kludge:
             if dshort == 'B':
                 x0_pos =  realDistX - beam_center_x*x_pixel_size + (X)*x_pixel_size 
                 y0_pos =  realDistY - beam_center_y*y_pixel_size + (Y)*y_pixel_size
+            else:
+                x0_pos =  realDistX - beam_center_x + (X)*x_pixel_size 
+                y0_pos =  realDistY - beam_center_y + (Y)*y_pixel_size
+
+            if ConvertHighResToSubset > 0 and dshort == 'B':
+                dimXX[dshort] = int(HighResMaxX - HighResMinX + 1)
+                dimYY[dshort] = int(HighResMaxY - HighResMinY + 1)
+                x0_pos = x0_pos[HighResMinX:HighResMaxX+1,HighResMinY:HighResMaxY+1]
+                y0_pos = y0_pos[HighResMinX:HighResMaxX+1,HighResMinY:HighResMaxY+1]
+                
             InPlane0_pos = np.sqrt(x0_pos**2 + y0_pos**2)
             twotheta = np.arctan2(InPlane0_pos,realDistZ)
             phi = np.arctan2(y0_pos,x0_pos)
@@ -1449,6 +1501,10 @@ def AbsScale(ScattType, Sample, Config, BlockBeam_per_second, Solid_Angle, Plex)
                         for dshort in relevant_detectors:
                             data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
                             unc = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
+                            if ConvertHighResToSubset > 0 and dshort == 'B':
+                                data_holder = data/HighResGain
+                                data = data_holder[HighResMinX:HighResMaxX+1,HighResMinY:HighResMaxY+1]
+                                unc = data_holder[HighResMinX:HighResMaxX+1,HighResMinY:HighResMaxY+1]
                             data = (data - Count_time*BB[dshort])/(Number_Files*Plex[dshort]*Solid_Angle[dshort])
                             if filecounter < 2:
                                 Scaled_Data[dshort] = ((1E8/MonCounts)/ABS_Scale)*data
@@ -1571,13 +1627,16 @@ def PolCorrScattFiles(dimXX, dimYY, Sample, Config, UUScaledData, DUScaledData, 
                         Pol_Efficiency[CrossSection_Index][:] += [(C*(-S*X*X - X) + S*X + 1)*UT, (C*(S*X*X - X) - S*X + 1)*UT, (C*(-S*X*X + X) - S*X + 1)*UT, (C*(S*X*X + X) + S*X + 1)*UT]
                         HE3_Efficiency[CrossSection_Index][:] += [ 0.0, 0.0, 0.0, UT]
 
-        
         Prefactor = inv(Pol_Efficiency)
-        PrefactorII = inv(HE3_Efficiency)
-
+        if UsePolCorr == 0:
+            Prefactor = inv(HE3_Efficiency)
+            
         if str(Config).find('CvB') != -1:
-            RearScaled_Data = np.zeros((4, 1126080))
-            UncRearScaled_Data = np.zeros((4, 1126080))
+            HRX = int(dimXX['B'])
+            HRY = int(dimYY['B'])
+            highrespixels = HRX*HRY
+            RearScaled_Data = np.zeros((4, highrespixels))
+            UncRearScaled_Data = np.zeros((4, highrespixels))
             
             UUR = np.array(UUScaledData['B'])
             RearScaled_Data[0][:] += UUR.flatten()
@@ -1595,14 +1654,14 @@ def PolCorrScattFiles(dimXX, dimYY, Sample, Config, UUScaledData, DUScaledData, 
             BackPolCorr = np.dot(Prefactor, RearScaled_Data)
             BackUncertainty_PolCorr = UncRearScaled_Data
             
-            PolCorr_UU['B'] = BackPolCorr[0][:][:].reshape((680, 1656))
-            PolCorr_UU_Unc['B'] = BackUncertainty_PolCorr[0][:][:].reshape((680, 1656))
-            PolCorr_DU['B'] = BackPolCorr[1][:][:].reshape((680, 1656))
-            PolCorr_DU_Unc['B'] = BackUncertainty_PolCorr[1][:][:].reshape((680, 1656))
-            PolCorr_DD['B'] = BackPolCorr[2][:][:].reshape((680, 1656))
-            PolCorr_DD_Unc['B'] = BackUncertainty_PolCorr[2][:][:].reshape((680, 1656))
-            PolCorr_UD['B'] = BackPolCorr[3][:][:].reshape((680, 1656))
-            PolCorr_UD_Unc['B'] = BackUncertainty_PolCorr[3][:][:].reshape((680, 1656))
+            PolCorr_UU['B'] = BackPolCorr[0][:][:].reshape((HRX, HRY))
+            PolCorr_UU_Unc['B'] = BackUncertainty_PolCorr[0][:][:].reshape((HRX, HRY))
+            PolCorr_DU['B'] = BackPolCorr[1][:][:].reshape((HRX, HRY))
+            PolCorr_DU_Unc['B'] = BackUncertainty_PolCorr[1][:][:].reshape((HRX, HRY))
+            PolCorr_DD['B'] = BackPolCorr[2][:][:].reshape((HRX, HRY))
+            PolCorr_DD_Unc['B'] = BackUncertainty_PolCorr[2][:][:].reshape((HRX, HRY))
+            PolCorr_UD['B'] = BackPolCorr[3][:][:].reshape((HRX, HRY))
+            PolCorr_UD_Unc['B'] = BackUncertainty_PolCorr[3][:][:].reshape((HRX, HRY))
 
         
         Det_Index = 0
@@ -1610,7 +1669,6 @@ def PolCorrScattFiles(dimXX, dimYY, Sample, Config, UUScaledData, DUScaledData, 
             UncData_Per_Detector = UncScaled_Data[Det_Index][:][:]
             Data_Per_Detector = Scaled_Data[Det_Index][:][:]
             
-            HE3Corr_Data = np.dot(PrefactorII, Data_Per_Detector)
             PolCorr_Data = np.dot(Prefactor, Data_Per_Detector)
             '''
             #Below is the code that allows true matrix error propagation, but it takes a while...so may want to optimize more before implementing.
@@ -1622,7 +1680,6 @@ def PolCorrScattFiles(dimXX, dimYY, Sample, Config, UUScaledData, DUScaledData, 
             '''
             PolCorr_AllDetectors[dshort] = PolCorr_Data
             Uncertainty_PolCorr_AllDetectors[dshort] = UncData_Per_Detector
-            HE3Corr_AllDetectors[dshort] = HE3Corr_Data
             Det_Index += 1
 
             dimX = dimXX[dshort]
@@ -1640,27 +1697,37 @@ def PolCorrScattFiles(dimXX, dimYY, Sample, Config, UUScaledData, DUScaledData, 
     return Have_FullPol, PolCorr_UU, PolCorr_DU, PolCorr_DD, PolCorr_UD, PolCorr_UU_Unc, PolCorr_DU_Unc, PolCorr_DD_Unc, PolCorr_UD_Unc
 
 def MinMaxQ(Q_total, Config):
-
+    
     MinQ1 = np.amin(Q_total['MR'])
     MinQ2 = np.amin(Q_total['ML'])
     MinQ3 = np.amin(Q_total['MT'])
     MinQ4 = np.amin(Q_total['MB'])
     MinQs = np.array([MinQ1, MinQ2, MinQ3, MinQ4])
     MinQ_Middle = np.amin(MinQs)
+    
     MaxQ1 = np.amax(Q_total['FR'])
     MaxQ2 = np.amax(Q_total['FL'])
     MaxQ3 = np.amax(Q_total['FT'])
     MaxQ4 = np.amax(Q_total['FB'])
     MaxQs = np.array([MaxQ1, MaxQ2, MaxQ3, MaxQ4])
     MaxQ_Front = np.amax(MaxQs)
-    Q_min = MinQ_Middle 
-    Q_max = MaxQ_Front
+    
+    Q_minCalc = MinQ_Middle 
+    Q_maxCalc = MaxQ_Front
+    Q_min = np.maximum(Absolute_Q_min, Q_minCalc)
+    Q_max = np.minimum(Absolute_Q_max, Q_maxCalc)
+    Q_bins = int(150*(Q_max - Q_min)/(Q_maxCalc - Q_minCalc))
+    
 
     if str(Config).find('CvB') != -1:
-        Q_min = 0.00001
-        
+        HR_Q_min = np.amin(Q_total['B'])
+        Q_min_HR = np.maximum(HR_Q_min, Absolute_Q_min)
+        HR_bins = int(np.sqrt(np.power((HighResMaxX - HighResMinX + 1)/2, 2) + np.power((HighResMaxY - HighResMinY + 1)/2, 2)))
 
-    return Q_min, Q_max
+        Q_min = Q_min_HR
+        Q_bins = 4*(Q_bins + HR_bins)
+    
+    return Q_min, Q_max, Q_bins
 
 def TwoDimToOneDim(Key, Q_min, Q_max, Q_bins, QGridPerDetector, generalmask, sectormask, PolCorr_AllDetectors, Unc_PolCorr_AllDetectors, ID, Config, PlotYesNo):
 
@@ -1670,7 +1737,7 @@ def TwoDimToOneDim(Key, Q_min, Q_max, Q_bins, QGridPerDetector, generalmask, sec
         relevant_detectors = all_detectors
     for dshort in relevant_detectors:
         masks[dshort] = generalmask[dshort] #*sectormask[dshort]
-    
+
     Q_Values = np.linspace(Q_min, Q_max, Q_bins, endpoint=True)
     Q_step = (Q_max - Q_min) / Q_bins
     
@@ -1721,7 +1788,6 @@ def TwoDimToOneDim(Key, Q_min, Q_max, Q_bins, QGridPerDetector, generalmask, sec
             MiddleMeanQUnc += MeanQUnc
             MiddlePixels += pixels
         else:
-            print('Including Back Detector')
             BackUU += countsUU
             BackUU_Unc += UncUU
             BackMeanQ += MeanQSum
@@ -1763,13 +1829,11 @@ def TwoDimToOneDim(Key, Q_min, Q_max, Q_bins, QGridPerDetector, generalmask, sec
             ax.errorbar(Q_Front, UUF, yerr=Sigma_UUF, fmt = 'b*', label='Front, UU')
             ax.errorbar(Q_Middle, UUM, yerr=Sigma_UUM, fmt = 'g*', label='Middle, UU')
             if str(Config).find('CvB') != -1:
-                print('Plotting back detector')
                 ax.errorbar(Q_Back, UUB, yerr=Sigma_UUB, fmt = 'r*', label='HighRes, UU')
         else:
             plt.loglog(Q_Front, UUF, 'b*', label='Front, UU')
             plt.loglog(Q_Middle, UUM, 'g*', label='Middle, UU')
             if str(Config).find('CvB') != -1:
-                print('Plotting back detector')
                 plt.loglog(Q_Back, UUB, 'r*', label='High Res UU')
                 
         plt.xlabel('Q')
@@ -1780,13 +1844,13 @@ def TwoDimToOneDim(Key, Q_min, Q_max, Q_bins, QGridPerDetector, generalmask, sec
         plt.show()
 
     Q_Common = Q_Values[nonzero_combined_mask]
-    CombinedMeanQ = MiddleMeanQ + FrontMeanQ
-    CombinedMeanQUnc = MiddleMeanQUnc + FrontMeanQUnc  
+    CombinedMeanQ = BackMeanQ + MiddleMeanQ + FrontMeanQ
+    CombinedMeanQUnc = BackMeanQUnc + MiddleMeanQUnc + FrontMeanQUnc
     Q_Mean = CombinedMeanQ[nonzero_combined_mask] / CombinedPixels[nonzero_combined_mask]
     Q_Uncertainty = np.sqrt(CombinedMeanQUnc[nonzero_combined_mask]) / CombinedPixels[nonzero_combined_mask]
-    CombinedUU = MiddleUU + FrontUU
+    CombinedUU = BackUU + MiddleUU + FrontUU
     UU = CombinedUU[nonzero_combined_mask] / CombinedPixels[nonzero_combined_mask]
-    UU_UncC = FrontUU_Unc + MiddleUU_Unc
+    UU_UncC = BackUU_Unc + MiddleUU_Unc + FrontUU_Unc
     SigmaUU = np.sqrt(UU_UncC[nonzero_combined_mask]) / CombinedPixels[nonzero_combined_mask]
     Shadow = np.ones_like(Q_Common)
 
@@ -1826,8 +1890,6 @@ def ASCIIlike_Output(Type, ID, Config, Data_AllDetectors, Unc_Data_AllDetectors,
     if 'NA' not in Data_AllDetectors and 'NA' not in Unc_Data_AllDetectors:
 
         for dshort in relevant_detectors:
-
-            #For back detector only need to save x [200:500] and y [630:930].
 
             Mask = np.array(GeneralMask[dshort])
             mini_mask = Mask > 0
@@ -1870,7 +1932,7 @@ def ASCIIlike_Output(Type, ID, Config, Data_AllDetectors, Unc_Data_AllDetectors,
             IntensityUnc = IntensityUnc.T
             DeltaInt = IntensityUnc.flatten()
             IntensityUnc = IntensityUnc.flatten()
-            if YesNo_2DFilesPerDetector > 0 and dshort == 'B':
+            if YesNo_2DFilesPerDetector > 0:
                 print('Outputting Unpol data into ASCII-like format for {det}, GroupID = {idnum} '.format(det=dshort, idnum=ID))
                 ASCII_like = np.array([QXData, QYData, Int, DeltaInt, QZData, QParlUnc, QPerpUnc, ShadowHolder])
                 ASCII_like = ASCII_like.T
@@ -1950,7 +2012,7 @@ def PlotAndSaveFullPolSlices(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bi
     ax.errorbar(UDHorz['Q'], UDHorz['I'], yerr=UDHorz['I_Unc'], fmt = 'm*', label='UD')
     plt.xlabel('Q')
     plt.ylabel('Intensity')
-    plt.title('Circ Average')
+    plt.title('Circ Average for {idnum}_{cf}'.format(idnum=Sample, cf = Config))
     plt.legend()
     fig.savefig('FullPol_Circ{Deg}_{idnum}_{cf}.png'.format(Deg=SectorCutAngles, idnum=Sample, cf = Config))
     plt.show()
@@ -1960,6 +2022,7 @@ def PlotAndSaveFullPolSlices(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bi
 #*************************************************
 #***        Start of 'The Program'             ***
 #*************************************************
+Plex = Plex_File(56659)
 
 Sample_Names, Configs, BlockBeam, Scatt, Trans, Pol_Trans, HE3_Trans, start_number, filenumberlisting = SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues)
 
@@ -1969,11 +2032,11 @@ Masks = ReadIn_Masks(filenumberlisting)
 
 Process_Transmissions(BlockBeam, Masks, HE3_Trans, Pol_Trans, Trans)
 
+Plex = Plex_File(start_number)
+
 HE3_Cell_Summary = HE3_DecayCurves(HE3_Trans)
 
 Pol_SuppermirrorAndFlipper(Pol_Trans, HE3_Cell_Summary)
-
-Plex = Plex_File(start_number)
 
 GeneralMaskWOSolenoid = {}
 GeneralMaskWSolenoid = {}
@@ -1985,11 +2048,7 @@ for Config in Configs:
         BB_per_second = BlockedBeamScattCountsPerSecond(Config, representative_filenumber)
         Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, InPlaneAngleMap, dimXX, dimYY = QCalculation_AllDetectors(representative_filenumber, Config)
         QValues_All = {'QX':Qx,'QY':Qy,'QZ':Qz,'Q_total':Q_total,'Q_perp_unc':Q_perp_unc,'Q_parl_unc':Q_parl_unc}
-        Q_minCalc, Q_maxCalc = MinMaxQ(Q_total, Config)
-        Q_min = np.maximum(Absolute_Q_min, Q_minCalc)
-        Q_max = np.minimum(Absolute_Q_max, Q_maxCalc)
-        #Kludge:
-        Q_bins = 5*int(150*(Q_max - Q_min)/(Q_maxCalc - Q_minCalc))
+        Q_min, Q_max, Q_bins = MinMaxQ(Q_total, Config)
                     
         relevant_detectors = short_detectors
         if str(Config).find('CvB') != -1:
@@ -2050,23 +2109,22 @@ for Config in Configs:
                         FullPolGo, PolCorrUU, PolCorrDU, PolCorrDD, PolCorrUD, PolCorrUU_Unc, PolCorrDU_Unc, PolCorrDD_Unc, PolCorrUD_Unc = PolCorrScattFiles(dimXX, dimYY, Sample, Config, UUScaledData, DUScaledData, DDScaledData, UDScaledData, UUScaledData_Unc, DUScaledData_Unc, DDScaledData_Unc, UDScaledData_Unc)
                         
                         if FullPolGo > 0:
-                            ASCIIlike_Output('PolCorrUU', Sample, Config, PolCorrUU, PolCorrUU_Unc, QValues_All, GeneralMaskWSolenoid)
-                            ASCIIlike_Output('PolCorrDU', Sample, Config, PolCorrDU, PolCorrDU_Unc, QValues_All, GeneralMaskWSolenoid)
-                            ASCIIlike_Output('PolCorrDD', Sample, Config, PolCorrDD, PolCorrDD_Unc, QValues_All, GeneralMaskWSolenoid)
-                            ASCIIlike_Output('PolCorrUD', Sample, Config, PolCorrUD, PolCorrUD_Unc, QValues_All, GeneralMaskWSolenoid)
+                            #ASCIIlike_Output('PolCorrUU', Sample, Config, PolCorrUU, PolCorrUU_Unc, QValues_All, GeneralMaskWSolenoid)
+                            #ASCIIlike_Output('PolCorrDU', Sample, Config, PolCorrDU, PolCorrDU_Unc, QValues_All, GeneralMaskWSolenoid)
+                            #ASCIIlike_Output('PolCorrDD', Sample, Config, PolCorrDD, PolCorrDD_Unc, QValues_All, GeneralMaskWSolenoid)
+                            #ASCIIlike_Output('PolCorrUD', Sample, Config, PolCorrUD, PolCorrUD_Unc, QValues_All, GeneralMaskWSolenoid)
                             PlotAndSaveFullPolSlices(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, PolCorrUU, PolCorrUU_Unc, PolCorrDU, PolCorrDU_Unc, PolCorrDD, PolCorrDD_Unc, PolCorrUD, PolCorrUD_Unc)
-                        else:
-                            ASCIIlike_Output('NotPolCorrUU', Sample, Config, UUScaledData, UUScaledData_Unc, QValues_All, GeneralMaskWSolenoid)
-                            ASCIIlike_Output('NotPolCorrDU', Sample, Config, DUScaledData, DUScaledData_Unc, QValues_All, GeneralMaskWSolenoid)
-                            ASCIIlike_Output('NotPolCorrDD', Sample, Config, DDScaledData, DDScaledData_Unc, QValues_All, GeneralMaskWSolenoid)
-                            ASCIIlike_Output('NotPolCorrUD', Sample, Config, UDScaledData, UDScaledData_Unc, QValues_All, GeneralMaskWSolenoid)
+                        #else:
+                            #ASCIIlike_Output('NotPolCorrUU', Sample, Config, UUScaledData, UUScaledData_Unc, QValues_All, GeneralMaskWSolenoid)
+                            #ASCIIlike_Output('NotPolCorrDU', Sample, Config, DUScaledData, DUScaledData_Unc, QValues_All, GeneralMaskWSolenoid)
+                            #ASCIIlike_Output('NotPolCorrDD', Sample, Config, DDScaledData, DDScaledData_Unc, QValues_All, GeneralMaskWSolenoid)
+                            #ASCIIlike_Output('NotPolCorrUD', Sample, Config, UDScaledData, UDScaledData_Unc, QValues_All, GeneralMaskWSolenoid)
                             
-
                     DiffData = {}
                     DiffData_Unc = {}
+                    '''
                     UScaledData, UScaledData_Unc = AbsScale('U', Sample, Config, BB_per_second, Solid_Angle, Plex)
                     DScaledData, DScaledData_Unc = AbsScale('D', Sample, Config, BB_per_second, Solid_Angle, Plex)
-                    '''
                     if 'NA' not in UScaledData and 'NA' not in DScaledData: #Scatt[Sample]['Config(s)'][Config]['UU']:
                         for dshort in short_detectors:
                             DiffData[dshort] = np.array(DScaledData[dshort]) - np.array(UScaledData[dshort])
@@ -2077,10 +2135,8 @@ for Config in Configs:
                         ASCIIlike_Output('U', Sample, Config, UScaledData, UScaledData_Unc, QValues_All, GeneralMaskWOSolenoid)
                         ASCIIlike_Output('D', Sample, Config, DScaledData, DScaledData_Unc, QValues_All, GeneralMaskWOSolenoid)
                         ASCIIlike_Output('DMinusU', Sample, Config, DiffData, DiffData_Unc, QValues_All, GeneralMaskWOSolenoid)
-                        '''
 
                     UnpolScaledData, UnpolScaledData_Unc = AbsScale('Unpol', Sample, Config, BB_per_second, Solid_Angle, Plex)
-                    '''
                     if 'NA' not in UnpolScaledData: #Scatt[Sample]['Config(s)'][Config]['Unpol']:
                         representative_filenumber = Scatt[Sample]['Config(s)'][Config]['Unpol'][0]
                         Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, InPlaneAngleMap, dimXX, dimYY = QCalculation_AllDetectors(representative_filenumber, Config)
