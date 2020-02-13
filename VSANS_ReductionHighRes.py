@@ -1071,9 +1071,14 @@ def QCalculation_AllDetectors(representative_filenumber, Config):
     Q_parl_unc = {}
     InPlaneAngleMap = {}
     TwoThetaAngleMap = {}
+    twotheta_x = {}
+    twotheta_y = {}
+    twotheta_xmin = {}
+    twotheta_xmax = {}
+    twotheta_ymin = {}
+    twotheta_ymax = {}
     dimXX = {}
-    dimYY = {}
-        
+    dimYY = {}   
 
     filename = path + "sans" + str(representative_filenumber) + ".nxs.ngv"
     config = Path(filename)
@@ -1147,19 +1152,53 @@ def QCalculation_AllDetectors(representative_filenumber, Config):
             if dshort == 'B':
                 x0_pos =  realDistX - beam_center_x*x_pixel_size + (X)*x_pixel_size 
                 y0_pos =  realDistY - beam_center_y*y_pixel_size + (Y)*y_pixel_size
+                x_min =  realDistX - beam_center_x*x_pixel_size - x_pixel_size 
+                y_min =  realDistY - beam_center_y*y_pixel_size - y_pixel_size
+                x_max =  realDistX - beam_center_x*x_pixel_size + (dimX)*x_pixel_size 
+                y_max =  realDistY - beam_center_y*y_pixel_size + (dimY)*y_pixel_size
             else:
                 x0_pos =  realDistX - beam_center_x + (X)*x_pixel_size 
                 y0_pos =  realDistY - beam_center_y + (Y)*y_pixel_size
-
+                x_min =  realDistX - beam_center_x - (1.0)*x_pixel_size
+                y_min =  realDistY - beam_center_y - (1.0)*y_pixel_size
+                x_max =  realDistX - beam_center_x + (dimX)*x_pixel_size
+                y_max =  realDistY - beam_center_y + (dimY)*y_pixel_size
+                
             if ConvertHighResToSubset > 0 and dshort == 'B':
                 dimXX[dshort] = int(HighResMaxX - HighResMinX + 1)
                 dimYY[dshort] = int(HighResMaxY - HighResMinY + 1)
                 x0_pos = x0_pos[HighResMinX:HighResMaxX+1,HighResMinY:HighResMaxY+1]
                 y0_pos = y0_pos[HighResMinX:HighResMaxX+1,HighResMinY:HighResMaxY+1]
+                x_min =  realDistX - beam_center_x*x_pixel_size + HighResMinX*x_pixel_size 
+                y_min =  realDistY - beam_center_y*y_pixel_size + HighResMinY*y_pixel_size
+                x_max =  realDistX - beam_center_x*x_pixel_size + HighResMaxX*x_pixel_size 
+                y_max =  realDistY - beam_center_y*y_pixel_size + HighResMaxY*y_pixel_size
+
+            pad_factor = 1.0
+            if dshort == "FL" or dshort == "ML":
+                x_max = x_max + SampleApExternal/20.0
+                x_max = x_max/pad_factor
+            if dshort == "FR" or dshort == "MR":
+                x_min = x_min - SampleApExternal/20.0
+                x_min = x_min/pad_factor
+            if dshort == "FB" or dshort == "MB":
+                y_max = y_max + SampleApExternal/20.0
+                y_max = y_max/pad_factor
+            if dshort == "FT" or dshort == "MT":
+                y_min = y_min - SampleApExternal/20.0
+                y_min = y_min/pad_factor
+
+            print(dshort, x_min, x_max, y_min, y_max)
                 
             InPlane0_pos = np.sqrt(x0_pos**2 + y0_pos**2)
             twotheta = np.arctan2(InPlane0_pos,realDistZ)
             phi = np.arctan2(y0_pos,x0_pos)
+            twotheta_x[dshort] = np.arctan2(x0_pos,realDistZ)
+            twotheta_y[dshort] = np.arctan2(y0_pos,realDistZ)
+            twotheta_xmin[dshort] = np.arctan2(x_min,realDistZ)
+            twotheta_xmax[dshort] = np.arctan2(x_max,realDistZ)
+            twotheta_ymin[dshort] = np.arctan2(y_min,realDistZ)
+            twotheta_ymax[dshort] = np.arctan2(y_max,realDistZ)
             '''#Q resolution from J. of Appl. Cryst. 44, 1127-1129 (2011) and file:///C:/Users/kkrycka/Downloads/SANS_2D_Resolution.pdf where
             #there seems to be an extra factor of wavelength listed that shouldn't be there in (delta_wavelength/wavelength):'''
             carriage_key = dshort[0]
@@ -1210,29 +1249,49 @@ def QCalculation_AllDetectors(representative_filenumber, Config):
     for dshort in relevant_detectors:
         Shadow = 1.2*np.ones_like(Qx[dshort])
         if dshort == 'FT' or dshort == 'FB':
-            Shadow[Qx[dshort] <= np.amax(Qx['FL'])] = 0.0
-            Shadow[Qx[dshort] >= np.amin(Qx['FR'])] = 0.0
+            #Shadow[Qx[dshort] <= np.amax(Qx['FL'])] = 0.0
+            #Shadow[Qx[dshort] >= np.amin(Qx['FR'])] = 0.0
+            Shadow[twotheta_x[dshort] <= twotheta_xmax['FL']] = 0.0
+            Shadow[twotheta_x[dshort] >= twotheta_xmin['FR']] = 0.0
         if dshort == "ML" or dshort == "MR":
-            Shadow[Qx[dshort] <= np.amax(Qx['FL'])] = 0.0
-            Shadow[Qx[dshort] >= np.amin(Qx['FR'])] = 0.0
-            Shadow[Qy[dshort] >= np.amin(Qy['FT'])] = 0.0
-            Shadow[Qy[dshort] <= np.amax(Qy['FB'])] = 0.0
+            #Shadow[Qx[dshort] <= np.amax(Qx['FL'])] = 0.0
+            #Shadow[Qx[dshort] >= np.amin(Qx['FR'])] = 0.0
+            #Shadow[Qy[dshort] >= np.amin(Qy['FT'])] = 0.0
+            #Shadow[Qy[dshort] <= np.amax(Qy['FB'])] = 0.0
+            Shadow[twotheta_x[dshort] <= twotheta_xmax['FL']] = 0.0
+            Shadow[twotheta_x[dshort] >= twotheta_xmin['FR']] = 0.0
+            Shadow[twotheta_y[dshort] >= twotheta_ymin['FT']] = 0.0
+            Shadow[twotheta_y[dshort] <= twotheta_ymax['FB']] = 0.0
         if dshort == "MT" or dshort == "MB":
-            Shadow[Qx[dshort] <= np.amax(Qx['FL'])] = 0.0
-            Shadow[Qx[dshort] >= np.amin(Qx['FR'])] = 0.0
-            Shadow[Qy[dshort] >= np.amin(Qy['FT'])] = 0.0
-            Shadow[Qy[dshort] <= np.amax(Qy['FB'])] = 0.0
-            Shadow[Qx[dshort] <= np.amax(Qx['ML'])] = 0.0
-            Shadow[Qx[dshort] >= np.amin(Qx['MR'])] = 0.0
+            #Shadow[Qx[dshort] <= np.amax(Qx['FL'])] = 0.0
+            #Shadow[Qx[dshort] >= np.amin(Qx['FR'])] = 0.0
+            #Shadow[Qy[dshort] >= np.amin(Qy['FT'])] = 0.0
+            #Shadow[Qy[dshort] <= np.amax(Qy['FB'])] = 0.0
+            #Shadow[Qx[dshort] <= np.amax(Qx['ML'])] = 0.0
+            #Shadow[Qx[dshort] >= np.amin(Qx['MR'])] = 0.0
+            Shadow[twotheta_x[dshort] <= twotheta_xmax['FL']] = 0.0
+            Shadow[twotheta_x[dshort] >= twotheta_xmin['FR']] = 0.0
+            Shadow[twotheta_y[dshort] >= twotheta_ymin['FT']] = 0.0
+            Shadow[twotheta_y[dshort] <= twotheta_ymax['FB']] = 0.0
+            Shadow[twotheta_x[dshort] <= twotheta_xmax['ML']] = 0.0
+            Shadow[twotheta_x[dshort] >= twotheta_xmin['MR']] = 0.0
         if dshort == "B":
-            Shadow[Qx[dshort] <= np.amax(Qx['FL'])] = 0.0
-            Shadow[Qx[dshort] >= np.amin(Qx['FR'])] = 0.0
-            Shadow[Qy[dshort] >= np.amin(Qy['FT'])] = 0.0
-            Shadow[Qy[dshort] <= np.amax(Qy['FB'])] = 0.0
-            Shadow[Qx[dshort] <= np.amax(Qx['ML'])] = 0.0
-            Shadow[Qx[dshort] >= np.amin(Qx['MR'])] = 0.0
-            Shadow[Qy[dshort] >= np.amin(Qy['MT'])] = 0.0
-            Shadow[Qy[dshort] <= np.amax(Qy['MB'])] = 0.0
+            #Shadow[Qx[dshort] <= np.amax(Qx['FL'])] = 0.0
+            #Shadow[Qx[dshort] >= np.amin(Qx['FR'])] = 0.0
+            #Shadow[Qy[dshort] >= np.amin(Qy['FT'])] = 0.0
+            #Shadow[Qy[dshort] <= np.amax(Qy['FB'])] = 0.0
+            #Shadow[Qx[dshort] <= np.amax(Qx['ML'])] = 0.0
+            #Shadow[Qx[dshort] >= np.amin(Qx['MR'])] = 0.0
+            #Shadow[Qy[dshort] >= np.amin(Qy['MT'])] = 0.0
+            #Shadow[Qy[dshort] <= np.amax(Qy['MB'])] = 0.0
+            Shadow[twotheta_x[dshort] <= twotheta_xmax['FL']] = 0.0
+            Shadow[twotheta_x[dshort] >= twotheta_xmin['FR']] = 0.0
+            Shadow[twotheta_y[dshort] >= twotheta_ymin['FT']] = 0.0
+            Shadow[twotheta_y[dshort] <= twotheta_ymax['FB']] = 0.0
+            Shadow[twotheta_x[dshort] <= twotheta_xmax['ML']] = 0.0
+            Shadow[twotheta_x[dshort] >= twotheta_xmin['MR']] = 0.0
+            Shadow[twotheta_y[dshort] >= twotheta_ymin['MT']] = 0.0
+            Shadow[twotheta_y[dshort] <= twotheta_ymax['MB']] = 0.0
 
         Shadow_Mask[dshort] = Shadow
         
@@ -1887,6 +1946,33 @@ def TwoDimToOneDim(Key, Q_min, Q_max, Q_bins, QGridPerDetector, generalmask, sec
         plt.show()
 
     if AverageQRanges == 0:
+        '''Remove points overlapping in Q space before joining'''
+        for entry in Q_Back:
+            if entry in Q_Middle:
+                index_position = np.where(Q_Back == entry)
+                Q_Back_Temp = np.delete(Q_Back, [index_position])
+                Q_Back = Q_Back_Temp
+                MeanQ_Back_Temp = np.delete(MeanQ_Back, [index_position])
+                MeanQ_Back = MeanQ_Back_Temp
+                MeanQUnc_Back_Temp = np.delete(MeanQUnc_Back, [index_position])
+                MeanQUnc_Back = MeanQUnc_Back_Temp
+                UUB_Temp = np.delete(UUB, [index_position])
+                UUB = UUB_Temp
+                Sigma_UUB_Temp =  np.delete(Sigma_UUB, [index_position])
+                Sigma_UUB = Sigma_UUB_Temp
+        for entry in Q_Middle:
+            if entry in Q_Front:
+                index_position = np.where(Q_Middle == entry)
+                Q_Middle_Temp = np.delete(Q_Middle, [index_position])
+                Q_Middle = Q_Middle_Temp
+                MeanQ_Middle_Temp = np.delete(MeanQ_Middle, [index_position])
+                MeanQ_Middle = MeanQ_Middle_Temp
+                MeanQUnc_Middle_Temp = np.delete(MeanQUnc_Middle, [index_position])
+                MeanQUnc_Middle = MeanQUnc_Middle_Temp
+                UUM_Temp = np.delete(UUM, [index_position])
+                UUM = UUM_Temp
+                Sigma_UUM_Temp =  np.delete(Sigma_UUM, [index_position])
+                Sigma_UUM = Sigma_UUM_Temp  
         Q_Common = np.concatenate((Q_Back, Q_Middle, Q_Front), axis=0)
         Q_Mean = np.concatenate((MeanQ_Back, MeanQ_Middle, MeanQ_Front), axis=0)
         Q_Uncertainty = np.concatenate((MeanQUnc_Back, MeanQUnc_Middle, MeanQUnc_Front), axis=0)
@@ -2020,6 +2106,21 @@ def ASCIIlike_Output(Type, ID, Config, Data_AllDetectors, Unc_Data_AllDetectors,
 
     return
 
+def SaveTextData(Type, Slice, Sample, Config, DataMatrix):
+
+    Q = DataMatrix['Q']
+    Int = DataMatrix['I']
+    IntUnc = DataMatrix['I_Unc']
+    Q_mean = DataMatrix['Q_Mean']
+    Q_Unc = DataMatrix['Q_Uncertainty']
+    Shadow = np.ones_like(Q)
+    text_output = np.array([Q, Int, IntUnc, Q_mean, Q_Unc, Shadow])
+    text_output = text_output.T
+    np.savetxt('{key}{cut}_{samp},{cf}.txt'.format(key = Type, cut = Slice, samp=Sample, cf = Config), text_output, delimiter = ' ', comments = ' ', header= 'Q, I, DelI, Q_mean, Q_Unc, Shadow', fmt='%1.4e')
+  
+    return
+
+
 def PlotAndSaveFullPolSlices(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, PolCorrUU, PolCorrUU_Unc, PolCorrDU, PolCorrDU_Unc, PolCorrDD, PolCorrDD_Unc, PolCorrUD, PolCorrUD_Unc):
 
     relevant_detectors = short_detectors
@@ -2028,6 +2129,26 @@ def PlotAndSaveFullPolSlices(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bi
         relevant_detectors = all_detectors
         AverageQRanges = 0
 
+    '''
+    NSFSum = {}
+    NSF_Unc = {}
+    NSFDiff = {}
+    SFSum = {}
+    SF_Unc = {}
+    SFDiff = {}
+    UnpolEquiv = {}
+    UnpolEquiv_Unc = {}
+    for dshort in relevant_detectors:
+        NSFSum[dshort] = np.array(PolCorrDD[dshort]) + np.array(PolCorrUU[dshort])
+        NSF_Unc[dshort] = np.sqrt(np.power(np.array(DDScaledData_Unc[dshort]),2) + np.power(np.array(UUScaledData_Unc[dshort]),2))
+        NSFDiff[dshort] = np.array(PolCorrDD[dshort]) - np.array(PolCorrUU[dshort])
+        SFSum[dshort] = np.array(PolCorrUD[dshort]) + np.array(PolCorrDU[dshort])
+        SF_Unc[dshort] = np.sqrt(np.power(np.array(UDScaledData_Unc[dshort]),2) + np.power(np.array(DUScaledData_Unc[dshort]),2))
+        SFDiff[dshort] = np.array(PolCorrUD[dshort]) - np.array(PolCorrDU[dshort])
+        UnpolEquiv[dshort] = np.array(PolCorrUD[dshort]) + np.array(PolCorrDU[dshort]) + np.array(PolCorrDD[dshort]) + np.array(PolCorrUU[dshort])
+        UnpolEquiv_Unc[dshort] = np.sqrt(np.power(np.array(UDScaledData_Unc[dshort]),2) + np.power(np.array(DUScaledData_Unc[dshort]),2) + np.power(np.array(DDScaledData_Unc[dshort]),2) + np.power(np.array(UUScaledData_Unc[dshort]),2))
+        '''
+    
     BothSides = 1
     PlotYesNo = 0
     HorzMask = SectorMask_AllDetectors(InPlaneAngleMap, 0, SectorCutAngles, BothSides)
@@ -2049,8 +2170,6 @@ def PlotAndSaveFullPolSlices(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bi
         DU = TwoDimToOneDim(slice_key[0], Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, local_mask, PolCorrDU, PolCorrDU_Unc, Sample, Config, PlotYesNo, AverageQRanges)
         DD = TwoDimToOneDim(slice_key[0], Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, local_mask, PolCorrDD, PolCorrDD_Unc, Sample, Config, PlotYesNo, AverageQRanges)
         UD = TwoDimToOneDim(slice_key[0], Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, local_mask, PolCorrUD, PolCorrUD_Unc, Sample, Config, PlotYesNo, AverageQRanges)
-        #Add NSF, SF, DD-UU, MParl, Unpol-Equiv 
-
 
         Q = UU['Q']
         UUCut = UU['I']
@@ -2096,16 +2215,14 @@ def PlotAndSaveHalfPolSlices(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bi
         AverageQRanges = 0
 
     DiffData = {}
-    DiffData_Unc = {}
+    NSF2_Unc = {}
     OtherDiffData = {}
     SumData = {}
-    SumData_Unc = {}
     for dshort in relevant_detectors:
         DiffData[dshort] = np.array(DScaledData[dshort]) - np.array(UScaledData[dshort])
-        DiffData_Unc[dshort] = np.array(UScaledData_Unc[dshort])
+        NSF2_Unc[dshort] = np.sqrt(np.power(np.array(UScaledData_Unc[dshort]),2) + np.power(np.array(DScaledData_Unc[dshort]),2))
         OtherDiffData[dshort] = np.array(UScaledData[dshort]) - np.array(DScaledData[dshort])
         SumData[dshort] = np.array(DScaledData[dshort]) + np.array(UScaledData[dshort])
-        SumData_Unc[dshort] = np.array(UScaledData_Unc[dshort]) 
 
     BothSides = 1
     PlotYesNo = 0
@@ -2126,10 +2243,11 @@ def PlotAndSaveHalfPolSlices(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bi
 
         U = TwoDimToOneDim(slice_key[1], Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, local_mask, UScaledData, UScaledData_Unc, Sample, Config, PlotYesNo, AverageQRanges)
         D = TwoDimToOneDim(slice_key[2], Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, local_mask, DScaledData, DScaledData_Unc, Sample, Config, PlotYesNo, AverageQRanges)
-        Diff = TwoDimToOneDim(slice_key[3], Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, local_mask, DiffData, DiffData_Unc, Sample, Config, PlotYesNo, AverageQRanges)
-        OtherDiff = TwoDimToOneDim(slice_key[3], Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, local_mask, OtherDiffData, DiffData_Unc, Sample, Config, PlotYesNo, AverageQRanges)
-        Sum = TwoDimToOneDim(slice_key[3], Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, local_mask, SumData, SumData_Unc, Sample, Config, PlotYesNo, AverageQRanges)
+        Diff = TwoDimToOneDim(slice_key[3], Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, local_mask, DiffData, NSF2_Unc, Sample, Config, PlotYesNo, AverageQRanges)
+        OtherDiff = TwoDimToOneDim(slice_key[3], Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, local_mask, OtherDiffData, NSF2_Unc, Sample, Config, PlotYesNo, AverageQRanges)
+        Sum = TwoDimToOneDim(slice_key[3], Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, local_mask, SumData, NSF2_Unc, Sample, Config, PlotYesNo, AverageQRanges)
 
+        '''
         Q = U['Q']
         UCut = U['I']
         UCutUnc = U['I_Unc']
@@ -2145,6 +2263,11 @@ def PlotAndSaveHalfPolSlices(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bi
         text_output = np.array([Q, UCut, UCutUnc, DCut, DCutUnc, DiffCut, DiffCutUnc, SumCut, SumCutUnc, Q_mean, Q_Unc, Shadow])
         text_output = text_output.T
         np.savetxt('HalfPol{slice_type}_{idnum}_{cf}.txt'.format(slice_type = slice_key[0], idnum=Sample, cf = Config), text_output, delimiter = ' ', comments = ' ', header= 'Q, U, DelU, D, DelD, Diff, DelDiff, Sum, DelSum, Q_mean, Q_Unc, Shadow', fmt='%1.4e')
+        '''
+        
+        SaveTextData('U', slice_key[0], Sample, Config, U)
+        SaveTextData('D', slice_key[0], Sample, Config, D)
+        SaveTextData('DminusU', slice_key[0], Sample, Config, Diff)
 
         fig = plt.figure()
         ax = plt.axes()
@@ -2164,7 +2287,7 @@ def PlotAndSaveHalfPolSlices(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bi
         plt.pause(2)
         plt.close()
 
-    return DiffData, DiffData_Unc, SumData, SumData_Unc
+    return DiffData, NSF2_Unc, SumData, NSF2_Unc
 
 def PlotAndSaveUnpolSlices(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWOSolenoid, ScaledData, ScaledData_Unc):
 
@@ -2223,36 +2346,15 @@ def PlotAndSaveUnpolSlices(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bins
 #***        Start of 'The Program'             ***
 #*************************************************
 
-'''
-representative_filenumber = 55055
-Config = Unique_Config_ID(representative_filenumber)
-
-Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, InPlaneAngleMap, dimXX, dimYY, Shadow_Mask = QCalculation_AllDetectors(representative_filenumber, Config)
-QValues_All = {}
-QValues_All = {'QX':Qx,'QY':Qy,'QZ':Qz,'Q_total':Q_total,'Q_perp_unc':Q_perp_unc,'Q_parl_unc':Q_parl_unc}
-
-relevant_detectors = short_detectors
-if str(Config).find('CvB') != -1:
-    relevant_detectors = all_detectors
-
-Non_Mask = {}
-Err = {}
-for dshort in relevant_detectors:
-    Non_Mask[dshort] = 50.0*np.ones_like(Qx[dshort])
-    Err[dshort] = 2.0*np.ones_like(Qx[dshort])
-    
-ASCIIlike_Output('Mask', 'Test', Config, Non_Mask, Err, QValues_All, Shadow_Mask)
-'''
-
 Sample_Names, Configs, BlockBeam, Scatt, Trans, Pol_Trans, HE3_Trans, start_number, filenumberlisting = SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues)
 
 #ShareSampleBaseTransmissions(Trans)
 
 Process_ScattFiles()
 
-Masks = ReadIn_Masks(filenumberlisting)
+UserDefinedMasks = ReadIn_Masks(filenumberlisting)
 
-Process_Transmissions(BlockBeam, Masks, HE3_Trans, Pol_Trans, Trans)
+Process_Transmissions(BlockBeam, UserDefinedMasks, HE3_Trans, Pol_Trans, Trans)
 
 Plex = Plex_File(start_number)
 
@@ -2277,18 +2379,16 @@ for Config in Configs:
             relevant_detectors = all_detectors
             
         for dshort in relevant_detectors:
-            GeneralMaskWOSolenoid[dshort] = np.ones_like(Qx[dshort])
-            GeneralMaskWSolenoid[dshort] = np.ones_like(Qx[dshort])
-        if Config in Masks:
-            if 'NA' not in Masks[Config]['Scatt_WithSolenoid']:
+            GeneralMaskWOSolenoid[dshort] = Shadow_Mask[dshort]
+            GeneralMaskWSolenoid[dshort] = Shadow_Mask[dshort]
+        if Config in UserDefinedMasks:
+            if 'NA' not in UserDefinedMasks[Config]['Scatt_WithSolenoid']:
                 for dshort in relevant_detectors:
-                    GeneralMaskWSolenoid[dshort] = Masks[Config]['Scatt_WithSolenoid'][dshort]
-            if 'NA' not in Masks[Config]['Scatt_Standard']:
+                    GeneralMaskWSolenoid[dshort] = Shadow_Mask[dshort]*UserDefinedMasks[Config]['Scatt_WithSolenoid'][dshort]          
+            if 'NA' not in UserDefinedMasks[Config]['Scatt_Standard']:
                 for dshort in relevant_detectors:
-                    GeneralMaskWOSolenoid[dshort] = Masks[Config]['Scatt_Standard'][dshort]
-            if 'NA' in Masks[Config]['Scatt_WithSolenoid'] and 'NA' not in Masks[Config]['Scatt_Standard']:
-                for dshort in relevant_detectors:
-                    GeneralMaskWSolenoid[dshort] = Masks[Config]['Scatt_Standard'][dshort]
+                    GeneralMaskWOSolenoid[dshort] = Shadow_Mask[dshort]*UserDefinedMasks[Config]['Scatt_Standard'][dshort]
+                    
         '''
         for Sample in Sample_Names:
             if Sample in Scatt:                
@@ -2344,7 +2444,7 @@ for Config in Configs:
                         Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, InPlaneAngleMap, dimXX, dimYY, Shadow_Mask = QCalculation_AllDetectors(representative_filenumber, Config)
                         QValues_All = {'QX':Qx,'QY':Qy,'QZ':Qz,'Q_total':Q_total,'Q_perp_unc':Q_perp_unc,'Q_parl_unc':Q_parl_unc}
                         FullPolGo, PolCorrUU, PolCorrDU, PolCorrDD, PolCorrUD, PolCorrUU_Unc, PolCorrDU_Unc, PolCorrDD_Unc, PolCorrUD_Unc = PolCorrScattFiles(dimXX, dimYY, Sample, Config, UUScaledData, DUScaledData, DDScaledData, UDScaledData, UUScaledData_Unc, DUScaledData_Unc, DDScaledData_Unc, UDScaledData_Unc)
-                        PlotAndSaveFullPolSlices(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bins, QValues_All, Shadow_Mask, PolCorrUU, PolCorrUU_Unc, PolCorrDU, PolCorrDU_Unc, PolCorrDD, PolCorrDD_Unc, PolCorrUD, PolCorrUD_Unc)
+                        PlotAndSaveFullPolSlices(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, PolCorrUU, PolCorrUU_Unc, PolCorrDU, PolCorrDU_Unc, PolCorrDD, PolCorrDD_Unc, PolCorrUD, PolCorrUD_Unc)
                         if YesNo_2DCombinedFiles > 0:
                             if FullPolGo > 0:
                                 ASCIIlike_Output('PolCorrUU', Sample, Config, PolCorrUU, PolCorrUU_Unc, QValues_All, GeneralMaskWSolenoid)
@@ -2361,7 +2461,7 @@ for Config in Configs:
                     UScaledData, UScaledData_Unc = AbsScale('U', Sample, Config, BB_per_second, Solid_Angle, Plex)
                     DScaledData, DScaledData_Unc = AbsScale('D', Sample, Config, BB_per_second, Solid_Angle, Plex)
                     if 'NA' not in UScaledData and 'NA' not in DScaledData:
-                        DiffData, DiffData_Unc, SumData, SumData_Unc = PlotAndSaveHalfPolSlices(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bins, QValues_All, Shadow_Mask, UScaledData, DScaledData, UScaledData_Unc, DScaledData_Unc)
+                        DiffData, DiffData_Unc, SumData, SumData_Unc = PlotAndSaveHalfPolSlices(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWOSolenoid, UScaledData, DScaledData, UScaledData_Unc, DScaledData_Unc)
                         if YesNo_2DCombinedFiles > 0:
                             representative_filenumber = Scatt[Sample]['Config(s)'][Config]['U'][0]
                             Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, InPlaneAngleMap, dimXX, dimYY, Shadow_Mask = QCalculation_AllDetectors(representative_filenumber, Config)
