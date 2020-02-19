@@ -21,18 +21,19 @@ the data with that filenumber must be in the data folder (used to match configur
 
 path = ''
 TransPanel = 'MR' #Default is 'MR'
-SectorCutAngles = 15.0 #Default is typically 10.0 to 20.0 (degrees)
+SectorCutAngles = 10.0 #Default is typically 10.0 to 20.0 (degrees)
 UsePolCorr = 1 #Default is 1 to pol-ccorrect full-pol data, 0 means no and will only correct for 3He transmission as a function of time.
 PlotYesNo = 0 #Default is 1 where 1 means yes, 0 means no
-Absolute_Q_min = 0.0001 #Default 0; Will take the maximum of Q_min_Calc from all detectors and this value
+Absolute_Q_min = 0.005 #Default 0; Will take the maximum of Q_min_Calc from all detectors and this value
 Absolute_Q_max = 0.145 #Default 0.6; Will take the minimum of Q_max_Calc from all detectors and this value
 YesNo_2DCombinedFiles = 0 #Default is 0 (no), 1 = yes which can be read using SasView
 YesNo_2DFilesPerDetector = 0 #Default is 0 (no), 1 = yes; Note all detectors will be summed after beamline masking applied and can be read by SasView 4.2.2 (and higher?)
 Slices = ["Circ"] #Default: ["Circ", "Vert", "Horz"]
-AutoSubtractEmpty = 0 #Default is 1 for yes; 0 for no.
-    
-Excluded_Filenumbers = [51464, 55181, 56704] #Default is []; Be sure to exclude any ConvergingBeam / HighResolutionDetector scans which are not run for the ful default amount of time.
-ReAssignBlockBeam = [] #Default is []
+AutoSubtractEmpty = 1 #Default is 1 for yes; 0 for no.
+
+#Excluded_Filenumbers = []    
+Excluded_Filenumbers = [51298, 51302, 51310, 51311, 51312, 51313, 51314, 51315, 51316, 51317, 51464, 55181, 56704] #Default is []; Be sure to exclude any ConvergingBeam / HighResolutionDetector scans which are not run for the ful default amount of time.
+ReAssignBlockBeam = [28486] #Default is []
 ReAssignEmpty = [] #Default is []
 
 #High Res Detector kicks in when using Converging Beam (at 6.7 angstroms)
@@ -590,14 +591,12 @@ def ShareSampleBaseTransmissions(Trans):
         if 'Config(s)' in Trans[Sample]:
             for Config in Trans[Sample]['Config(s)']:
                 if 'NA' in Trans[Sample]['Config(s)'][Config]['Unpol_Files']:
-                    #print('Need a trans file for', 'Unpol', Sample, Config)
                     if Config in UnpolBases:
                         if Base in UnpolBases[Config]:
                             for i in [i for i,x in enumerate(UnpolBases[Config]) if x == Base]:
                                 Trans[Sample]['Config(s)'][Config]['Unpol_Files'] = [UnpolAssociatedTrans[Config][i]]
-                                print('Subbing in ', UnpolAssociatedTrans[Config][i], 'Unpol', Sample, Config)
+                                #print('Subbing in ', UnpolAssociatedTrans[Config][i], 'Unpol', Sample, Config)
                 if 'NA' in Trans[Sample]['Config(s)'][Config]['U_Files']:
-                    #print('Need a trans file for', 'UP', Sample, Config)
                     if Config in UpBases:
                         if Base in UpBases[Config]:
                             for i in [i for i,x in enumerate(UpBases[Config]) if x == Base]:
@@ -1244,8 +1243,6 @@ def QCalculation_AllDetectors(representative_filenumber, Config):
             if dshort == "FT" or dshort == "MT":
                 y_min = y_min - SampleApExternal/20.0
                 y_min = y_min/pad_factor
-
-            #print(dshort, x_min, x_max, y_min, y_max)
                 
             InPlane0_pos = np.sqrt(x0_pos**2 + y0_pos**2)
             twotheta = np.arctan2(InPlane0_pos,realDistZ)
@@ -1443,7 +1440,6 @@ def HE3_DecayCurves(HE3_Trans):
             PCell0 = np.tanh(Mu * P0)
 
         HE3_Cell_Summary[HE3_Trans[entry]['Insert_time']] = {'Atomic_P0' : P0, 'Gamma(hours)' : gamma, 'Mu' : Mu, 'Te' : Te}
-        #print('He3Cell Summary for Cell Identity', entry, ':')
         print('He3Cell Summary for Cell Identity', HE3_Trans[entry]['Cell_name'][0], ':')
         print('PolCell0', PCell0, 'AtomicPol0: ', P0, ' Gamma: ', gamma)
         print('     ')
@@ -1644,6 +1640,7 @@ def AbsScale(ScattType, Sample, Config, BlockBeam_per_second, Solid_Angle, Plex)
                 Ave = np.average(Holder[masks[dshort] > 0])
                 BB[dshort] = Ave
 
+            He3Glass_Trans = 1.0
             filecounter = 0
             if str(Scatt[Sample]['Config(s)'][Config][ScattType]).find('NA') != -1:
                 Scaled_Data = 'NA'
@@ -1657,6 +1654,12 @@ def AbsScale(ScattType, Sample, Config, BlockBeam_per_second, Solid_Angle, Plex)
                         f = h5py.File(filename)
                         MonCounts = f['entry/control/monitor_counts'][0]
                         Count_time = f['entry/collection_time'][0]
+                        He3Glass_Trans = 1.0
+                        if ScattType == 'UU' or ScattType == 'DU'  or ScattType == 'DD'  or ScattType == 'UD':
+                            if YesNoManualHe3Entry == 0:
+                                He3Glass_Trans = f['/entry/DAS_logs/backPolarization/glassTransmission'][0]
+                            else:
+                                He3Glass_Trans = TeValues[0]
                         for dshort in relevant_detectors:
                             data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
                             unc = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
@@ -1666,13 +1669,13 @@ def AbsScale(ScattType, Sample, Config, BlockBeam_per_second, Solid_Angle, Plex)
                                 unc = data_holder[HighResMinX:HighResMaxX+1,HighResMinY:HighResMaxY+1]
                             data = (data - Count_time*BB[dshort])/(Number_Files*Plex[dshort]*Solid_Angle[dshort])
                             if filecounter < 2:
-                                Scaled_Data[dshort] = ((1E8/MonCounts)/ABS_Scale)*data
+                                Scaled_Data[dshort] = ((1E8/MonCounts)/(ABS_Scale*He3Glass_Trans))*data
                                 UncScaled_Data[dshort] = unc
                             else:
-                                Scaled_Data[dshort] += ((1E8/MonCounts)/ABS_Scale)*data
+                                Scaled_Data[dshort] += ((1E8/MonCounts)/(ABS_Scale*He3Glass_Trans))*data
                                 UncScaled_Data[dshort] += unc           
                 for dshort in relevant_detectors:
-                    UncScaled_Data[dshort] = np.sqrt(UncScaled_Data[dshort])*((1E8/MonCounts)/ABS_Scale)/(Number_Files*Plex[dshort]*Solid_Angle[dshort])
+                    UncScaled_Data[dshort] = np.sqrt(UncScaled_Data[dshort])*((1E8/MonCounts)/(ABS_Scale*He3Glass_Trans))/(Number_Files*Plex[dshort]*Solid_Angle[dshort])
 
         else:
             Scaled_Data = 'NA'
@@ -1830,7 +1833,7 @@ def PolCorrScattFiles(dimXX, dimYY, Sample, Config, UUScaledData, DUScaledData, 
             UncData_Per_Detector = UncScaled_Data[Det_Index][:][:]
             Data_Per_Detector = Scaled_Data[Det_Index][:][:]
             
-            PolCorr_Data = np.dot(Prefactor, Data_Per_Detector)
+            PolCorr_Data = np.dot(2.0*Prefactor, Data_Per_Detector)
             '''
             #Below is the code that allows true matrix error propagation, but it takes a while...so may want to optimize more before implementing.
             #Also will need to uncomment from uncertainties import unumpy (top).
@@ -2213,7 +2216,6 @@ def PlotAndSaveFullPolSlices(slices, PolCorrDegree, Sample, Config, InPlaneAngle
     VertMask = SectorMask_AllDetectors(InPlaneAngleMap, 180, SectorCutAngles, BothSides)
     CircMask = SectorMask_AllDetectors(InPlaneAngleMap, 0, 180, BothSides)
 
-    #for slice in Slices:
     if slices == "Circ":
         slice_key = ["CircAve", "CircU", "CircD", "CircDminU"]
         local_mask = SectorMask_AllDetectors(InPlaneAngleMap, 0, 180, BothSides)
@@ -2251,6 +2253,7 @@ def PlotAndSaveFullPolSlices(slices, PolCorrDegree, Sample, Config, InPlaneAngle
     plt.pause(2)
     plt.close()
 
+    '''
     NSFSum = {}
     NSFDiff = {}
     OtherDiff = {}
@@ -2258,9 +2261,11 @@ def PlotAndSaveFullPolSlices(slices, PolCorrDegree, Sample, Config, InPlaneAngle
     SFSum = {}
     SFDiff = {}
     SF_Unc = {}
+    '''
     UnpolEquiv = {}
     UnpolEquiv_Unc = {}
     for dshort in relevant_detectors:
+        '''
         NSFSum[dshort] = np.array(PolCorrDD[dshort]) + np.array(PolCorrUU[dshort])
         NSF_Unc[dshort] = np.sqrt(np.power(np.array(PolCorrDD_Unc[dshort]),2) + np.power(np.array(PolCorrUU_Unc[dshort]),2))
         NSFDiff[dshort] = np.array(PolCorrDD[dshort]) - np.array(PolCorrUU[dshort])
@@ -2268,10 +2273,13 @@ def PlotAndSaveFullPolSlices(slices, PolCorrDegree, Sample, Config, InPlaneAngle
         SFSum[dshort] = np.array(PolCorrUD[dshort]) + np.array(PolCorrDU[dshort])
         SF_Unc[dshort] = np.sqrt(np.power(np.array(PolCorrUD_Unc[dshort]),2) + np.power(np.array(PolCorrDU_Unc[dshort]),2))
         SFDiff[dshort] = np.array(PolCorrUD[dshort]) - np.array(PolCorrDU[dshort])
+        '''
         UnpolEquiv[dshort] = np.array(PolCorrUD[dshort]) + np.array(PolCorrDU[dshort]) + np.array(PolCorrDD[dshort]) + np.array(PolCorrUU[dshort])
         UnpolEquiv_Unc[dshort] = np.sqrt(np.power(np.array(PolCorrUU_Unc[dshort]),2) + np.power(np.array(PolCorrDU_Unc[dshort]),2) + np.power(np.array(PolCorrDD_Unc[dshort]),2) + np.power(np.array(PolCorrUD_Unc[dshort]),2))
 
-    #for slice in Slices:
+    AllCS = TwoDimToOneDim(slice_key[0], Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, local_mask, UnpolEquiv, UnpolEquiv_Unc, Sample, Config, PlotYesNo, AverageQRanges)
+    SaveTextData('{corr}SumAllCrossSections{sub}'.format(corr = Corr, sub = Sub), slice_key[0], Sample, Config, AllCS)
+    '''
     if slices == "Circ":
         slice_key = ["CircAve", "CircU", "CircD", "CircDminU"]
         local_mask = SectorMask_AllDetectors(InPlaneAngleMap, 0, 180, BothSides)
@@ -2287,7 +2295,6 @@ def PlotAndSaveFullPolSlices(slices, PolCorrDegree, Sample, Config, InPlaneAngle
     UUminusDD = TwoDimToOneDim(slice_key[0], Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, local_mask, OtherDiff, NSF_Unc, Sample, Config, PlotYesNo, AverageQRanges)
     UDplusDU = TwoDimToOneDim(slice_key[0], Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, local_mask, SFSum, SF_Unc, Sample, Config, PlotYesNo, AverageQRanges)
     UDminusDU = TwoDimToOneDim(slice_key[0], Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, local_mask, SFDiff, SF_Unc, Sample, Config, PlotYesNo, AverageQRanges)
-    AllCS = TwoDimToOneDim(slice_key[0], Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, local_mask, UnpolEquiv, UnpolEquiv_Unc, Sample, Config, PlotYesNo, AverageQRanges)
 
     SaveTextData('{corr}DDplusUU{sub}'.format(corr = Corr, sub = Sub), slice_key[0], Sample, Config, DDplusUU)
     SaveTextData('{corr}DDminusUU{sub}'.format(corr = Corr, sub = Sub), slice_key[0], Sample, Config, DDminusUU)
@@ -2312,8 +2319,9 @@ def PlotAndSaveFullPolSlices(slices, PolCorrDegree, Sample, Config, InPlaneAngle
     #plt.show()
     plt.pause(2)
     plt.close()
+    '''
 
-    return NSFSum, NSFDiff, NSF_Unc, SFSum, SFDiff, SF_Unc, UnpolEquiv, UnpolEquiv_Unc
+    return UnpolEquiv, UnpolEquiv_Unc
 
 def PlotAndSaveHalfPolSlices(slices, Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWOSolenoid, UScaledData, DScaledData, UScaledData_Unc, DScaledData_Unc):
 
@@ -2358,7 +2366,8 @@ def PlotAndSaveHalfPolSlices(slices, Sample, Config, InPlaneAngleMap, Q_min, Q_m
     
     SaveTextData('U', slice_key[0], Sample, Config, U)
     SaveTextData('D', slice_key[0], Sample, Config, D)
-    SaveTextData('DminusU', slice_key[0], Sample, Config, Diff)
+    SaveTextData('DMinusU', slice_key[0], Sample, Config, Diff)
+    SaveTextData('DPlusU', slice_key[0], Sample, Config, Sum)
 
     fig = plt.figure()
     ax = plt.axes()
@@ -2445,6 +2454,43 @@ HE3_Cell_Summary = HE3_DecayCurves(HE3_Trans)
 
 Pol_SuppermirrorAndFlipper(Pol_Trans, HE3_Cell_Summary)
 
+for Sample in Scatt:
+    print(' ')
+    print(Sample, '(', Scatt[Sample]['Intent'],')')
+    for Config in Scatt[Sample]['Config(s)']:
+        print(' ', 'Config:', Config)
+        if Config in BlockBeam:
+            if str(BlockBeam[Config]['Scatt']['File']).find('NA') == -1 and str(BlockBeam[Config]['Trans']['File']).find('NA') == -1:
+                print('      ','Block Beam Scatt, Trans files are', BlockBeam[Config]['Scatt']['File'], ',', BlockBeam[Config]['Trans']['File'])
+            elif str(BlockBeam[Config]['Scatt']['File']).find('NA') == -1 and str(BlockBeam[Config]['Trans']['File']).find('NA') != -1:
+                print('      ','Block Beam Scatt, Trans files are', BlockBeam[Config]['Scatt']['File'], ',', BlockBeam[Config]['Scatt']['File'])
+            elif str(BlockBeam[Config]['Scatt']['File']).find('NA') != -1 and str(BlockBeam[Config]['Trans']['File']).find('NA') == -1:
+                print('      ','Block Beam Scatt, Trans files are', BlockBeam[Config]['Trans']['File'], ',', BlockBeam[Config]['Trans']['File'])
+        else:
+            print('      ','Block Beam Scatt, Trans files are not available')
+        TransUnpol = Trans[Sample]['Config(s)'][Config]['Unpol_Files'][0]
+        if str(TransUnpol).find('N') != -1:
+            TransUnpol = 'NA'
+        TransPol = Trans[Sample]['Config(s)'][Config]['U_Files'][0]
+        if str(TransPol).find('N') != -1:
+            TransPol = 'NA'
+        print('      ', 'Unpolarized and polarized scaling transmissions:', TransUnpol, ',', TransPol)
+        print('      ', 'Unpolarized Scatt', Scatt[Sample]['Config(s)'][Config]['Unpol'])
+        print('      ', 'Up Scatt', Scatt[Sample]['Config(s)'][Config]['U'])
+        print('      ', 'Down Scatt', Scatt[Sample]['Config(s)'][Config]['D'])
+        print('      ', 'Up-Up Scatt', Scatt[Sample]['Config(s)'][Config]['UU'])
+        print('      ', 'Up-Down Scatt', Scatt[Sample]['Config(s)'][Config]['UD'])
+        print('      ', 'Down-Down Scatt', Scatt[Sample]['Config(s)'][Config]['DD'])
+        print('      ', 'Down-Up Scatt', Scatt[Sample]['Config(s)'][Config]['DU'])
+    if Sample in Pol_Trans:
+        print(' ', 'Full Polarization Results:')
+        print(' ', 'P_SM*Sample Depolarization:', Pol_Trans[Sample]['P_SM'])
+        print(' ', 'UU T_Files, Trans:', Pol_Trans[Sample]['T_UU']['File'], ',', Pol_Trans[Sample]['T_UU']['Trans'])
+        print(' ', 'DU T_Files, Trans:', Pol_Trans[Sample]['T_DU']['File'], ',', Pol_Trans[Sample]['T_DU']['Trans'])
+        print(' ', 'DD T_Files, Trans:', Pol_Trans[Sample]['T_DD']['File'], ',', Pol_Trans[Sample]['T_DD']['Trans'])
+        print(' ', 'UD T_Files, Trans:', Pol_Trans[Sample]['T_UD']['File'], ',', Pol_Trans[Sample]['T_UD']['Trans'])
+        print(' ', 'SM T_Files:', Pol_Trans[Sample]['T_SM']['File'])
+
 GeneralMaskWOSolenoid = {}
 GeneralMaskWSolenoid = {}
 QValues_All = {}
@@ -2487,7 +2533,7 @@ for Config in Configs:
             for Sample in Sample_Names:
                 if Sample in Scatt:                
                     if str(Scatt[Sample]['Intent']).find('Empty') != -1:
-                        
+
                         MTUUScaledData, MTUUScaledData_Unc = AbsScale('UU', Sample, Config, BB_per_second, Solid_Angle, Plex)
                         MTDUScaledData, MTDUScaledData_Unc = AbsScale('DU', Sample, Config, BB_per_second, Solid_Angle, Plex)
                         MTDDScaledData, MTDDScaledData_Unc = AbsScale('DD', Sample, Config, BB_per_second, Solid_Angle, Plex)
@@ -2498,45 +2544,46 @@ for Config in Configs:
                             Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, InPlaneAngleMap, dimXX, dimYY, Shadow_Mask = QCalculation_AllDetectors(representative_filenumber, Config)
                             QValues_All = {'QX':Qx,'QY':Qy,'QZ':Qz,'Q_total':Q_total,'Q_perp_unc':Q_perp_unc,'Q_parl_unc':Q_parl_unc}
                             MTFullPolGo, MTPolCorrUU, MTPolCorrDU, MTPolCorrDD, MTPolCorrUD, MTPolCorrUU_Unc, MTPolCorrDU_Unc, MTPolCorrDD_Unc, MTPolCorrUD_Unc = PolCorrScattFiles(dimXX, dimYY, Sample, Config, MTUUScaledData, MTDUScaledData, MTDDScaledData, MTUDScaledData, MTUUScaledData_Unc, MTDUScaledData_Unc, MTDDScaledData_Unc, MTUDScaledData_Unc)
-                            MTNSFSum, MTNSFDiff, MTNSF_Unc, MTSFSum, MTSFDiff, MTSF_Unc, MTUnpolEquiv, MTUnpolEquiv_Unc = PlotAndSaveFullPolSlices(slices, MTFullPolGo, Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, MTPolCorrUU, MTPolCorrUU_Unc, MTPolCorrDU, MTPolCorrDU_Unc, MTPolCorrDD, MTPolCorrDD_Unc, MTPolCorrUD, MTPolCorrUD_Unc, EmptySubtract, MTUU, MTUU_Unc, MTDU, MTDU_Unc, MTDD, MTDD_Unc, MTUD, MTUD_Unc)
-                            if MTFullPolGo >= 1:
-                                HaveFullPolEmptySubtract = 1
-                                MTUU = MTPolCorrUU
-                                MTUU_Unc = MTPolCorrUU_Unc
-                                MTDU = MTPolCorrDU
-                                MTDU_Unc = MTPolCorrDU_Unc
-                                MTDD = MTPolCorrDD
-                                MTDD_Unc = MTPolCorrDD_Unc
-                                MTUD = MTPolCorrUD
-                                MTUD_Unc = MTPolCorrUD_Unc
-                            if YesNo_2DCombinedFiles > 0:
-                                if FullPolGo >= 2:
-                                    ASCIIlike_Output('PolCorrUU', Sample, Config, MTPolCorrUU, MTPolCorrUU_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    ASCIIlike_Output('PolCorrDU', Sample, Config, MTPolCorrDU, MTPolCorrDU_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    ASCIIlike_Output('PolCorrDD', Sample, Config, MTPolCorrDD, MTPolCorrDD_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    ASCIIlike_Output('PolCorrUD', Sample, Config, MTPolCorrUD, MTPolCorrUD_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    ASCIIlike_Output('PolCorrNSFSum', Sample, Config, MTNSFSum, MTNSF_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    ASCIIlike_Output('PolCorrNSFDiff', Sample, Config, MTNSFDiff, MTNSF_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    ASCIIlike_Output('PolCorrSFSum', Sample, Config, MTSFSum, MTSF_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    ASCIIlike_Output('PolCorrSFDiff', Sample, Config, MTSFDiff, MTSF_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    ASCIIlike_Output('PolCorrSumAllCS', Sample, Config, MTUnpolEquiv, MTUnpolEquiv_Unc, QValues_All, GeneralMaskWSolenoid)
-                                elif FullPolGo >= 1:
-                                    HaveEmptySubtract = 1
-                                    ASCIIlike_Output('He3CorrUU', Sample, Config, MTPolCorrUU, MTPolCorrUU_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    ASCIIlike_Output('He3CorrDU', Sample, Config, MTPolCorrDU, MTPolCorrDU_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    ASCIIlike_Output('He3CorrDD', Sample, Config, MTPolCorrDD, MTPolCorrDD_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    ASCIIlike_Output('He3CorrUD', Sample, Config, MTPolCorrUD, MTPolCorrUD_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    ASCIIlike_Output('He3CorrNSFSum', Sample, Config, MTNSFSum, MTNSF_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    ASCIIlike_Output('He3CorrNSFDiff', Sample, Config, MTNSFDiff, MTNSF_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    ASCIIlike_Output('He3CorrSFSum', Sample, Config, MTSFSum, MTSF_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    ASCIIlike_Output('He3CorrSFDiff', Sample, Config, MTSFDiff, MTSF_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    ASCIIlike_Output('He3CorrSumAllCS', Sample, Config, MTUnpolEquiv, MTUnpolEquiv_Unc, QValues_All, GeneralMaskWSolenoid)
-                                else:
-                                    HaveEmptySubtract = 0
-                                    ASCIIlike_Output('NotCorrUU', Sample, Config, MTUUScaledData, MTUUScaledData_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    ASCIIlike_Output('NotCorrDU', Sample, Config, MTDUScaledData, MTDUScaledData_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    ASCIIlike_Output('NotCorrDD', Sample, Config, MTDDScaledData, MTDDScaledData_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    ASCIIlike_Output('NotCorrUD', Sample, Config, MTUDScaledData, MTUDScaledData_Unc, QValues_All, GeneralMaskWSolenoid)
+                            if AutoSubtractEmpty == 0:
+                                MTUnpolEquiv, MTUnpolEquiv_Unc = PlotAndSaveFullPolSlices(slices, MTFullPolGo, Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, MTPolCorrUU, MTPolCorrUU_Unc, MTPolCorrDU, MTPolCorrDU_Unc, MTPolCorrDD, MTPolCorrDD_Unc, MTPolCorrUD, MTPolCorrUD_Unc, EmptySubtract, MTUU, MTUU_Unc, MTDU, MTDU_Unc, MTDD, MTDD_Unc, MTUD, MTUD_Unc)
+                                if MTFullPolGo >= 1:
+                                    HaveFullPolEmptySubtract = 1
+                                    MTUU = MTPolCorrUU
+                                    MTUU_Unc = MTPolCorrUU_Unc
+                                    MTDU = MTPolCorrDU
+                                    MTDU_Unc = MTPolCorrDU_Unc
+                                    MTDD = MTPolCorrDD
+                                    MTDD_Unc = MTPolCorrDD_Unc
+                                    MTUD = MTPolCorrUD
+                                    MTUD_Unc = MTPolCorrUD_Unc
+                                if YesNo_2DCombinedFiles > 0:
+                                    if FullPolGo >= 2:
+                                        ASCIIlike_Output('PolCorrUU', Sample, Config, MTPolCorrUU, MTPolCorrUU_Unc, QValues_All, GeneralMaskWSolenoid)
+                                        ASCIIlike_Output('PolCorrDU', Sample, Config, MTPolCorrDU, MTPolCorrDU_Unc, QValues_All, GeneralMaskWSolenoid)
+                                        ASCIIlike_Output('PolCorrDD', Sample, Config, MTPolCorrDD, MTPolCorrDD_Unc, QValues_All, GeneralMaskWSolenoid)
+                                        ASCIIlike_Output('PolCorrUD', Sample, Config, MTPolCorrUD, MTPolCorrUD_Unc, QValues_All, GeneralMaskWSolenoid)
+                                        #ASCIIlike_Output('PolCorrNSFSum', Sample, Config, MTNSFSum, MTNSF_Unc, QValues_All, GeneralMaskWSolenoid)
+                                        #ASCIIlike_Output('PolCorrNSFDiff', Sample, Config, MTNSFDiff, MTNSF_Unc, QValues_All, GeneralMaskWSolenoid)
+                                        #ASCIIlike_Output('PolCorrSFSum', Sample, Config, MTSFSum, MTSF_Unc, QValues_All, GeneralMaskWSolenoid)
+                                        #ASCIIlike_Output('PolCorrSFDiff', Sample, Config, MTSFDiff, MTSF_Unc, QValues_All, GeneralMaskWSolenoid)
+                                        ASCIIlike_Output('PolCorrSumAllCS', Sample, Config, MTUnpolEquiv, MTUnpolEquiv_Unc, QValues_All, GeneralMaskWSolenoid)
+                                    elif FullPolGo >= 1:
+                                        HaveEmptySubtract = 1
+                                        ASCIIlike_Output('He3CorrUU', Sample, Config, MTPolCorrUU, MTPolCorrUU_Unc, QValues_All, GeneralMaskWSolenoid)
+                                        ASCIIlike_Output('He3CorrDU', Sample, Config, MTPolCorrDU, MTPolCorrDU_Unc, QValues_All, GeneralMaskWSolenoid)
+                                        ASCIIlike_Output('He3CorrDD', Sample, Config, MTPolCorrDD, MTPolCorrDD_Unc, QValues_All, GeneralMaskWSolenoid)
+                                        ASCIIlike_Output('He3CorrUD', Sample, Config, MTPolCorrUD, MTPolCorrUD_Unc, QValues_All, GeneralMaskWSolenoid)
+                                        #ASCIIlike_Output('He3CorrNSFSum', Sample, Config, MTNSFSum, MTNSF_Unc, QValues_All, GeneralMaskWSolenoid)
+                                        #ASCIIlike_Output('He3CorrNSFDiff', Sample, Config, MTNSFDiff, MTNSF_Unc, QValues_All, GeneralMaskWSolenoid)
+                                        #ASCIIlike_Output('He3CorrSFSum', Sample, Config, MTSFSum, MTSF_Unc, QValues_All, GeneralMaskWSolenoid)
+                                        #ASCIIlike_Output('He3CorrSFDiff', Sample, Config, MTSFDiff, MTSF_Unc, QValues_All, GeneralMaskWSolenoid)
+                                        ASCIIlike_Output('He3CorrSumAllCS', Sample, Config, MTUnpolEquiv, MTUnpolEquiv_Unc, QValues_All, GeneralMaskWSolenoid)
+                                    else:
+                                        HaveEmptySubtract = 0
+                                        ASCIIlike_Output('NotCorrUU', Sample, Config, MTUUScaledData, MTUUScaledData_Unc, QValues_All, GeneralMaskWSolenoid)
+                                        ASCIIlike_Output('NotCorrDU', Sample, Config, MTDUScaledData, MTDUScaledData_Unc, QValues_All, GeneralMaskWSolenoid)
+                                        ASCIIlike_Output('NotCorrDD', Sample, Config, MTDDScaledData, MTDDScaledData_Unc, QValues_All, GeneralMaskWSolenoid)
+                                        ASCIIlike_Output('NotCorrUD', Sample, Config, MTUDScaledData, MTUDScaledData_Unc, QValues_All, GeneralMaskWSolenoid)
                         
                         MTUScaledData, MTUScaledData_Unc = AbsScale('U', Sample, Config, BB_per_second, Solid_Angle, Plex)
                         MTDScaledData, MTDScaledData_Unc = AbsScale('D', Sample, Config, BB_per_second, Solid_Angle, Plex)
@@ -2547,22 +2594,24 @@ for Config in Configs:
                             MTUScaledData = MTDScaledData
                             MTUScaledData_Unc = MTDScaledData_Unc
                         if 'NA' not in MTUScaledData and 'NA' not in MTDScaledData:
-                            MTDiffData, MTDiffData_Unc, MTSumData, MTSumData_Unc = PlotAndSaveHalfPolSlices(slices, Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWOSolenoid, MTUScaledData, MTDScaledData, MTUScaledData_Unc, MTDScaledData_Unc)
-                            if YesNo_2DCombinedFiles > 0:
-                                representative_filenumber = Scatt[Sample]['Config(s)'][Config]['U'][0]
-                                Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, InPlaneAngleMap, dimXX, dimYY, Shadow_Mask = QCalculation_AllDetectors(representative_filenumber, Config)
-                                QValues_All = {'QX':Qx,'QY':Qy,'QZ':Qz,'Q_total':Q_total,'Q_perp_unc':Q_perp_unc,'Q_parl_unc':Q_parl_unc}
-                                ASCIIlike_Output('U', Sample, Config, MTUScaledData, MTUScaledData_Unc, QValues_All, GeneralMaskWOSolenoid)
-                                ASCIIlike_Output('D', Sample, Config, MTDScaledData, MTDScaledData_Unc, QValues_All, GeneralMaskWOSolenoid)
+                            if AutoSubtractEmpty == 0:
+                                MTDiffData, MTDiffData_Unc, MTSumData, MTSumData_Unc = PlotAndSaveHalfPolSlices(slices, Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWOSolenoid, MTUScaledData, MTDScaledData, MTUScaledData_Unc, MTDScaledData_Unc)
+                                if YesNo_2DCombinedFiles > 0:
+                                    representative_filenumber = Scatt[Sample]['Config(s)'][Config]['U'][0]
+                                    Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, InPlaneAngleMap, dimXX, dimYY, Shadow_Mask = QCalculation_AllDetectors(representative_filenumber, Config)
+                                    QValues_All = {'QX':Qx,'QY':Qy,'QZ':Qz,'Q_total':Q_total,'Q_perp_unc':Q_perp_unc,'Q_parl_unc':Q_parl_unc}
+                                    ASCIIlike_Output('U', Sample, Config, MTUScaledData, MTUScaledData_Unc, QValues_All, GeneralMaskWOSolenoid)
+                                    ASCIIlike_Output('D', Sample, Config, MTDScaledData, MTDScaledData_Unc, QValues_All, GeneralMaskWOSolenoid)
                                 
                         MTUnpolScaledData, MTUnpolScaledData_Unc = AbsScale('Unpol', Sample, Config, BB_per_second, Solid_Angle, Plex)
                         if 'NA' not in MTUnpolScaledData:
-                            PlotAndSaveUnpolSlices(slices, Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWOSolenoid, MTUnpolScaledData, MTUnpolScaledData_Unc)
-                            if YesNo_2DCombinedFiles > 0:
-                                representative_filenumber = Scatt[Sample]['Config(s)'][Config]['Unpol'][0]
-                                Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, InPlaneAngleMap, dimXX, dimYY, Shadow_Mask = QCalculation_AllDetectors(representative_filenumber, Config)
-                                QValues_All = {'QX':Qx,'QY':Qy,'QZ':Qz,'Q_total':Q_total,'Q_perp_unc':Q_perp_unc,'Q_parl_unc':Q_parl_unc}
-                                ASCIIlike_Output('Unpol', Sample, Config, MTUnpolScaledData, MTUnpolScaledData_Unc, QValues_All, GeneralMaskWOSolenoid)
+                            if AutoSubtractEmpty == 0:
+                                PlotAndSaveUnpolSlices(slices, Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWOSolenoid, MTUnpolScaledData, MTUnpolScaledData_Unc)
+                                if YesNo_2DCombinedFiles > 0:
+                                    representative_filenumber = Scatt[Sample]['Config(s)'][Config]['Unpol'][0]
+                                    Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, InPlaneAngleMap, dimXX, dimYY, Shadow_Mask = QCalculation_AllDetectors(representative_filenumber, Config)
+                                    QValues_All = {'QX':Qx,'QY':Qy,'QZ':Qz,'Q_total':Q_total,'Q_perp_unc':Q_perp_unc,'Q_parl_unc':Q_parl_unc}
+                                    ASCIIlike_Output('Unpol', Sample, Config, MTUnpolScaledData, MTUnpolScaledData_Unc, QValues_All, GeneralMaskWOSolenoid)
 
             
             for Sample in Sample_Names:
@@ -2583,27 +2632,27 @@ for Config in Configs:
                             Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, InPlaneAngleMap, dimXX, dimYY, Shadow_Mask = QCalculation_AllDetectors(representative_filenumber, Config)
                             QValues_All = {'QX':Qx,'QY':Qy,'QZ':Qz,'Q_total':Q_total,'Q_perp_unc':Q_perp_unc,'Q_parl_unc':Q_parl_unc}
                             FullPolGo, PolCorrUU, PolCorrDU, PolCorrDD, PolCorrUD, PolCorrUU_Unc, PolCorrDU_Unc, PolCorrDD_Unc, PolCorrUD_Unc = PolCorrScattFiles(dimXX, dimYY, Sample, Config, UUScaledData, DUScaledData, DDScaledData, UDScaledData, UUScaledData_Unc, DUScaledData_Unc, DDScaledData_Unc, UDScaledData_Unc)
-                            NSFSum, NSFDiff, NSF_Unc, SFSum, SFDiff, SF_Unc, UnpolEquiv, UnpolEquiv_Unc = PlotAndSaveFullPolSlices(slices, FullPolGo, Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, PolCorrUU, PolCorrUU_Unc, PolCorrDU, PolCorrDU_Unc, PolCorrDD, PolCorrDD_Unc, PolCorrUD, PolCorrUD_Unc, EmptySubtract, MTUU, MTUU_Unc, MTDU, MTDU_Unc, MTDD, MTDD_Unc, MTUD, MTUD_Unc)
+                            UnpolEquiv, UnpolEquiv_Unc = PlotAndSaveFullPolSlices(slices, FullPolGo, Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, PolCorrUU, PolCorrUU_Unc, PolCorrDU, PolCorrDU_Unc, PolCorrDD, PolCorrDD_Unc, PolCorrUD, PolCorrUD_Unc, EmptySubtract, MTUU, MTUU_Unc, MTDU, MTDU_Unc, MTDD, MTDD_Unc, MTUD, MTUD_Unc)
                             if YesNo_2DCombinedFiles > 0:
                                 if FullPolGo >= 2:
                                     ASCIIlike_Output('PolCorrUU', Sample, Config, PolCorrUU, PolCorrUU_Unc, QValues_All, GeneralMaskWSolenoid)
                                     ASCIIlike_Output('PolCorrDU', Sample, Config, PolCorrDU, PolCorrDU_Unc, QValues_All, GeneralMaskWSolenoid)
                                     ASCIIlike_Output('PolCorrDD', Sample, Config, PolCorrDD, PolCorrDD_Unc, QValues_All, GeneralMaskWSolenoid)
                                     ASCIIlike_Output('PolCorrUD', Sample, Config, PolCorrUD, PolCorrUD_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    ASCIIlike_Output('PolCorrNSFSum', Sample, Config, NSFSum, NSF_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    ASCIIlike_Output('PolCorrNSFDiff', Sample, Config, NSFDiff, NSF_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    ASCIIlike_Output('PolCorrSFSum', Sample, Config, SFSum, SF_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    ASCIIlike_Output('PolCorrSFDiff', Sample, Config, SFDiff, SF_Unc, QValues_All, GeneralMaskWSolenoid)
+                                    #ASCIIlike_Output('PolCorrNSFSum', Sample, Config, NSFSum, NSF_Unc, QValues_All, GeneralMaskWSolenoid)
+                                    #ASCIIlike_Output('PolCorrNSFDiff', Sample, Config, NSFDiff, NSF_Unc, QValues_All, GeneralMaskWSolenoid)
+                                    #ASCIIlike_Output('PolCorrSFSum', Sample, Config, SFSum, SF_Unc, QValues_All, GeneralMaskWSolenoid)
+                                    #ASCIIlike_Output('PolCorrSFDiff', Sample, Config, SFDiff, SF_Unc, QValues_All, GeneralMaskWSolenoid)
                                     ASCIIlike_Output('PolCorrSumAllCS', Sample, Config, UnpolEquiv, UnpolEquiv_Unc, QValues_All, GeneralMaskWSolenoid)
                                 elif FullPolGo >= 1 and FullPolGo < 2:
                                     ASCIIlike_Output('He3CorrUU', Sample, Config, PolCorrUU, PolCorrUU_Unc, QValues_All, GeneralMaskWSolenoid)
                                     ASCIIlike_Output('He3CorrDU', Sample, Config, PolCorrDU, PolCorrDU_Unc, QValues_All, GeneralMaskWSolenoid)
                                     ASCIIlike_Output('He3CorrDD', Sample, Config, PolCorrDD, PolCorrDD_Unc, QValues_All, GeneralMaskWSolenoid)
                                     ASCIIlike_Output('He3CorrUD', Sample, Config, PolCorrUD, PolCorrUD_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    ASCIIlike_Output('He3CorrNSFSum', Sample, Config, NSFSum, NSF_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    ASCIIlike_Output('He3CorrNSFDiff', Sample, Config, NSFDiff, NSF_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    ASCIIlike_Output('He3CorrSFSum', Sample, Config, SFSum, SF_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    ASCIIlike_Output('He3CorrSFDiff', Sample, Config, SFDiff, SF_Unc, QValues_All, GeneralMaskWSolenoid)
+                                    #ASCIIlike_Output('He3CorrNSFSum', Sample, Config, NSFSum, NSF_Unc, QValues_All, GeneralMaskWSolenoid)
+                                    #ASCIIlike_Output('He3CorrNSFDiff', Sample, Config, NSFDiff, NSF_Unc, QValues_All, GeneralMaskWSolenoid)
+                                    #ASCIIlike_Output('He3CorrSFSum', Sample, Config, SFSum, SF_Unc, QValues_All, GeneralMaskWSolenoid)
+                                    #ASCIIlike_Output('He3CorrSFDiff', Sample, Config, SFDiff, SF_Unc, QValues_All, GeneralMaskWSolenoid)
                                     ASCIIlike_Output('He3CorrSumAllCS', Sample, Config, UnpolEquiv, UnpolEquiv_Unc, QValues_All, GeneralMaskWSolenoid)
                                 else:
                                     ASCIIlike_Output('NotCorrUU', Sample, Config, UUScaledData, UUScaledData_Unc, QValues_All, GeneralMaskWSolenoid)
