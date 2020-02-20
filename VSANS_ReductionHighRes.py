@@ -12,7 +12,7 @@ import os
 
 '''
 This program is set to reduce VSANS data using middle and front detectors - fullpol, halfpol, unpol available.
-To do: Determine how to best subtract empties. Add all available blocked beams and transmissions. Record reduction steps.
+To do: Automatic cross-section information retieval for H || X.
 
 Note about Masks (which are very important):
 Must be in form #####_VSANS_TRANS_MASK.h5, #####_VSANS_SOLENOID_MASK.h5, or #####_VSANS_NOSOLENOID_MASK.h5, where ##### is the assocated filenumber and
@@ -610,6 +610,8 @@ def ReadIn_Masks(filenumberlisting):
     Masks = {}
     single_mask = {}
 
+    Mask_Record = {}
+
     filename = '0'
     Mask_files = [fn for fn in os.listdir("./") if fn.endswith("MASK.h5")]
     if len(Mask_files) >= 1:
@@ -628,6 +630,7 @@ def ReadIn_Masks(filenumberlisting):
                         
                     if ConfigID not in Masks:
                         Masks[ConfigID] = {'Trans' : 'NA', 'Scatt_Standard' : 'NA', 'Scatt_WithSolenoid' : 'NA'}
+                        Mask_Record[ConfigID] = {'Trans' : 'NA', 'Scatt_Standard' : 'NA', 'Scatt_WithSolenoid' : 'NA'}
                     Type, SolenoidPosition = File_Type(associated_filenumber)
                     config = Path(filename)
                     if config.is_file():
@@ -645,17 +648,20 @@ def ReadIn_Masks(filenumberlisting):
                             
                         if str(Type).find("TRANS") != -1:
                             Masks[ConfigID]['Trans'] = single_mask.copy()
+                            Mask_Record[ConfigID]['Trans'] = name
                             print('Saved', filename, ' as Trans Mask for', ConfigID)
                             
                         if str(Type).find("SCATT") != -1 and str(SolenoidPosition).find("OUT") != -1:
                             Masks[ConfigID]['Scatt_Standard'] = single_mask.copy()
+                            Mask_Record[ConfigID]['Scatt_Standard'] = name
                             print('Saved', filename, ' as Standard Scatt Mask for', ConfigID)
                             
                         if str(Type).find("SCATT") != -1 and str(SolenoidPosition).find("IN") != -1:
                             Masks[ConfigID]['Scatt_WithSolenoid'] = single_mask.copy()
+                            Mask_Record[ConfigID]['Scatt_WithSolenoid'] = name
                             print('Saved', filename, ' as Scatt Mask With Solenoid for', ConfigID)                     
                 
-    return Masks
+    return Masks, Mask_Record
 
 def Process_Transmissions(BlockBeam, Masks, HE3_Trans, Pol_Trans, Trans):
 
@@ -1010,7 +1016,7 @@ def Plex_File(start_number):
                     PlexData[dshort] = data_filler #.flatten()
         print('Plex file not found; populated with ones instead')   
             
-    return PlexData
+    return filename, PlexData
 
 def BlockedBeamScattCountsPerSecond(Config, representative_filenumber):
 
@@ -1439,7 +1445,8 @@ def HE3_DecayCurves(HE3_Trans):
             P0, gamma = popt
             PCell0 = np.tanh(Mu * P0)
 
-        HE3_Cell_Summary[HE3_Trans[entry]['Insert_time']] = {'Atomic_P0' : P0, 'Gamma(hours)' : gamma, 'Mu' : Mu, 'Te' : Te}
+        Name = HE3_Trans[entry]['Cell_name'][0]
+        HE3_Cell_Summary[HE3_Trans[entry]['Insert_time']] = {'Atomic_P0' : P0, 'Gamma(hours)' : gamma, 'Mu' : Mu, 'Te' : Te, 'Name' : Name, 'Neutron_P0' : PCell0}
         print('He3Cell Summary for Cell Identity', HE3_Trans[entry]['Cell_name'][0], ':')
         print('PolCell0', PCell0, 'AtomicPol0: ', P0, ' Gamma: ', gamma)
         print('     ')
@@ -2434,6 +2441,79 @@ def PlotAndSaveUnpolSlices(slices, Sample, Config, InPlaneAngleMap, Q_min, Q_max
 
     return
 
+def Record_DataProcessing(Plex_Name, Mask_Record, Scatt, BlockBeam, Trans, Pol_Trans, HE3_Cell_Summary):
+
+    file1 = open("DataReductionSummary.txt","w+")
+    file1.write("Record of Data Reduction \n")
+    file1.write('\n')
+    file1.write('Plex file is ' + str(Plex_Name) + '\n')
+    file1.write('\n')
+    file1.write('Detector shadowing is automatically corrected for. \n')
+    file1.write('Additional users masks may be added; they are (if present): \n')
+    for Config in Mask_Record:
+        file1.write('Configuration: ' + str(Config) + '\n')
+        file1.write('   Trans Mask: ' + str(Mask_Record[Config]['Trans']) + '\n')
+        file1.write('   Scatt Mask: ' + str(Mask_Record[Config]['Scatt_Standard']) + '\n')
+        file1.write('   Scatt Mask w/ solenoid: ' + str(Mask_Record[Config]['Scatt_WithSolenoid']) + '\n')
+        file1.write('\n')
+        
+    for Sample in Scatt:
+        file1.write(str(Sample) +  '(' +  str(Scatt[Sample]['Intent']) + ') \n')
+        for Config in Scatt[Sample]['Config(s)']:
+            file1.write(' Config:' + str(Config) + '\n')
+            if Config in BlockBeam:
+                str1 = str(BlockBeam[Config]['Scatt']['File'])
+                str2 = str(BlockBeam[Config]['Trans']['File'])
+                str3 = '  Block Beam: '
+                file1.write(str3)
+                if str(BlockBeam[Config]['Scatt']['File']).find('NA') == -1 and str(BlockBeam[Config]['Trans']['File']).find('NA') == -1:
+                    file1.write(str1)
+                    file1.write(' (Scatt) and (Trans) ')
+                    file1.write(str2)
+                    file1.write('\n')
+                elif str(BlockBeam[Config]['Scatt']['File']).find('NA') == -1 and str(BlockBeam[Config]['Trans']['File']).find('NA') != -1:
+                    file1.write(str1)
+                    file1.write('\n')
+                elif str(BlockBeam[Config]['Scatt']['File']).find('NA') != -1 and str(BlockBeam[Config]['Trans']['File']).find('NA') == -1:
+                    file1.write(str2)
+                    file1.write('\n')
+            else:
+                str4 = '      ' + 'Block Beam Scatt, Trans files are not available \n'
+                file1.write(str4)
+            TransUnpol = str(Trans[Sample]['Config(s)'][Config]['Unpol_Files'][0])
+            if TransUnpol.find('N') != -1:
+                TransUnpol = 'NA'
+            TransPol = str(Trans[Sample]['Config(s)'][Config]['U_Files'][0])
+            if TransPol.find('N') != -1:
+                TransPol = 'NA'
+            file1.write('  Unpol, pol scaling trans: ' + TransUnpol + ' , ' + TransPol + '\n')
+            file1.write('  Unpolarized Scatt ' + str(Scatt[Sample]['Config(s)'][Config]['Unpol']) + '\n')
+            file1.write('  Up Scatt ' + str(Scatt[Sample]['Config(s)'][Config]['U']) + '\n')
+            file1.write('  Down Scatt ' + str(Scatt[Sample]['Config(s)'][Config]['D']) + '\n')
+            file1.write('  Up-Up Scatt ' + str(Scatt[Sample]['Config(s)'][Config]['UU']) + '\n')
+            file1.write('  Up-Down Scatt ' + str(Scatt[Sample]['Config(s)'][Config]['UD']) + '\n')
+            file1.write('  Down-Down Scatt ' + str(Scatt[Sample]['Config(s)'][Config]['DD']) + '\n')
+            file1.write('  Down-Up Scatt '+ str(Scatt[Sample]['Config(s)'][Config]['DU']) + '\n')
+        if Sample in Pol_Trans:
+            file1.write(' Full Polarization Results: \n')
+            pol_num = int(Pol_Trans[Sample]['P_SM']*10000)/10000
+            file1.write(' P_SM  x Depol: ' + str(pol_num) + '\n')
+            file1.write(' UU Trans ' + str(Pol_Trans[Sample]['T_UU']['File']) + '\n')
+            file1.write(' DU Trans ' + str(Pol_Trans[Sample]['T_DU']['File']) + '\n')
+            file1.write(' DD Trans ' + str(Pol_Trans[Sample]['T_DD']['File']) + '\n')
+            file1.write(' UD Trans ' + str(Pol_Trans[Sample]['T_UD']['File']) + '\n')
+            file1.write(' SM Trans ' + str(Pol_Trans[Sample]['T_SM']['File']) + '\n')
+        file1.write(' \n')
+
+    for entry in HE3_Cell_Summary:
+        file1.write('3He Cell: ' + str(HE3_Cell_Summary[entry]['Name']) + '\n')
+        file1.write('Lifetime (hours): ' + str(HE3_Cell_Summary[entry]['Gamma(hours)']) + '\n')
+        file1.write('Atomic P_0: ' + str(HE3_Cell_Summary[entry]['Atomic_P0']) + '\n')
+        file1.write('Neutron P_0: ' + str(HE3_Cell_Summary[entry]['Neutron_P0']) + '\n')
+        file1.write('\n')
+    file1.close()
+
+    return
 #*************************************************
 #***        Start of 'The Program'             ***
 #*************************************************
@@ -2444,53 +2524,20 @@ ShareSampleBaseTransmissions(Trans)
 
 Process_ScattFiles()
 
-UserDefinedMasks = ReadIn_Masks(filenumberlisting)
+UserDefinedMasks, Mask_Record = ReadIn_Masks(filenumberlisting)
 
 Process_Transmissions(BlockBeam, UserDefinedMasks, HE3_Trans, Pol_Trans, Trans)
 
-Plex = Plex_File(start_number)
+Plex_Name, Plex = Plex_File(start_number)
 
 HE3_Cell_Summary = HE3_DecayCurves(HE3_Trans)
 
 Pol_SuppermirrorAndFlipper(Pol_Trans, HE3_Cell_Summary)
 
-for Sample in Scatt:
-    print(' ')
-    print(Sample, '(', Scatt[Sample]['Intent'],')')
-    for Config in Scatt[Sample]['Config(s)']:
-        print(' ', 'Config:', Config)
-        if Config in BlockBeam:
-            if str(BlockBeam[Config]['Scatt']['File']).find('NA') == -1 and str(BlockBeam[Config]['Trans']['File']).find('NA') == -1:
-                print('      ','Block Beam Scatt, Trans files are', BlockBeam[Config]['Scatt']['File'], ',', BlockBeam[Config]['Trans']['File'])
-            elif str(BlockBeam[Config]['Scatt']['File']).find('NA') == -1 and str(BlockBeam[Config]['Trans']['File']).find('NA') != -1:
-                print('      ','Block Beam Scatt, Trans files are', BlockBeam[Config]['Scatt']['File'], ',', BlockBeam[Config]['Scatt']['File'])
-            elif str(BlockBeam[Config]['Scatt']['File']).find('NA') != -1 and str(BlockBeam[Config]['Trans']['File']).find('NA') == -1:
-                print('      ','Block Beam Scatt, Trans files are', BlockBeam[Config]['Trans']['File'], ',', BlockBeam[Config]['Trans']['File'])
-        else:
-            print('      ','Block Beam Scatt, Trans files are not available')
-        TransUnpol = Trans[Sample]['Config(s)'][Config]['Unpol_Files'][0]
-        if str(TransUnpol).find('N') != -1:
-            TransUnpol = 'NA'
-        TransPol = Trans[Sample]['Config(s)'][Config]['U_Files'][0]
-        if str(TransPol).find('N') != -1:
-            TransPol = 'NA'
-        print('      ', 'Unpolarized and polarized scaling transmissions:', TransUnpol, ',', TransPol)
-        print('      ', 'Unpolarized Scatt', Scatt[Sample]['Config(s)'][Config]['Unpol'])
-        print('      ', 'Up Scatt', Scatt[Sample]['Config(s)'][Config]['U'])
-        print('      ', 'Down Scatt', Scatt[Sample]['Config(s)'][Config]['D'])
-        print('      ', 'Up-Up Scatt', Scatt[Sample]['Config(s)'][Config]['UU'])
-        print('      ', 'Up-Down Scatt', Scatt[Sample]['Config(s)'][Config]['UD'])
-        print('      ', 'Down-Down Scatt', Scatt[Sample]['Config(s)'][Config]['DD'])
-        print('      ', 'Down-Up Scatt', Scatt[Sample]['Config(s)'][Config]['DU'])
-    if Sample in Pol_Trans:
-        print(' ', 'Full Polarization Results:')
-        print(' ', 'P_SM*Sample Depolarization:', Pol_Trans[Sample]['P_SM'])
-        print(' ', 'UU T_Files, Trans:', Pol_Trans[Sample]['T_UU']['File'], ',', Pol_Trans[Sample]['T_UU']['Trans'])
-        print(' ', 'DU T_Files, Trans:', Pol_Trans[Sample]['T_DU']['File'], ',', Pol_Trans[Sample]['T_DU']['Trans'])
-        print(' ', 'DD T_Files, Trans:', Pol_Trans[Sample]['T_DD']['File'], ',', Pol_Trans[Sample]['T_DD']['Trans'])
-        print(' ', 'UD T_Files, Trans:', Pol_Trans[Sample]['T_UD']['File'], ',', Pol_Trans[Sample]['T_UD']['Trans'])
-        print(' ', 'SM T_Files:', Pol_Trans[Sample]['T_SM']['File'])
+Plex_Name, Mask_Record, Scatt, BlockBeam, Trans, Pol_Trans, HE3_Cell_Summary
 
+Record_DataProcessing(Plex_Name, Mask_Record, Scatt, BlockBeam, Trans, Pol_Trans, HE3_Cell_Summary)
+      
 GeneralMaskWOSolenoid = {}
 GeneralMaskWSolenoid = {}
 QValues_All = {}
