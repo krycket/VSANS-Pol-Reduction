@@ -12,9 +12,8 @@ import os
 
 '''
 This program is set to reduce VSANS data using middle and front detectors - fullpol, halfpol, unpol available.
-To do: Automatic cross-section information retieval for H || X.
 
-Note about Masks (which are very important):
+Note about User-Defined Masks (which are added in additiona to the detector shadowing already accounted for):
 Must be in form #####_VSANS_TRANS_MASK.h5, #####_VSANS_SOLENOID_MASK.h5, or #####_VSANS_NOSOLENOID_MASK.h5, where ##### is the assocated filenumber and
 the data with that filenumber must be in the data folder (used to match configurations). These masks can be made using IGOR.
 '''
@@ -31,8 +30,8 @@ YesNo_2DFilesPerDetector = 0 #Default is 0 (no), 1 = yes; Note all detectors wil
 Slices = ["Vert", "Horz"] #Default: ["Circ", "Vert", "Horz"]
 AutoSubtractEmpty = 1 #Default is 1 for yes; 0 for no.
 
-Excluded_Filenumbers = []    
-#Excluded_Filenumbers = [51298, 51302, 51310, 51311, 51312, 51313, 51314, 51315, 51316, 51317, 51464, 55181, 56704] #Default is []; Be sure to exclude any ConvergingBeam / HighResolutionDetector scans which are not run for the ful default amount of time.
+#Excluded_Filenumbers = []    
+Excluded_Filenumbers = [51298, 51302, 51310, 51311, 51312, 51313, 51314, 51315, 51316, 51317, 51464, 55181, 56704] #Default is []; Be sure to exclude any ConvergingBeam / HighResolutionDetector scans which are not run for the ful default amount of time.
 ReAssignBlockBeam = [28486] #Default is []
 ReAssignEmpty = [] #Default is []
 
@@ -1376,6 +1375,8 @@ def SectorMask_AllDetectors(InPlaneAngleMap, PrimaryAngle, AngleWidth, BothSides
 
         if BothSides > 0:
             SecondaryAngle = PrimaryAngle + 180
+        else:
+            SecondaryAngle = PrimaryAngle
             if SecondaryAngle > 360:
                 SecondaryAngle = SecondaryAngle - 360
         SM[np.absolute(Angles - SecondaryAngle) <= AngleWidth] = 1.0
@@ -2376,18 +2377,52 @@ def PlotAndSaveFullPolSlices(PolCorrDegree, Sample, Config, InPlaneAngleMap, Q_m
                 Horz_Data['UD_Unc'] = np.delete(Horz_Data['UD_Unc'], result)
                 Horz_Data['Q_Mean'] = np.delete(Horz_Data['Q_Mean'], result)
                 Horz_Data['Q_Unc'] = np.delete(Horz_Data['Q_Unc'], result)
-                #Horz2 = np.delete(Horz_Data['Q'], result)
-                #Horz_Data['Q'] = Horz2
         for entry in Vert_Data['Q']:
             if entry not in Horz_Data['Q']:
                 result = np.where(Vert_Data['Q'] == entry)
                 Vert_Data['Q'] = np.delete(Vert_Data['Q'], result)
+                Vert_Data['UU'] = np.delete(Vert_Data['UU'], result)
+                Vert_Data['UU_Unc'] = np.delete(Vert_Data['UU_Unc'], result)
+                Vert_Data['DU'] = np.delete(Vert_Data['DU'], result)
+                Vert_Data['DU_Unc'] = np.delete(Vert_Data['DU_Unc'], result)
+                Vert_Data['DD'] = np.delete(Vert_Data['DD'], result)
+                Vert_Data['DD_Unc'] = np.delete(Vert_Data['DD_Unc'], result)
+                Vert_Data['UD'] = np.delete(Vert_Data['UD'], result)
+                Vert_Data['UD_Unc'] = np.delete(Vert_Data['UD_Unc'], result)
+                
         print('Length of Horz Data is', len(Horz_Data['Q']))
         print('Length of Vert Data is', len(Vert_Data['Q']))
 
-        
-                
+        M_Perp = Horz_Data['DU'] + Horz_Data['UD'] + Vert_Data['DU'] + Vert_Data['UD']
+        M_Perp_Unc = np.sqrt(np.power(Horz_Data['DU_Unc'],2) + np.power(Horz_Data['UD_Unc'],2) + np.power(Vert_Data['DU_Unc'],2) + np.power(Vert_Data['UD_Unc'],2))
 
+        Diff = Vert_Data['DD'] - Vert_Data['UU']
+        Diff_Unc = np.sqrt(np.power(Vert_Data['DD_Unc'],2) + np.power(Vert_Data['UU_Unc'],2))
+        Num = np.power((Diff),2)
+        Num_Unc = np.sqrt(2.0)*Diff*Diff_Unc
+        
+        Denom = (4.0*(Horz_Data['DD'] + Horz_Data['UU']))
+        Denom_Unc = np.sqrt(np.power(Horz_Data['DD_Unc'],2) + np.power(Horz_Data['UU_Unc'],2))
+        M_Parl = Num / Denom
+        M_Parl_Unc = M_Parl * np.sqrt( np.power(Num_Unc,2)/np.power(Num,2) + np.power(Denom_Unc,2)/np.power(Denom,2))
+        
+        Struc = (Horz_Data['DD'] + Horz_Data['UU'])
+        Struc_Unc = np.sqrt(np.power(Horz_Data['DD_Unc'],2) + np.power(Horz_Data['UU_Unc'],2))
+
+        fig = plt.figure()
+        ax = plt.axes()
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.errorbar(Horz_Data['Q'], M_Perp, yerr=M_Perp_Unc, fmt = 'b*', label='M_Perp')
+        ax.errorbar(Horz_Data['Q'], M_Parl, yerr=M_Parl_Unc, fmt = 'g*', label='M_Parl')
+        ax.errorbar(Horz_Data['Q'], Struc, yerr=Struc_Unc, fmt = 'r*', label='Strucutural')
+        plt.xlabel('Q')
+        plt.ylabel('Intensity')
+        plt.title('AMagnetism')
+        plt.legend()
+        fig.savefig('PlotFullPolManetism{sub}Deg_{idnum},{cf}.png'.format(sub = Sub, idnum=Sample, cf = Config))
+        plt.pause(2)
+        plt.close()
 
     return UnpolEquiv, UnpolEquiv_Unc
 
@@ -2575,10 +2610,66 @@ def Record_DataProcessing(Plex_Name, Mask_Record, Scatt, BlockBeam, Trans, Pol_T
     file1.close()
 
     return
+
+def Annular_Average(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_total, GeneralMask, ScaledData, ScaledData_Unc):
+
+    relevant_detectors = short_detectors
+    AverageQRanges = 1
+    if str(Config).find('CvB') != -1:
+        relevant_detectors = all_detectors
+        AverageQRanges = 0
+
+    Q_Mask = {}
+    for dshort in relevant_detectors:
+        QBorder = np.ones_like(Q_total[dshort])
+        QBorder[Q_total[dshort] < Q_min] = 0.0
+        QBorder[Q_total[dshort] > Q_max] = 0.0
+        Q_Mask[dshort] = QBorder
+
+    
+    Counts = -101
+    Deg = -101
+    BothSides = 0
+    PlotYesNo = 0
+    for x in range(0, 72):
+        degree = x*5
+        Sector_Mask = SectorMask_AllDetectors(InPlaneAngleMap, degree, 2.5, BothSides)
+
+        summed_pixels = 0
+        summed_intensity = 0
+        for dshort in relevant_detectors:
+            pixel_counts = Sector_Mask[dshort]*Q_Mask[dshort]*GeneralMask[dshort]
+            intensity_counts = pixel_counts*ScaledData[dshort]
+            summed_pixels = summed_pixels + np.sum(pixel_counts)
+            summed_intensity = summed_intensity + np.sum(intensity_counts)
+        ratio = summed_intensity/summed_pixels
+        if Counts == -101 and summed_pixels > 0:
+            Counts = [ratio]
+            Deg = [degree]
+        elif summed_pixels > 0:
+            Counts.append(ratio)
+            Deg.append(degree)
+
+    xdata = np.array(Deg)
+    ydata = np.array(Counts)
+    fig = plt.figure()
+    plt.plot(xdata, ydata, 'b*-', label='Annular_Average')
+    plt.xscale('linear')
+    plt.yscale('linear')
+    plt.xlabel('Angle (degrees)')
+    plt.ylabel('Summed Counts')
+    plt.title('Annular Average_{qmin}to{qmax}invang'.format(qmin = Q_min, qmax = Q_max))
+    plt.legend()
+    fig.savefig('AnnularAverage_{idnum},{cf}.png'.format(idnum=Sample, cf = Config))
+    plt.pause(2)
+    plt.close()
+    
+    
+    return
 #*************************************************
 #***        Start of 'The Program'             ***
 #*************************************************
-
+       
 Sample_Names, Configs, BlockBeam, Scatt, Trans, Pol_Trans, HE3_Trans, start_number, filenumberlisting = SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues)
 
 ShareSampleBaseTransmissions(Trans)
@@ -2730,8 +2821,11 @@ for Config in Configs:
                     DUScaledData, DUScaledData_Unc = AbsScale('DU', Sample, Config, BB_per_second, Solid_Angle, Plex)
                     DDScaledData, DDScaledData_Unc = AbsScale('DD', Sample, Config, BB_per_second, Solid_Angle, Plex)
                     UDScaledData, UDScaledData_Unc = AbsScale('UD', Sample, Config, BB_per_second, Solid_Angle, Plex)
+                    QQ_min = 0.05
+                    QQ_max = 0.11
                     FullPolGo = 0
                     if 'NA' not in UUScaledData and 'NA' not in DUScaledData and 'NA' not in DDScaledData and 'NA' not in UDScaledData:
+                        Annular_Average(Sample, Config, InPlaneAngleMap, QQ_min, QQ_max, Q_total, GeneralMaskWSolenoid, DUScaledData, DUScaledData_Unc)
                         if AutoSubtractEmpty > 0 and HaveFullPolEmptySubtract > 0:
                             EmptySubtract = 1
                         else:
