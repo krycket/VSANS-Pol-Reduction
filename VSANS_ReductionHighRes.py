@@ -22,15 +22,14 @@ path = ''
 TransPanel = 'MR' #Default is 'MR'
 SectorCutAngles = 10.0 #Default is typically 10.0 to 20.0 (degrees)
 UsePolCorr = 1 #Default is 1 to pol-ccorrect full-pol data, 0 means no and will only correct for 3He transmission as a function of time.
-PlotYesNo = 0 #Default is 1 where 1 means yes, 0 means no
+#PlotYesNo = 0 #Default is 1 where 1 means yes, 0 means no
 Absolute_Q_min = 0.005 #Default 0; Will take the maximum of Q_min_Calc from all detectors and this value
 Absolute_Q_max = 0.145 #Default 0.6; Will take the minimum of Q_max_Calc from all detectors and this value
-YesNo_2DCombinedFiles = 0 #Default is 0 (no), 1 = yes which can be read using SasView
+YesNo_2DCombinedFiles = 1 #Default is 0 (no), 1 = yes which can be read using SasView
 YesNo_2DFilesPerDetector = 0 #Default is 0 (no), 1 = yes; Note all detectors will be summed after beamline masking applied and can be read by SasView 4.2.2 (and higher?)
-Slices = ["Vert", "Horz"] #Default: ["Circ", "Vert", "Horz"]
+Slices = ["Vert", "Horz", "Circ"] #Default: ["Vert", "Horz", "Circ"]
 AutoSubtractEmpty = 1 #Default is 1 for yes; 0 for no.
-
-#Excluded_Filenumbers = []    
+ 
 Excluded_Filenumbers = [51298, 51302, 51310, 51311, 51312, 51313, 51314, 51315, 51316, 51317, 51464, 55181, 56704] #Default is []; Be sure to exclude any ConvergingBeam / HighResolutionDetector scans which are not run for the ful default amount of time.
 ReAssignBlockBeam = [28486] #Default is []
 ReAssignEmpty = [] #Default is []
@@ -1007,7 +1006,7 @@ def Plex_File(start_number):
                 if ConvertHighResToSubset > 0:
                     if dshort == 'B':
                         data_subset = data_filler[HighResMinX:HighResMaxX+1,HighResMinY:HighResMaxY+1]
-                        print('B reduced is', np.shape(data_subset))
+                        #print('B reduced is', np.shape(data_subset))
                         PlexData[dshort] = data_subset
                     else:
                         PlexData[dshort] = data_filler #.flatten()
@@ -1308,26 +1307,14 @@ def QCalculation_AllDetectors(representative_filenumber, Config):
     for dshort in relevant_detectors:
         Shadow = 1.2*np.ones_like(Qx[dshort])
         if dshort == 'FT' or dshort == 'FB':
-            #Shadow[Qx[dshort] <= np.amax(Qx['FL'])] = 0.0
-            #Shadow[Qx[dshort] >= np.amin(Qx['FR'])] = 0.0
             Shadow[twotheta_x[dshort] <= twotheta_xmax['FL']] = 0.0
             Shadow[twotheta_x[dshort] >= twotheta_xmin['FR']] = 0.0
         if dshort == "ML" or dshort == "MR":
-            #Shadow[Qx[dshort] <= np.amax(Qx['FL'])] = 0.0
-            #Shadow[Qx[dshort] >= np.amin(Qx['FR'])] = 0.0
-            #Shadow[Qy[dshort] >= np.amin(Qy['FT'])] = 0.0
-            #Shadow[Qy[dshort] <= np.amax(Qy['FB'])] = 0.0
             Shadow[twotheta_x[dshort] <= twotheta_xmax['FL']] = 0.0
             Shadow[twotheta_x[dshort] >= twotheta_xmin['FR']] = 0.0
             Shadow[twotheta_y[dshort] >= twotheta_ymin['FT']] = 0.0
             Shadow[twotheta_y[dshort] <= twotheta_ymax['FB']] = 0.0
         if dshort == "MT" or dshort == "MB":
-            #Shadow[Qx[dshort] <= np.amax(Qx['FL'])] = 0.0
-            #Shadow[Qx[dshort] >= np.amin(Qx['FR'])] = 0.0
-            #Shadow[Qy[dshort] >= np.amin(Qy['FT'])] = 0.0
-            #Shadow[Qy[dshort] <= np.amax(Qy['FB'])] = 0.0
-            #Shadow[Qx[dshort] <= np.amax(Qx['ML'])] = 0.0
-            #Shadow[Qx[dshort] >= np.amin(Qx['MR'])] = 0.0
             Shadow[twotheta_x[dshort] <= twotheta_xmax['FL']] = 0.0
             Shadow[twotheta_x[dshort] >= twotheta_xmin['FR']] = 0.0
             Shadow[twotheta_y[dshort] >= twotheta_ymin['FT']] = 0.0
@@ -1335,14 +1322,6 @@ def QCalculation_AllDetectors(representative_filenumber, Config):
             Shadow[twotheta_x[dshort] <= twotheta_xmax['ML']] = 0.0
             Shadow[twotheta_x[dshort] >= twotheta_xmin['MR']] = 0.0
         if dshort == "B":
-            #Shadow[Qx[dshort] <= np.amax(Qx['FL'])] = 0.0
-            #Shadow[Qx[dshort] >= np.amin(Qx['FR'])] = 0.0
-            #Shadow[Qy[dshort] >= np.amin(Qy['FT'])] = 0.0
-            #Shadow[Qy[dshort] <= np.amax(Qy['FB'])] = 0.0
-            #Shadow[Qx[dshort] <= np.amax(Qx['ML'])] = 0.0
-            #Shadow[Qx[dshort] >= np.amin(Qx['MR'])] = 0.0
-            #Shadow[Qy[dshort] >= np.amin(Qy['MT'])] = 0.0
-            #Shadow[Qy[dshort] <= np.amax(Qy['MB'])] = 0.0
             Shadow[twotheta_x[dshort] <= twotheta_xmax['FL']] = 0.0
             Shadow[twotheta_x[dshort] >= twotheta_xmin['FR']] = 0.0
             Shadow[twotheta_y[dshort] >= twotheta_ymin['FT']] = 0.0
@@ -1353,8 +1332,6 @@ def QCalculation_AllDetectors(representative_filenumber, Config):
             Shadow[twotheta_y[dshort] <= twotheta_ymax['MB']] = 0.0
 
         Shadow_Mask[dshort] = Shadow
-        
-        #plt.imshow[LM.T, origin='lower']
 
     return Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, InPlaneAngleMap, dimXX, dimYY, Shadow_Mask
 
@@ -1444,20 +1421,31 @@ def HE3_DecayCurves(HE3_Trans):
         else:
             popt, pcov = curve_fit(He3Decay_func, xdata, ydata)
             P0, gamma = popt
+            P0_Unc, gamma_Unc = np.sqrt(np.diag(pcov))
+            
             PCell0 = np.tanh(Mu * P0)
+            PCell0_Max = np.tanh(Mu * (P0+P0_Unc))
+            PCell0_Min = np.tanh(Mu * (P0-P0_Unc))
+            PCell0_Unc = PCell0_Max - PCell0_Min
 
         Name = HE3_Trans[entry]['Cell_name'][0]
-        HE3_Cell_Summary[HE3_Trans[entry]['Insert_time']] = {'Atomic_P0' : P0, 'Gamma(hours)' : gamma, 'Mu' : Mu, 'Te' : Te, 'Name' : Name, 'Neutron_P0' : PCell0}
-        print('He3Cell Summary for Cell Identity', HE3_Trans[entry]['Cell_name'][0], ':')
-        print('PolCell0', PCell0, 'AtomicPol0: ', P0, ' Gamma: ', gamma)
+        HE3_Cell_Summary[HE3_Trans[entry]['Insert_time']] = {'Atomic_P0' : P0, 'Atomic_P0_Unc' : P0_Unc, 'Gamma(hours)' : gamma, 'Gamma_Unc' : gamma_Unc, 'Mu' : Mu, 'Te' : Te, 'Name' : Name, 'Neutron_P0' : PCell0, 'Neutron_P0_Unc' : PCell0_Unc}
+        print('He3Cell Summary for Cell Identity', HE3_Trans[entry]['Cell_name'][0])
+        print('PolCell0: ', PCell0, '+/-', PCell0_Unc)
+        print('AtomicPol0: ', P0, '+/-', P0_Unc)
+        print('Gamma (hours): ', gamma, '+/-', gamma_Unc)
         print('     ')
 
         if xdata.size >= 2:
             print('Graphing He3 decay curve....(close generated plot to continue)')
             fit = He3Decay_func(xdata, popt[0], popt[1])
+            fit_max = He3Decay_func(xdata, popt[0] + P0_Unc, popt[1] + gamma_Unc)
+            fit_min = He3Decay_func(xdata, popt[0] - P0_Unc, popt[1] - gamma_Unc)
             fig = plt.figure()
             plt.plot(xdata, ydata, 'b*', label='data')
-            plt.plot(xdata, fit, 'r-', label='fit of data')
+            plt.plot(xdata, fit_max, 'r-', label='fit of data (upper bounds)')
+            plt.plot(xdata, fit, 'y-', label='fit of data (best)')
+            plt.plot(xdata, fit_min, 'c-', label='fit of data (lower bounds)')
             plt.xlabel('time (hours)')
             plt.ylabel('3He atomic polarization')
             plt.title('He3 Cell Decay')
@@ -1493,7 +1481,7 @@ def HE3_DecayCurves(HE3_Trans):
             plt.ylabel('Spin Transmission')
             plt.title('Predicted He3 Cell Transmission')
             plt.legend()
-            fig.savefig('PredictedHe3DecayCurve_{cell}.png'.format(cell = entry))
+            fig.savefig('He3PredictedDecayCurve_{cell}.png'.format(cell = entry))
             #plt.show()
             plt.pause(2)
             plt.close()
@@ -2172,7 +2160,7 @@ def ASCIIlike_Output(Type, ID, Config, Data_AllDetectors, Unc_Data_AllDetectors,
         print('Outputting {TP} 2D data, {idnum}, {CF} '.format(TP=Type, idnum=ID, CF=Config))        
         ASCII_Combined = np.array([QXData_Combined, QYData_Combined, Int_Combined, DeltaInt_Combined, QZData_Combined, QParlUnc_Combined, QPerpUnc_Combined, Shadow_Combined])
         ASCII_Combined = ASCII_Combined.T
-        np.savetxt('{TP}Scatt_{Samp}_{CF}.DAT'.format(TP=Type, Samp=ID, CF=Config), ASCII_Combined, delimiter = ' ', comments = ' ', header = 'ASCII data created Mon, Jan 13, 2020 2:39:54 PM')
+        np.savetxt('Dim2Scatt_{Samp}_{CF}_{TP}.DAT'.format(Samp=ID, CF=Config, TP=Type,), ASCII_Combined, delimiter = ' ', comments = ' ', header = 'ASCII data created Mon, Jan 13, 2020 2:39:54 PM')
 
     return
 
@@ -2186,7 +2174,7 @@ def SaveTextData(Type, Slice, Sample, Config, DataMatrix):
     Shadow = np.ones_like(Q)
     text_output = np.array([Q, Int, IntUnc, Q_mean, Q_Unc, Shadow])
     text_output = text_output.T
-    np.savetxt('{key}{cut}_{samp},{cf}.txt'.format(key = Type, cut = Slice, samp=Sample, cf = Config), text_output, delimiter = ' ', comments = ' ', header= 'Q, I, DelI, Q_mean, Q_Unc, Shadow', fmt='%1.4e')
+    np.savetxt('SixCol_{samp},{cf}_{key}{cut}.txt'.format(samp=Sample, cf = Config, key = Type, cut = Slice), text_output, delimiter = ' ', comments = ' ', header= 'Q, I, DelI, Q_mean, Q_Unc, Shadow', fmt='%1.4e')
   
     return
 
@@ -2290,7 +2278,7 @@ def PlotAndSaveFullPolSlices(PolCorrDegree, Sample, Config, InPlaneAngleMap, Q_m
         plt.ylabel('Intensity')
         plt.title('{slice_type}{sub}_{idnum},{cf}'.format(slice_type = slice_key[0], sub = Sub, idnum=Sample, cf = Config))
         plt.legend()
-        fig.savefig('{corr}{sub}{slice_type}_{idnum},{cf}.png'.format(corr = Corr, sub = Sub, slice_type = slice_key[0], idnum=Sample, cf = Config))
+        fig.savefig('Plot_{idnum},{cf}_{corr}{sub}{slice_type}.png'.format(idnum=Sample, cf = Config, corr = Corr, sub = Sub, slice_type = slice_key[0]))
         plt.pause(2)
         plt.close()
 
@@ -2361,8 +2349,8 @@ def PlotAndSaveFullPolSlices(PolCorrDegree, Sample, Config, InPlaneAngleMap, Q_m
         plt.close()
         '''
     if HaveHorzData == 1 and HaveVertData == 1:
-        print('Length of Horz Data is', len(Horz_Data['Q']))
-        print('Length of Vert Data is', len(Vert_Data['Q']))
+        #print('Length of Horz Data is', len(Horz_Data['Q']))
+        #print('Length of Vert Data is', len(Vert_Data['Q']))
         for entry in Horz_Data['Q']:
             if entry not in Vert_Data['Q']:
                 result = np.where(Horz_Data['Q'] == entry)
@@ -2390,8 +2378,8 @@ def PlotAndSaveFullPolSlices(PolCorrDegree, Sample, Config, InPlaneAngleMap, Q_m
                 Vert_Data['UD'] = np.delete(Vert_Data['UD'], result)
                 Vert_Data['UD_Unc'] = np.delete(Vert_Data['UD_Unc'], result)
                 
-        print('Length of Horz Data is', len(Horz_Data['Q']))
-        print('Length of Vert Data is', len(Vert_Data['Q']))
+        #print('Length of Horz Data is', len(Horz_Data['Q']))
+        #print('Length of Vert Data is', len(Vert_Data['Q']))
 
         M_Perp = Horz_Data['DU'] + Horz_Data['UD'] + Vert_Data['DU'] + Vert_Data['UD']
         M_Perp_Unc = np.sqrt(np.power(Horz_Data['DU_Unc'],2) + np.power(Horz_Data['UD_Unc'],2) + np.power(Vert_Data['DU_Unc'],2) + np.power(Vert_Data['UD_Unc'],2))
@@ -2420,7 +2408,7 @@ def PlotAndSaveFullPolSlices(PolCorrDegree, Sample, Config, InPlaneAngleMap, Q_m
         plt.ylabel('Intensity')
         plt.title('AMagnetism')
         plt.legend()
-        fig.savefig('PlotFullPolManetism{sub}Deg_{idnum},{cf}.png'.format(sub = Sub, idnum=Sample, cf = Config))
+        fig.savefig('Plot{idnum},{cf}_FullPolManetism{sub}Deg.png'.format(idnum=Sample, cf = Config, sub = Sub))
         plt.pause(2)
         plt.close()
 
@@ -2480,12 +2468,12 @@ def PlotAndSaveHalfPolSlices(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bi
         ax.errorbar(D['Q'], D['I'], yerr=D['I_Unc'], fmt = 'g*', label='D')
         ax.errorbar(Diff['Q'], Diff['I'], yerr=Diff['I_Unc'], fmt = 'r*', label='D-U')
         ax.errorbar(OtherDiff['Q'], OtherDiff['I'], yerr=Diff['I_Unc'], fmt = 'm*', label='U-D')
-        ax.errorbar(Sum['Q'], Sum['I'], yerr=Sum['I_Unc'], fmt = 'c*', label='U+D')
+        #ax.errorbar(Sum['Q'], Sum['I'], yerr=Sum['I_Unc'], fmt = 'c*', label='U+D')
         plt.xlabel('Q')
         plt.ylabel('Intensity')
         plt.title('{slice_type} for {idnum}_{cf}'.format(slice_type = slice_key[0], idnum=Sample, cf = Config))
         plt.legend()
-        fig.savefig('HalfPol_{slice_type}_{idnum}_{cf}.png'.format(slice_type = slice_key[0], idnum=Sample, cf = Config))
+        fig.savefig('Plot{idnum},{cf}_HalfPol{slice_type}.png'.format(idnum=Sample, cf = Config, slice_type = slice_key[0]))
         #plt.show()
         plt.pause(2)
         plt.close()
@@ -2530,7 +2518,7 @@ def PlotAndSaveUnpolSlices(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bins
         plt.ylabel('Intensity')
         plt.title('{slice_type} for {idnum}_{cf}'.format(slice_type = slice_key[0], idnum=Sample, cf = Config))
         plt.legend()
-        fig.savefig('Unpol{slice_type}_{idnum},{cf}.png'.format(slice_type = slice_key[0], idnum=Sample, cf = Config))
+        fig.savefig('Plot{idnum},{cf}_Unpol{slice_type}.png'.format(idnum=Sample, cf = Config, slice_type = slice_key[0]))
         #plt.show()
         plt.pause(2)
         plt.close()
@@ -2591,21 +2579,22 @@ def Record_DataProcessing(Plex_Name, Mask_Record, Scatt, BlockBeam, Trans, Pol_T
             file1.write('  Down-Down Scatt ' + str(Scatt[Sample]['Config(s)'][Config]['DD']) + '\n')
             file1.write('  Down-Up Scatt '+ str(Scatt[Sample]['Config(s)'][Config]['DU']) + '\n')
         if Sample in Pol_Trans:
-            file1.write(' Full Polarization Results: \n')
-            pol_num = int(Pol_Trans[Sample]['P_SM']*10000)/10000
-            file1.write(' P_SM  x Depol: ' + str(pol_num) + '\n')
-            file1.write(' UU Trans ' + str(Pol_Trans[Sample]['T_UU']['File']) + '\n')
-            file1.write(' DU Trans ' + str(Pol_Trans[Sample]['T_DU']['File']) + '\n')
-            file1.write(' DD Trans ' + str(Pol_Trans[Sample]['T_DD']['File']) + '\n')
-            file1.write(' UD Trans ' + str(Pol_Trans[Sample]['T_UD']['File']) + '\n')
-            file1.write(' SM Trans ' + str(Pol_Trans[Sample]['T_SM']['File']) + '\n')
+            if 'P_SM' in Pol_Trans[Sample] and str(Pol_Trans[Sample]['P_SM']).find('NA') == -1:
+                file1.write(' Full Polarization Results: \n')
+                pol_num = int(Pol_Trans[Sample]['P_SM']*10000)/10000
+                file1.write(' P_SM  x Depol: ' + str(pol_num) + '\n')
+                file1.write(' UU Trans ' + str(Pol_Trans[Sample]['T_UU']['File']) + '\n')
+                file1.write(' DU Trans ' + str(Pol_Trans[Sample]['T_DU']['File']) + '\n')
+                file1.write(' DD Trans ' + str(Pol_Trans[Sample]['T_DD']['File']) + '\n')
+                file1.write(' UD Trans ' + str(Pol_Trans[Sample]['T_UD']['File']) + '\n')
+                file1.write(' SM Trans ' + str(Pol_Trans[Sample]['T_SM']['File']) + '\n')
         file1.write(' \n')
 
     for entry in HE3_Cell_Summary:
         file1.write('3He Cell: ' + str(HE3_Cell_Summary[entry]['Name']) + '\n')
-        file1.write('Lifetime (hours): ' + str(HE3_Cell_Summary[entry]['Gamma(hours)']) + '\n')
-        file1.write('Atomic P_0: ' + str(HE3_Cell_Summary[entry]['Atomic_P0']) + '\n')
-        file1.write('Neutron P_0: ' + str(HE3_Cell_Summary[entry]['Neutron_P0']) + '\n')
+        file1.write('Lifetime (hours): ' + str(HE3_Cell_Summary[entry]['Gamma(hours)']) + ' +/- ' + str(HE3_Cell_Summary[entry]['Gamma_Unc']) + '\n')
+        file1.write('Atomic P_0: ' + str(HE3_Cell_Summary[entry]['Atomic_P0']) + ' +/- ' + str(HE3_Cell_Summary[entry]['Atomic_P0_Unc']) + '\n')
+        file1.write('Neutron P_0: ' + str(HE3_Cell_Summary[entry]['Neutron_P0']) + ' +/- ' + str(HE3_Cell_Summary[entry]['Neutron_P0_Unc']) + '\n')
         file1.write('\n')
     file1.close()
 
@@ -2686,10 +2675,8 @@ HE3_Cell_Summary = HE3_DecayCurves(HE3_Trans)
 
 Pol_SuppermirrorAndFlipper(Pol_Trans, HE3_Cell_Summary)
 
-Plex_Name, Mask_Record, Scatt, BlockBeam, Trans, Pol_Trans, HE3_Cell_Summary
-
 Record_DataProcessing(Plex_Name, Mask_Record, Scatt, BlockBeam, Trans, Pol_Trans, HE3_Cell_Summary)
-      
+ 
 GeneralMaskWOSolenoid = {}
 GeneralMaskWSolenoid = {}
 QValues_All = {}
@@ -2825,7 +2812,7 @@ for Config in Configs:
                     QQ_max = 0.11
                     FullPolGo = 0
                     if 'NA' not in UUScaledData and 'NA' not in DUScaledData and 'NA' not in DDScaledData and 'NA' not in UDScaledData:
-                        Annular_Average(Sample, Config, InPlaneAngleMap, QQ_min, QQ_max, Q_total, GeneralMaskWSolenoid, DUScaledData, DUScaledData_Unc)
+                        #Annular_Average(Sample, Config, InPlaneAngleMap, QQ_min, QQ_max, Q_total, GeneralMaskWSolenoid, DUScaledData, DUScaledData_Unc)
                         if AutoSubtractEmpty > 0 and HaveFullPolEmptySubtract > 0:
                             EmptySubtract = 1
                         else:
@@ -2883,7 +2870,7 @@ for Config in Configs:
                             Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, InPlaneAngleMap, dimXX, dimYY, Shadow_Mask = QCalculation_AllDetectors(representative_filenumber, Config)
                             QValues_All = {'QX':Qx,'QY':Qy,'QZ':Qz,'Q_total':Q_total,'Q_perp_unc':Q_perp_unc,'Q_parl_unc':Q_parl_unc}
                             ASCIIlike_Output('Unpol', Sample, Config, UnpolScaledData, UnpolScaledData_Unc, QValues_All, GeneralMaskWOSolenoid)
-                             
+
 #*************************************************
 #***           End of 'The Program'            ***
 #*************************************************
