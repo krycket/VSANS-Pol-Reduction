@@ -52,23 +52,24 @@ TeValues = [0.86, 0.86, 0.86, 0.86, 0.86, 0.86] #Default is []; Values only used
 #*************************************************
 #Unique_Config_ID(filenumber); returns Configuration_ID (string)
 #File_Type(filenumber); returns Type(i.e. SCATT ot TRANS), SolenoidPosition(IN or OUT) (both strings)
+#ReadIn_IGORMasks(filenumber); returns Masks[dshort], Mask_Record
+#Plex_File(start_number); returns filenumber (of Plex), PlexData[dshort]
+#***BlockedBeamScattCountsPerSecond(Config, filenumber) - uses Config to tell if High Res Det will be needed and to link with Trans, Scatt ditionaries; returns BB_per_second[dshort]
+#***SolidAngle_AllDetectors(filenumber, Config) - uses Config to tell if High res Det will be needed; returns single scaling values per detector in Solid_Angle[dshort]
 
+#---------------------------------------------------------------------------------------------------------
 #SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues) where the last three are usually blank lists;
 #returns Sample_Names, Configs, BlockBeam, Scatt, Trans, Pol_Trans, HE3_Trans, start_number, FileNumberList
 #ShareSampleBaseTransmissions(Trans) - fills in gaps for missing trans files based on sample sample base; returns nothing
 #Process_Transmissions(BlockBeam, Masks, HE3_Trans, Pol_Trans, Trans) - works on Trans dictionary; returns nothing
 #Process_ScattFiles() - works on Scatt dictionary; returns nothing
 
-#ReadIn_IGORMasks(filenumber); returns Masks[dshort], Mask_Record
-#Plex_File(start_number); returns filenumber (of Plex), PlexData[dshort]
-#***BlockedBeamScattCountsPerSecond(Config, filenumber) - uses Config to tell if High Res Det will be needed and to link with Trans, Scatt ditionaries; returns BB_per_second[dshort]
-#***SolidAngle_AllDetectors(filenumber, Config) - uses Config to tell if High res Det will be needed; returns single scaling values per detector in Solid_Angle[dshort]
-
 #He3Decay_func() - defines 3He decay function; returns nothing
 #HE3_Pol_AtGivenTime(entry_time, HE3_Cell_Summary) - relies on He3Decay_func(); returns NeutronPol, UnpolHE3Trans, T_MAJ, T_MIN
 #HE3_DecayCurves(HE3_Trans); returns HE3_Cell_Summary (a large dictionary)
 #Pol_SuppermirrorAndFlipper(Pol_Trans, HE3_Cell_Summary) - works on Pol_Trans; returns nothing
 
+#---------------------------------------------------------------------------------------------------------
 #***QCalculation_AllDetectors(filenumber, Config) - uses Config to tell if High res Det will be needed;
 #returns Qx[dshort], Qy[dshort], Qz[dshort], Q_total[dshort], Q_perp_unc[dshort], Q_parl_unc[dshort], InPlaneAngleMap[dshort], dimXX[dshort], dimYY[dshort], Shadow_Mask[dshort]
 #***MinMaxQ(Q_total, Config); returns Q_min, Q_max, Q_bins
@@ -82,7 +83,8 @@ TeValues = [0.86, 0.86, 0.86, 0.86, 0.86, 0.86] #Default is []; Values only used
 #TwoDimToOneDim(Key, Q_min, Q_max, Q_bins, QGridPerDetector, generalmask, sectormask, PolCorr_AllDetectors, Unc_PolCorr_AllDetectors, ID, Config, PlotYesNo, AverageQRanges);
 #returns Output['Q', 'Q_Mean', 'I', 'I_Unc', 'Q_Uncertainty', 'Shadow']
 
-#aw_Data(filenumber); returns RawData_AllDetectors[dshort], Unc_RawData_AllDetectors[dshort] (in 2D form)
+#---------------------------------------------------------------------------------------------------------
+#Raw_Data(filenumber); returns RawData_AllDetectors[dshort], Unc_RawData_AllDetectors[dshort] (in 2D form)
 
 #ASCIIlike_Output(Type, ID, Config, Data_AllDetectors, Unc_Data_AllDetectors, QGridPerDetector, GeneralMask) - saves data into 2D, ASCII-like form; returns nothing
 
@@ -94,7 +96,7 @@ TeValues = [0.86, 0.86, 0.86, 0.86, 0.86, 0.86] #Default is []; Values only used
 #PlotAndSaveHalfPolSlices(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWOSolenoid, UScaledData, DScaledData, UScaledData_Unc, DScaledData_Unc);
 #returns Diff[dshort], Diff_Unc[dshort], Sum[dshort], Sum_Unc[dshort]
 
-#PlotAndSaveUnpolSlices(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWOSolenoid, ScaledData, ScaledData_Unc) - saves adat in text and plot forms; returns nothing
+#PlotAndSaveUnpolSlices(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWOSolenoid, ScaledData, ScaledData_Unc) - saves data in text and plot forms; returns nothing
 
 #Annular_Average(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_total, GeneralMask, ScaledData, ScaledData_Unc) - saves data in plot an dtext forms; returns nothing
 
