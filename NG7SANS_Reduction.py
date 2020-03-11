@@ -35,6 +35,52 @@ def NG7SANS_Config_ID(filenumber):
         
     return Configuration_ID
 
+def NG7SANS_AttenuatorTable(wavelength, attenuation):
+
+    if attenuation <= 0:
+        attn_index = 0
+    elif attenuation >= 10:
+        attn_index = 10
+    else:
+        attn_index = int(attenuation)
+
+    if wavelength < 5.0:
+        wavelength = 5.0
+    if wavelength > 17.0:
+        wavelength = 17.0
+            
+    Attn_Table = {}
+    Attn_Table[5.0] = [1.0, 0.418, 0.189, 0.0784, 0.0328, 0.0139, 5.90E-3, 1.04E-3, 1.90E-4, 3.58E-5, 7.76E-6]
+    Attn_Table[6.0] = [1.0, 0.393, 0.167, 0.0651, 0.0256, 0.0101, 4.07E-3, 6.37E-4, 1.03E-4, 1.87E-5, 4.56E-6]
+    Attn_Table[7.0] = [1.0, 0.369, 0.148, 0.0541, 0.0200, 7.43E-3, 2.79E-3, 3.85E-4, 5.71E-5, 1.05E-5, 3.25E-6]
+    Attn_Table[8.0] = [1.0, 0.347, 0.132, 0.0456, 0.0159, 5.58E-3, 1.99E-3, 2.46E-4, 3.44E-5, 7.00E-6, 7.00E-6]
+    Attn_Table[10.0] = [1.0, 0.313, 0.109, 0.0340, 0.0107, 3.42E-3, 1.11E-3, 1.16E-4, 1.65E-5, 1.65E-5, 1.65E-5]    
+    Attn_Table[12.0] = [1.0, 0.291, 0.0945, 0.0273, 7.98E-3, 2.36E-3, 7.13E-4, 6.86E-5, 6.86E-5, 6.86E-5, 6.86E-5]    
+    Attn_Table[14.0] = [1.0, 0.271, 0.0830, 0.0223, 6.14E-3, 1.70E-3, 4.91E-4, 4.91E-4, 4.91E-4, 4.91E-4, 4.91E-4]
+    Attn_Table[17.0] = [1.0, 0.244, 0.0681, 0.0164, 4.09E-3, 1.03E-3, 1.03E-3, 1.03E-3, 1.03E-3, 1.03E-3, 1.03E-3]
+    Attn_Table[17.001] = [1.0, 0.244, 0.0681, 0.0164, 4.09E-3, 1.03E-3, 1.03E-3, 1.03E-3, 1.03E-3, 1.03E-3, 1.03E-3]
+
+    Wavelength_Min = 5.0
+    Wavelength_Max = 5.0
+    Max_trip = 0
+    for i in Attn_Table:
+        if wavelength >= i:
+            Wavelength_Min = i
+        if wavelength <= i and Max_trip == 0:
+            Wavelength_Max = i
+            Max_trip = 1
+            
+    Trans_MinWave = Attn_Table[Wavelength_Min][attn_index]
+    Trans_MaxWave = Attn_Table[Wavelength_Max][attn_index]
+
+    if Wavelength_Max > Wavelength_Min:
+        Trans = Trans_MinWave + (wavelength - Wavelength_Min)*(Trans_MaxWave - Trans_MinWave)/(Wavelength_Max - Wavelength_Min)
+    else:
+        Trans = Trans_MinWave
+
+        
+    return Trans
+
 
 def NG7SANS_SolidAngle(filenumber):
     
@@ -253,10 +299,16 @@ print('Solid Angle Corr', SolidAngle)
 Abs_Trans = NG7SANS_TransCountsPer1E8MonCounts(Trans_filenumber)
 print('Abs. Trans', Abs_Trans)
 
+wavelength = 6.0
+attenuation = 4
+Attn_Trans = NG7SANS_AttenuatorTable(wavelength, attenuation)
+Abs_Trans = Abs_Trans/Attn_Trans
+
 Data, DataUnc, Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, InPlaneAngleMap, dimX, dimY  = NG7SANS_QCalculation(Scatt_filenumber)
 
-Data = Data / (SolidAngle*Abs_Trans)
-DataUnc = DataUnc / (SolidAngle*Abs_Trans)
+Thickness = 0.3
+Data = Data / (SolidAngle*Abs_Trans*Thickness)
+DataUnc = DataUnc / (SolidAngle*Abs_Trans*Thickness)
 
 PrimaryAngle = 42
 AngleWidth = 45
