@@ -7,7 +7,7 @@ from pathlib import Path
 import dateutil
 import datetime
 from numpy.linalg import inv
-from uncertainties import unumpy
+#from uncertainties import unumpy
 import os
 
 '''
@@ -166,6 +166,7 @@ def SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues):
     HE3OUT_filenumber = -10
     start_number = 0
     filelist = [fn for fn in os.listdir("./") if fn.endswith(".nxs.ngv")] #or filenames = [fn for fn in os.listdir("./") if os.path.isfile(fn)]
+    filelist.sort()
     if len(filelist) >= 1:
         for name in filelist:
             filename = str(name)
@@ -2643,7 +2644,8 @@ def Annular_Average(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_total, Gene
 #*************************************************
 #***        Start of 'The Program'             ***
 #*************************************************
-       
+if not os.path.exists(save_path):
+    os.makedirs(save_path)
 Sample_Names, Configs, BlockBeam, Scatt, Trans, Pol_Trans, HE3_Trans, start_number, filenumberlisting = SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues)
 
 ShareSampleBaseTransmissions(Trans)
