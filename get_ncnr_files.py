@@ -13,8 +13,6 @@ def retrieve_NCNR_datafiles(path, localpath="datafiles", extension=None, check_s
     pathlist = posixpath.split(path)
     data = {'pathlist[]' : pathlist}
     raw_listing = requests.post("https://ncnr.nist.gov/ncnrdata/listftpfiles_new.php", data=data).json()
-    if verbose:
-        print(raw_listing)
     files_metadata = raw_listing['files_metadata']
     remote_url = "https://ncnr.nist.gov/pub/ncnrdata/" + posixpath.join(*raw_listing["pathlist"])
 
