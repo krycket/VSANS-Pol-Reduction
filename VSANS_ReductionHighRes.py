@@ -7,7 +7,7 @@ from pathlib import Path
 import dateutil
 import datetime
 from numpy.linalg import inv
-from uncertainties import unumpy
+#from uncertainties import unumpy
 import os
 
 '''
@@ -19,21 +19,26 @@ the data with that filenumber must be in the data folder (used to match configur
 '''
 
 path = ''
+save_path = 'RedoNoPolCorr/'
 TransPanel = 'MR' #Default is 'MR'
 SectorCutAngles = 10.0 #Default is typically 10.0 to 20.0 (degrees)
-UsePolCorr = 1 #Default is 1 to pol-ccorrect full-pol data, 0 means no and will only correct for 3He transmission as a function of time.
+UsePolCorr = 0 #Default is 1 to pol-ccorrect full-pol data, 0 means no and will only correct for 3He transmission as a function of time.
 Absolute_Q_min = 0.005 #Default 0; Will take the maximum of Q_min_Calc from all detectors and this value
 Absolute_Q_max = 0.145 #Default 0.6; Will take the minimum of Q_max_Calc from all detectors and this value
-YesNo_2DCombinedFiles = 1 #Default is 0 (no), 1 = yes which can be read using SasView
+YesNo_2DCombinedFiles = 0 #Default is 0 (no), 1 = yes which can be read using SasView
 YesNo_2DFilesPerDetector = 0 #Default is 0 (no), 1 = yes; Note all detectors will be summed after beamline masking applied and can be read by SasView 4.2.2 (and higher?)
 Slices = ["Vert", "Horz", "Circ"] #Default: ["Vert", "Horz", "Circ"]
 AutoSubtractEmpty = 1 #Default is 1 for yes; 0 for no.
- 
-Excluded_Filenumbers = [51298, 51302, 51310, 51311, 51312, 51313, 51314, 51315, 51316, 51317, 51464, 55181, 56704] #Default is []; Be sure to exclude any ConvergingBeam / HighResolutionDetector scans which are not run for the ful default amount of time.
+PSM_Guess = 0.9985 #0.9985 is good for 4 guides, 5.5 angstroms
+YesNoBypassBestGuessPSM = 1 #Default is 1, will bypass to higher (or the highest) PSM value if one (or more) is/are measured
+YesNoShowPlots = 0
+
+Excluded_Filenumbers = [56343, 56344, 56345, 56346, 56347, 56348, 56349, 56350, 56563, 56564, 56565, 56566, 56567, 56337, 56338, 56339, 56340, 56341] # 51298, 51302, 51310, 51311, 51312, 51313, 51314, 51315, 51316, 51317] #Default is []; Be sure to exclude any ConvergingBeam / HighResolutionDetector scans which are not run for the ful default amount of time.
 ReAssignBlockBeam = [28486] #Default is []
 ReAssignEmpty = [] #Default is []
 
-#High Res Detector kicks in when using Converging Beam (at 6.7 angstroms)
+#High Res Detector is linked to then Converging Beam option (at 6.7 angstroms)
+#UseHighResDetWhenAvailable = 0 #0 = No, 1 = Yes
 HighResMinX = 240 #Default 240
 HighResMaxX = 474 #Default 474
 HighResMinY = 667 #Default 667
@@ -50,63 +55,11 @@ TeValues = [0.86, 0.86, 0.86, 0.86, 0.86, 0.86] #Default is []; Values only used
 #*************************************************
 #***        Definitions, Functions             ***
 #*************************************************
-#Unique_Config_ID(filenumber); returns Configuration_ID (string)
-#File_Type(filenumber); returns Type(i.e. SCATT ot TRANS), SolenoidPosition(IN or OUT) (both strings)
-#ReadIn_IGORMasks(filenumber); returns Masks[dshort], Mask_Record
-#Plex_File(start_number); returns filenumber (of Plex), PlexData[dshort]
-#***BlockedBeamScattCountsPerSecond(Config, filenumber) - uses Config to tell if High Res Det will be needed and to link with Trans, Scatt ditionaries; returns BB_per_second[dshort]
-#***SolidAngle_AllDetectors(filenumber, Config) - uses Config to tell if High res Det will be needed; returns single scaling values per detector in Solid_Angle[dshort]
-
-#---------------------------------------------------------------------------------------------------------
-#SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues) where the last three are usually blank lists;
-#returns Sample_Names, Configs, BlockBeam, Scatt, Trans, Pol_Trans, HE3_Trans, start_number, FileNumberList
-#ShareSampleBaseTransmissions(Trans) - fills in gaps for missing trans files based on sample sample base; returns nothing
-#Process_Transmissions(BlockBeam, Masks, HE3_Trans, Pol_Trans, Trans) - works on Trans dictionary; returns nothing
-#Process_ScattFiles() - works on Scatt dictionary; returns nothing
-
-#He3Decay_func() - defines 3He decay function; returns nothing
-#HE3_Pol_AtGivenTime(entry_time, HE3_Cell_Summary) - relies on He3Decay_func(); returns NeutronPol, UnpolHE3Trans, T_MAJ, T_MIN
-#HE3_DecayCurves(HE3_Trans); returns HE3_Cell_Summary (a large dictionary)
-#Pol_SuppermirrorAndFlipper(Pol_Trans, HE3_Cell_Summary) - works on Pol_Trans; returns nothing
-
-#---------------------------------------------------------------------------------------------------------
-#***QCalculation_AllDetectors(filenumber, Config) - uses Config to tell if High res Det will be needed;
-#returns Qx[dshort], Qy[dshort], Qz[dshort], Q_total[dshort], Q_perp_unc[dshort], Q_parl_unc[dshort], InPlaneAngleMap[dshort], dimXX[dshort], dimYY[dshort], Shadow_Mask[dshort]
-#***MinMaxQ(Q_total, Config); returns Q_min, Q_max, Q_bins
-#SectorMask_AllDetectors(InPlaneAngleMap, PrimaryAngle, AngleWidth, BothSides); returns SectorMask[dshort]
-
-#AbsScale(ScattType, Sample, Config, BlockBeam_per_second, Solid_Angle, Plex, Scatt, Trans); returns Scaled_Data, UncScaled_Data
-
-#PolCorrScattFiles(dimXX, dimYY, Sample, Config, UUScaledData, DUScaledData, DDScaledData, UDScaledData, UUScaledData_Unc, DUScaledData_Unc, DDScaledData_Unc, UDScaledData_Unc);
-#returns Have_FullPol, PolCorr_UU, PolCorr_DU, PolCorr_DD, PolCorr_UD, PolCorr_UU_Unc, PolCorr_DU_Unc, PolCorr_DD_Unc, PolCorr_UD_Unc
-
-#TwoDimToOneDim(Key, Q_min, Q_max, Q_bins, QGridPerDetector, generalmask, sectormask, PolCorr_AllDetectors, Unc_PolCorr_AllDetectors, ID, Config, PlotYesNo, AverageQRanges);
-#returns Output['Q', 'Q_Mean', 'I', 'I_Unc', 'Q_Uncertainty', 'Shadow']
-
-#---------------------------------------------------------------------------------------------------------
-#Raw_Data(filenumber); returns RawData_AllDetectors[dshort], Unc_RawData_AllDetectors[dshort] (in 2D form)
-
-#ASCIIlike_Output(Type, ID, Config, Data_AllDetectors, Unc_Data_AllDetectors, QGridPerDetector, GeneralMask) - saves data into 2D, ASCII-like form; returns nothing
-
-#SaveTextData(Type, Slice, Sample, Config, DataMatrix) - saves into 'SixCol_{sample},{config}_{type}{cut}.txt'; return nothing
-
-#PlotAndSaveFullPolSlices(PolCorrDegree, Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, PolCorrUU, PolCorrUU_Unc, PolCorrDU, PolCorrDU_Unc, PolCorrDD, PolCorrDD_Unc, PolCorrUD, PolCorrUD_Unc, MTSubtract, MTPolCorrUU, MTPolCorrUU_Unc, MTPolCorrDU, MTPolCorrDU_Unc, MTPolCorrDD, MTPolCorrDD_Unc, MTPolCorrUD, MTPolCorrUD_Unc);
-#returns UnpolEquiv[dshort], UnpolEquiv_Unc[dshort]
-
-#PlotAndSaveHalfPolSlices(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWOSolenoid, UScaledData, DScaledData, UScaledData_Unc, DScaledData_Unc);
-#returns Diff[dshort], Diff_Unc[dshort], Sum[dshort], Sum_Unc[dshort]
-
-#PlotAndSaveUnpolSlices(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWOSolenoid, ScaledData, ScaledData_Unc) - saves data in text and plot forms; returns nothing
-
-#Annular_Average(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_total, GeneralMask, ScaledData, ScaledData_Unc) - saves data in plot an dtext forms; returns nothing
-
-#Record_DataProcessing(Plex_Name, Mask_Record, Scatt, BlockBeam, Trans, Pol_Trans, HE3_Cell_Summary) - saves data reduction steps into text file; returns nothing
 
 all_detectors = ["B", "MT", "MB", "MR", "ML", "FT", "FB", "FR", "FL"]
 short_detectors = ["MT", "MB", "MR", "ML", "FT", "FB", "FR", "FL"]
-middle_detectors = ["MT", "MB", "MR", "ML"]
 
-def Unique_Config_ID(filenumber): 
+def VSANS_Config_ID(filenumber): 
     filename = path + "sans" + str(filenumber) + ".nxs.ngv"
     config = Path(filename)
     if config.is_file():
@@ -124,7 +77,7 @@ def Unique_Config_ID(filenumber):
         Configuration_ID = str(Guides) + "Gd" + str(Desired_FrontCarriage_Distance) + "cmF" + str(Desired_MiddleCarriage_Distance) + "cmM" + str(Wavelength) + "Ang"
     return Configuration_ID
 
-def File_Type(filenumber):
+def VSANS_File_Type(filenumber):
     Type = 'UNKNOWN'
     SolenoidPosition = 'UNKNOWN'    
     filename = path + "sans" + str(filenumber) + ".nxs.ngv"
@@ -147,7 +100,7 @@ def File_Type(filenumber):
             SolenoidPosition = 'OUT'
     return Type, SolenoidPosition
 
-def SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues):
+def VSANS_SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues):
     BlockBeam = {}
     Configs = {}
     Sample_Names = {}
@@ -167,6 +120,7 @@ def SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues):
     HE3OUT_filenumber = -10
     start_number = 0
     filelist = [fn for fn in os.listdir("./") if fn.endswith(".nxs.ngv")] #or filenames = [fn for fn in os.listdir("./") if os.path.isfile(fn)]
+    filelist.sort()
     if len(filelist) >= 1:
         for name in filelist:
             filename = str(name)
@@ -217,18 +171,19 @@ def SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues):
                     Purpose = f['entry/reduction/file_purpose'][()] #SCATT, TRANS, HE3
                     Intent = f['entry/reduction/intent'][()] #Sample, Empty, Blocked Beam, Open Beam
                     if filenumber in ReAssignBlockBeam:
-                        Intent = 'Blocked Beam'
+                        Intent = [b'Blocked Beam']
                     if filenumber in ReAssignEmpty:
-                        Intent = 'Empty'
+                        Intent = [b'Empty']
                     Type = str(f['entry/sample/description'][()])
                     End_time = dateutil.parser.parse(f['entry/end_time'][0])
                     TimeOfMeasurement = (End_time.timestamp() - Count_time/2)/3600.0 #in hours
                     Trans_Counts = f['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
                     MonCounts = f['entry/control/monitor_counts'][0]
                     Trans_Distance = f['entry/instrument/detector_{ds}/distance'.format(ds=TransPanel)][0]
-                    Attenuation = f['entry/DAS_logs/attenuator/attenuator'][0]
+                    Desired_Attenuation = f['entry/DAS_logs/attenuator/attenuator'][0]
+                    Attenuation = f['/entry/DAS_logs/counter/actualAttenuatorsDropped'][0]
                     Wavelength = f['entry/DAS_logs/wavelength/wavelength'][0]
-                    Config = Unique_Config_ID(filenumber)
+                    Config = VSANS_Config_ID(filenumber)
                     if "frontPolarization" in f['entry/DAS_logs/']:
                         FrontPolDirection = f['entry/DAS_logs/frontPolarization/direction'][()]
                     else:
@@ -251,10 +206,10 @@ def SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues):
                     if Configs[Config] == 0 and config_filenumber != 0:
                         Configs[Config] = config_filenumber
                     if Config not in BlockBeam:
-                        BlockBeam[Config] = {'Scatt':{'File' : 'NA'}, 'Trans':{'File' : 'NA', 'CountsPerSecond' : 'NA'}}
+                        BlockBeam[Config] = {'Scatt':{'File' : 'NA'}, 'Trans':{'File' : 'NA', 'CountsPerSecond' : 'NA'}, 'ExampleFile' : filenumber}
                     if str(Intent).find("Blocked") != -1:
                         if Config not in BlockBeam:
-                             BlockBeam[Config] = {'Scatt':{'File' : 'NA'}, 'Trans':{'File' : 'NA', 'CountsPerSecond' : 'NA'}}
+                             BlockBeam[Config] = {'Scatt':{'File' : 'NA'}, 'Trans':{'File' : 'NA', 'CountsPerSecond' : 'NA'},  'ExampleFile' : filenumber}
                         if str(Purpose).find("TRANS") != -1 or str(Purpose).find("HE3") != -1:
                             if 'NA' in BlockBeam[Config]['Trans']['File']:
                                 BlockBeam[Config]['Trans']['File'] = [filenumber]
@@ -547,7 +502,115 @@ def SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues):
                                             HE3_Trans[CellTimeIdentifier]['Cell_name'].append(CellName)
     return Sample_Names, Configs, BlockBeam, Scatt, Trans, Pol_Trans, HE3_Trans, start_number, FileNumberList
 
-def ShareSampleBaseTransmissions(Trans):
+def VSANS_AttenuatorTable(wavelength, attenuation):
+
+    if attenuation <= 0:
+        attn_index = 0
+    elif attenuation >= 15:
+        attn_index = 15
+    else:
+        attn_index = int(attenuation)
+    if wavelength < 4.52:
+        wavelength = 4.52
+    if wavelength > 19.0 and wavelength != 5300 and wavelength != 6200000:
+        wavelength = 19.0        
+    Attn_Table = {}
+    Attn_Table[4.52] = [1,0.446,0.20605,0.094166,0.042092,0.019362,0.0092358,0.0042485,0.002069,0.00096002,0.00045601,0.00021113,9.67E-05,4.55E-05,2.25E-05,1.11E-05]
+    Attn_Table[5.01] = [1,0.431,0.19352,0.085922,0.03729,0.016631,0.0076671,0.0034272,0.0016896,0.00075357,0.00034739,0.00015667,6.97E-05,3.25E-05,1.57E-05,8.00E-06]
+    Attn_Table[5.5] = [1,0.418,0.18225,0.078184,0.032759,0.014152,0.0063401,0.0027516,0.0013208,0.00057321,0.00025623,0.00011171,4.92E-05,2.27E-05,1.09E-05,5.77E-06]
+    Attn_Table[5.99] = [1,0.406,0.17255,0.071953,0.029501,0.01239,0.0054146,0.0022741,0.0010643,0.0004502,0.00019584,8.38E-05,3.61E-05,1.70E-05,8.35E-06,4.65E-06]
+    Attn_Table[6.96] = [1,0.382,0.15471,0.06111,0.023894,0.0094621,0.0039362,0.0015706,0.00069733,0.00027963,0.0001166,4.86E-05,2.12E-05,1.06E-05,5.54E-06,3.65E-06]
+    Attn_Table[7.94] = [1,0.364,0.14014,0.052552,0.019077,0.0071919,0.0028336,0.0010796,0.00045883,0.00017711,7.14E-05,2.90E-05,1.37E-05,7.78E-06,4.54E-06,3.56E-06]
+    Attn_Table[9] = [1,0.34199,0.12617,0.045063,0.015551,0.0055606,0.0020986,0.00075427,0.00031101,0.00011673,0.000045324,1.91E-05,8.51E-06,4.82E-06,2.85E-06,2.14E-06]
+    Attn_Table[11] = [1,0.31805,0.10886,0.035741,0.011411,0.0037545,0.0013263,0.00043766,0.00016884,5.99E-05,2.23E-05,9.44E-06,5.57E-06,4.10E-06,2.79E-06,2.46E-06]
+    Attn_Table[13] = [1,0.298,0.096286,0.029689,0.0088395,0.0027373,0.00090878,0.00028892,0.00011004,3.88E-05,1.44E-05,6.91E-06,5.28E-06,4.17E-06,2.91E-06,2.76E-06]
+    Attn_Table[15] = [1,0.27964,0.085614,0.024762,0.0069407,0.0020229,0.00064044,0.00019568,7.44E-05,2.79E-05,1.10E-05,6.34E-06,5.47E-06,4.89E-06,3.66E-06,3.45E-06]
+    Attn_Table[17] = [1,0.26364,0.075577,0.020525,0.0053394,0.0014753,0.00044466,0.00013278,5.40E-05,2.31E-05,1.04E-05,7.36E-06,7.33E-06,6.69E-06,5.20E-06,4.75E-06]
+    Attn_Table[19] = [1,0.24614,0.065873,0.016961,0.0040631,0.0010583,0.00031229,9.87E-05,4.85E-05,2.77E-05,1.68E-05,1.47E-05,1.52E-05,1.44E-05,1.26E-05,1.19E-05]
+    Attn_Table[5300] = [1,0.429,0.19219,0.085141,0.037122,0.016668,0.0078004,0.0035414,0.0017742,0.0008126,0.00038273,0.00017682,8.12E-05,3.89E-05,1.95E-05,1.00E-05]
+    Attn_Table[6200000] = [1,0.4152,0.18249,0.079458,0.034065,0.014849,0.0067964,0.003016,0.001485,0.00066483,0.00030864,0.00014094,6.38E-05,3.02E-05,1.50E-05,7.73E-06]
+    if wavelength == 5300:
+        Trans = Attn_Table[5300][attn_index]
+    elif wavelength == 6200000:
+        Trans = Attn_Table[6200000][attn_index]
+    else:
+        Wavelength_Min = 4.52
+        Wavelength_Max = 4.52
+        Max_trip = 0
+        for i in Attn_Table:
+            if wavelength >= i:
+                Wavelength_Min = i
+            if wavelength <= i and Max_trip == 0:
+                Wavelength_Max = i
+                Max_trip = 1  
+        Trans_MinWave = Attn_Table[Wavelength_Min][attn_index]
+        Trans_MaxWave = Attn_Table[Wavelength_Max][attn_index]
+        if Wavelength_Max > Wavelength_Min:
+            Trans = Trans_MinWave + (wavelength - Wavelength_Min)*(Trans_MaxWave - Trans_MinWave)/(Wavelength_Max - Wavelength_Min)
+        else:
+            Trans = Trans_MinWave  
+    return Trans
+
+def VSANS_MakeTransMask(filenumber, Config, DetectorPanel):
+
+    mask_it = {}
+    relevant_detectors = short_detectors
+    if str(Config).find('CvB') != -1:
+        relevant_detectors = all_detectors
+    INPUT = path + "sans" + str(filenumber) + ".nxs.ngv"
+    f = h5py.File(INPUT)
+    for dshort in relevant_detectors:
+        data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
+        mask_it[dshort] = np.zeros_like(data)
+        x_pixel_size = f['entry/instrument/detector_{ds}/x_pixel_size'.format(ds=dshort)][0]/10.0
+        y_pixel_size = f['entry/instrument/detector_{ds}/y_pixel_size'.format(ds=dshort)][0]/10.0
+        beam_center_x = f['entry/instrument/detector_{ds}/beam_center_x'.format(ds=dshort)][0]
+        beam_center_y = f['entry/instrument/detector_{ds}/beam_center_y'.format(ds=dshort)][0]
+        dimX = f['entry/instrument/detector_{ds}/pixel_num_x'.format(ds=dshort)][0]
+        dimY = f['entry/instrument/detector_{ds}/pixel_num_y'.format(ds=dshort)][0]
+        beamstop_diameter = f['/entry/DAS_logs/C2BeamStop/diameter'][0]/10.0 #beam stop in cm; sits right in front of middle detector?
+        if dshort == 'MT' or dshort == 'MB' or dshort == 'FT' or dshort == 'FB':
+            setback = f['entry/instrument/detector_{ds}/setback'.format(ds=dshort)][0]
+            vertical_offset = f['entry/instrument/detector_{ds}/vertical_offset'.format(ds=dshort)][0]
+            lateral_offset = 0
+        else:
+            setback = 0
+            vertical_offset = 0
+            lateral_offset = f['entry/instrument/detector_{ds}/lateral_offset'.format(ds=dshort)][0]
+        
+        if dshort != 'B':
+            coeffs = f['entry/instrument/detector_{ds}/spatial_calibration'.format(ds=dshort)][0][0]/10.0
+            panel_gap = f['entry/instrument/detector_{ds}/panel_gap'.format(ds=dshort)][0]/10.0
+        if dshort == 'B':
+            realDistX =  x_pixel_size*(0.5)
+            realDistY =  y_pixel_size*(0.5)
+        else:
+            position_key = dshort[1]
+            if position_key == 'T':
+                realDistX =  coeffs
+                realDistY =  0.5 * y_pixel_size + vertical_offset + panel_gap/2.0
+            elif position_key == 'B':
+                realDistX =  coeffs
+                realDistY =  vertical_offset - (dimY - 0.5)*y_pixel_size - panel_gap/2.0
+            elif position_key == 'L':
+                realDistX =  lateral_offset - (dimX - 0.5)*x_pixel_size - panel_gap/2.0
+                realDistY =  coeffs
+            elif position_key == 'R':
+                realDistX =  x_pixel_size*(0.5) + lateral_offset + panel_gap/2.0
+                realDistY =  coeffs
+        X, Y = np.indices(data.shape)
+        if dshort == 'B':
+            x0_pos =  realDistX - beam_center_x*x_pixel_size + (X)*x_pixel_size 
+            y0_pos =  realDistY - beam_center_y*y_pixel_size + (Y)*y_pixel_size
+        else:
+            x0_pos =  realDistX - beam_center_x + (X)*x_pixel_size 
+            y0_pos =  realDistY - beam_center_y + (Y)*y_pixel_size
+        R = np.sqrt(np.power(x0_pos, 2) + np.power(y0_pos, 2))
+        if dshort == DetectorPanel:
+            mask_it[dshort][R <= 1.5*beamstop_diameter/2.0] = 1.0
+    return mask_it
+
+def VSANS_ShareSampleBaseTransCatalog(Trans, Scatt):
     for Sample in Scatt:
         for Config in Scatt[Sample]['Config(s)']:
             if Sample not in Trans:
@@ -611,7 +674,7 @@ def ReadIn_IGORMasks(filenumberlisting):
                 if associated_filenumber not in str(filenumberlisting):
                     print('Need scan for filenumber ', associated_filenumber, ' to proces its associated mask.')
                 else:    
-                    ConfigID = Unique_Config_ID(associated_filenumber)
+                    ConfigID = VSANS_Config_ID(associated_filenumber)
                     
                     relevant_detectors = short_detectors
                     if str(ConfigID).find('CvB') != -1:
@@ -619,7 +682,7 @@ def ReadIn_IGORMasks(filenumberlisting):
                     if ConfigID not in Masks:
                         Masks[ConfigID] = {'Trans' : 'NA', 'Scatt_Standard' : 'NA', 'Scatt_WithSolenoid' : 'NA'}
                         Mask_Record[ConfigID] = {'Trans' : 'NA', 'Scatt_Standard' : 'NA', 'Scatt_WithSolenoid' : 'NA'}
-                    Type, SolenoidPosition = File_Type(associated_filenumber)
+                    Type, SolenoidPosition = VSANS_File_Type(associated_filenumber)
                     config = Path(filename)
                     if config.is_file():
                         f = h5py.File(filename)
@@ -647,76 +710,123 @@ def ReadIn_IGORMasks(filenumberlisting):
                             print('Saved', filename, ' as Scatt Mask With Solenoid for', ConfigID)                     
     return Masks, Mask_Record
 
-def Process_Transmissions(BlockBeam, Masks, HE3_Trans, Pol_Trans, Trans):
+def VSANS_BlockedBeamCountsPerSecond_ListOfFiles(filelist, Config, examplefilenumber):
 
+    BB_Counts = {}
+    BB_Unc = {}
+    BB_Seconds = {}
+    BB_CountsPerSecond = {}
+    
+    relevant_detectors = short_detectors
+    if str(Config).find('CvB') != -1:
+        relevant_detectors = all_detectors
+
+    item_counter = 0
+    for item in filelist:
+        filename = path + "sans" + str(item) + ".nxs.ngv"
+        config = Path(filename)
+        if config.is_file():
+            f = h5py.File(filename)
+
+            
+            Count_time = f['entry/collection_time'][0]
+            if Count_time > 0:
+                for dshort in relevant_detectors:
+                    bb_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
+                    unc = np.sqrt(np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)]))
+                
+                    if item_counter < 1:
+                        BB_Counts[dshort] = bb_data
+                        BB_Seconds[dshort] = Count_time
+                    else:
+                        BB_Counts[dshort] = BB_Counts[dshort] + bb_data
+                        BB_Seconds[dshort] = BB_Seconds[dshort] + Count_time
+                    BB_CountsPerSecond[dshort] = BB_Counts[dshort]/BB_Seconds[dshort]
+                    BB_Unc[dshort] = np.sqrt(BB_Counts[dshort])/BB_Seconds[dshort]
+                item_counter += 1
+
+    if len(BB_CountsPerSecond) < 1:
+        filename = path + "sans" + str(examplefilenumber) + ".nxs.ngv"
+        config = Path(filename)
+        if config.is_file():
+            f = h5py.File(filename)
+            for dshort in relevant_detectors:
+                data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
+                BB_CountsPerSecond[dshort] = np.zeros_like(data)
+                BB_Unc[dshort] = np.zeros_like(data)
+
+    return BB_CountsPerSecond, BB_Unc #returns empty list or 2D, detector-panel arrays
+
+def VSANS_CalcABSTrans_BlockBeamList(trans_filenumber, BBList, DetectorPanel):
+    #Uses VSANS_Config_ID(trans_filenumber) and
+    #VSANS_MakeTransMask(filenumber, Config, DetectorPanel) and
+    #VSANS_BlockedBeamCountsPerSecond_ListOfFiles(filelist, Config) and 
+    #VSANS_AttenuatorTable(wavelength, attenuation)
+
+    Config = VSANS_Config_ID(trans_filenumber)
+    Mask = VSANS_MakeTransMask(trans_filenumber,Config, DetectorPanel)
+    if Config in BBList:
+        examplefilenumber = BBList[Config]['ExampleFile']
+    else:
+        examplefilenumber = 0
+    BB, BB_Unc = VSANS_BlockedBeamCountsPerSecond_ListOfFiles(BBList, Config, examplefilenumber)
+    dshort = DetectorPanel
+    filename = path + "sans" + str(trans_filenumber) + ".nxs.ngv"
+    config = Path(filename)
+    if config.is_file():
+        f = h5py.File(filename)
+        data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])    
+        monitor_counts = f['entry/control/monitor_counts'][0]
+        count_time = f['entry/collection_time'][0]
+        if dshort in BB and dshort in BB_Unc:
+            trans = (data - BB[dshort]*count_time)*Mask[dshort]
+            unc = np.sqrt(data + BB_Unc[dshort])*Mask[dshort]
+        else:
+            trans = (data)*Mask[dshort]
+            unc = np.sqrt(data)*Mask[dshort]
+        abs_trans = np.sum(trans)*1E8/monitor_counts
+        abs_tran_unc = np.sqrt(np.sum(np.power(unc,2)))*1E8/monitor_counts
+        wavelength = f['entry/DAS_logs/wavelength/wavelength'][0]
+        desired_attenuation = f['entry/DAS_logs/attenuator/attenuator'][0]
+        attenuation = f['/entry/DAS_logs/counter/actualAttenuatorsDropped'][0]
+        attn_trans = VSANS_AttenuatorTable(wavelength, attenuation)
+        abs_trans = abs_trans/attn_trans
+        abs_trans_unc = abs_tran_unc/attn_trans
+    return abs_trans, abs_trans_unc
+
+def VSANS_ProcessHe3TransCatalog(HE3_Trans, BlockBeam, DetectorPanel):
+    #Uses VSANS_CalcABSTrans_BlockBeamList(trans_filenumber, BlockBeam, DetectorPanel) which uses
+    #VSANS_MakeTransMask(filenumber, Config, DetectorPanel) and
+    #VSANS_BlockedBeamCountsPerSecond_ListOfFiles(filelist, Config) and 
+    #VSANS_AttenuatorTable(wavelength, attenuation)
+    
     for Cell in HE3_Trans:
         if 'Elasped_time' in HE3_Trans[Cell]:
             counter = 0
             for InFile in HE3_Trans[Cell]['HE3_IN_file']:
                 OutFile = HE3_Trans[Cell]['HE3_OUT_file'][counter]
                 Config = HE3_Trans[Cell]['Config'][counter]
+                BBList = [0]
                 if Config in BlockBeam:
                     if 'NA' not in BlockBeam[Config]['Trans']['File']:
-                        BBFile = BlockBeam[Config]['Trans']['File'][0]
+                        BBList = BlockBeam[Config]['Trans']['File']
                     elif 'NA' not in BlockBeam[Config]['Scatt']['File']:
-                        BBFile = BlockBeam[Config]['Scatt']['File'][0]
-                    else:
-                        BBFile = 0
-                if Config in Masks and 'NA' not in Masks[Config]['Trans']:
-                    mask_it = np.array(Masks[Config]['Trans'][TransPanel])
-                    IN = path + "sans" + str(InFile) + ".nxs.ngv"
-                    OUT = path + "sans" + str(OutFile) + ".nxs.ngv"
-                    f = h5py.File(IN)
-                    INMon = f['entry/control/monitor_counts'][0]
-                    IN_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
-                    INCount_time = f['entry/collection_time'][0]
-                    g = h5py.File(OUT)
-                    OUTMon = g['entry/control/monitor_counts'][0]
-                    OUT_data = np.array(g['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
-                    OUTCount_time = g['entry/collection_time'][0]
-                    if BBFile == 0:
-                        BB_data = np.zeros_like(IN_data)
-                        BBCount_time = 1.0  
-                    else:
-                        BB = path + "sans" + str(BBFile) + ".nxs.ngv"
-                        h = h5py.File(BB)
-                        BBCount_time = h['entry/collection_time'][0]
-                        BB_data = np.array(h['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])   
-                    trans_num = (IN_data - BB_data*(INCount_time/BBCount_time))*mask_it
-                    trans_denom = (OUT_data - BB_data*(OUTCount_time/BBCount_time))*mask_it
-                    trans = (np.sum(trans_num)/np.sum(trans_denom))*(OUTMon / INMon)
-                    if 'Transmission' not in HE3_Trans[Cell]:
-                        HE3_Trans[Cell]['Transmission'] = [trans]
-                    else:
-                        HE3_Trans[Cell]['Transmission'].append(trans)
-                else: #no mask for HE3_Trans
-                    IN = path + "sans" + str(InFile) + ".nxs.ngv"
-                    OUT = path + "sans" + str(OutFile) + ".nxs.ngv"
-                    f = h5py.File(IN)
-                    INMon = f['entry/control/monitor_counts'][0]
-                    IN_counts = f['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
-                    INCount_time = f['entry/collection_time'][0]
-                    g = h5py.File(OUT)
-                    OUTMon = g['entry/control/monitor_counts'][0]
-                    OUT_counts = g['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
-                    OUTCount_time = g['entry/collection_time'][0]
-                    if BBFile == 0:
-                        BB_counts = 0.0
-                        BBCount_time = 1.0
-                    else:
-                        BB = path + "sans" + str(BBFile) + ".nxs.ngv"
-                        h = h5py.File(BB)
-                        BBCount_time = h['entry/collection_time'][0]
-                        BB_counts = h['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
-                    trans_num = (IN_counts - BB_counts*(INCount_time/BBCount_time))
-                    trans_denom = (OUT_counts - BB_counts*(OUTCount_time/BBCount_time))
-                    trans = (trans_num/trans_denom)*(OUTMon / INMon)
-                    if 'Transmission' not in HE3_Trans[Cell]:
-                        HE3_Trans[Cell]['Transmission'] = [trans]
-                    else:
-                        HE3_Trans[Cell]['Transmission'].append(trans)                
-                counter += 1
+                        BBList = BlockBeam[Config]['Scatt']['File']
+                IN_trans, IN_trans_unc = VSANS_CalcABSTrans_BlockBeamList(InFile, BBList, DetectorPanel)
+                OUT_trans, OUT_trans_unc = VSANS_CalcABSTrans_BlockBeamList(OutFile, BBList, DetectorPanel)
+                trans = IN_trans / OUT_trans
+                if 'Transmission' not in HE3_Trans[Cell]:
+                    HE3_Trans[Cell]['Transmission'] = [trans]
+                else:
+                    HE3_Trans[Cell]['Transmission'].append(trans)                
+                counter += 1 
+    return
 
+def VSANS_ProcessPolTransCatalog(Pol_Trans, BlockBeam, DetectorPanel):
+    #Uses VSANS_CalcABSTrans_BlockBeamList(trans_filenumber, BlockBeam, DetectorPanel) which uses
+    #VSANS_MakeTransMask(filenumber, Config, DetectorPanel) and
+    #VSANS_BlockedBeamCountsPerSecond_ListOfFiles(filelist, Config) and 
+    #VSANS_AttenuatorTable(wavelength, attenuation)
     for Samp in Pol_Trans:
         if 'NA' not in Pol_Trans[Samp]['T_UU']['File']:
             counter = 0
@@ -726,218 +836,63 @@ def Process_Transmissions(BlockBeam, Masks, HE3_Trans, Pol_Trans, Trans):
                 UDFile = Pol_Trans[Samp]['T_UD']['File'][counter]
                 SMFile = Pol_Trans[Samp]['T_SM']['File'][counter]
                 Config = Pol_Trans[Samp]['Config'][counter]
+                BBList = [0]
                 if Config in BlockBeam:
                     if 'NA' not in BlockBeam[Config]['Trans']['File']:
-                        BBFile = BlockBeam[Config]['Trans']['File'][0]
+                        BBList = BlockBeam[Config]['Trans']['File']
                     elif 'NA' not in BlockBeam[Config]['Scatt']['File']:
-                        BBFile = BlockBeam[Config]['Scatt']['File'][0]
-                    else:
-                        BBFile = 0
-                if Config in Masks and 'NA' not in Masks[Config]['Trans']:
-                    mask_it = np.array(Masks[Config]['Trans'][TransPanel])
-                    UU = path + "sans" + str(UUFile) + ".nxs.ngv"
-                    DU = path + "sans" + str(DUFile) + ".nxs.ngv"
-                    DD = path + "sans" + str(DDFile) + ".nxs.ngv"
-                    UD = path + "sans" + str(UDFile) + ".nxs.ngv"
-                    SM = path + "sans" + str(SMFile) + ".nxs.ngv"
-                    f = h5py.File(UU)
-                    UUMon = f['entry/control/monitor_counts'][0]
-                    UU_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
-                    UUCount_time = f['entry/collection_time'][0]
-                    g = h5py.File(DU)
-                    DUMon = g['entry/control/monitor_counts'][0]
-                    DU_data = np.array(g['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
-                    DUCount_time = g['entry/collection_time'][0]
-                    h = h5py.File(DD)
-                    DDMon = h['entry/control/monitor_counts'][0]
-                    DD_data = np.array(h['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
-                    DDCount_time = h['entry/collection_time'][0]
-                    j = h5py.File(UD)
-                    UDMon = j['entry/control/monitor_counts'][0]
-                    UD_data = np.array(j['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
-                    UDCount_time = j['entry/collection_time'][0]
-                    k = h5py.File(SM)
-                    SMMon = k['entry/control/monitor_counts'][0]
-                    SM_data = np.array(k['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
-                    SMCount_time = k['entry/collection_time'][0]
-                    if BBFile == 0:
-                        BB_data = np.zeros_like(UU_data)
-                        BBCount_time = 1.0
-                    else:
-                        BB = path + "sans" + str(BBFile) + ".nxs.ngv"
-                        l = h5py.File(BB)
-                        BBMon = l['entry/control/monitor_counts'][0]
-                        BBCount_time = l['entry/collection_time'][0]
-                        BB_data = np.array(l['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
-                    trans_UU = (UU_data - BB_data*(UUCount_time/BBCount_time))*mask_it
-                    trans_DU = (DU_data - BB_data*(DUCount_time/BBCount_time))*mask_it
-                    trans_DD = (DD_data - BB_data*(DDCount_time/BBCount_time))*mask_it
-                    trans_UD = (UD_data - BB_data*(UDCount_time/BBCount_time))*mask_it
-                    trans_SM = (SM_data - BB_data*(SMCount_time/SMCount_time))*mask_it
-                    UU_value = (np.sum(trans_UU)/np.sum(trans_SM))*(SMMon / UUMon)
-                    UD_value = (np.sum(trans_UD)/np.sum(trans_SM))*(SMMon / UDMon)
-                    DD_value = (np.sum(trans_DD)/np.sum(trans_SM))*(SMMon / DDMon)
-                    DU_value = (np.sum(trans_DU)/np.sum(trans_SM))*(SMMon / DUMon)
-                    SM_value = np.sum(trans_SM*1E8/SMMon)
-                    if 'Trans' not in Pol_Trans[Samp]['T_UU']:
-                        Pol_Trans[Samp]['T_UU']['Trans'] = [UU_value]
-                        Pol_Trans[Samp]['T_DU']['Trans'] = [DU_value]
-                        Pol_Trans[Samp]['T_DD']['Trans'] = [DD_value]
-                        Pol_Trans[Samp]['T_UD']['Trans'] = [UD_value]
-                        Pol_Trans[Samp]['T_SM']['Trans_Cts'] = [SM_value]
-                    else:
-                        Pol_Trans[Samp]['T_UU']['Trans'].append(UU_value)
-                        Pol_Trans[Samp]['T_DU']['Trans'].append(DU_value)
-                        Pol_Trans[Samp]['T_DD']['Trans'].append(DD_value)
-                        Pol_Trans[Samp]['T_UD']['Trans'].append(UD_value)
-                        Pol_Trans[Samp]['T_SM']['Trans_Cts'].append(SM_value)
+                        BBList = BlockBeam[Config]['Scatt']['File']
+                UU_trans, UU_trans_unc = VSANS_CalcABSTrans_BlockBeamList(UUFile, BBList, DetectorPanel) #Masking done within this step
+                DU_trans, DU_trans_unc = VSANS_CalcABSTrans_BlockBeamList(DUFile, BBList, DetectorPanel) #Masking done within this step
+                DD_trans, DD_trans_unc = VSANS_CalcABSTrans_BlockBeamList(DDFile, BBList, DetectorPanel) #Masking done within this step
+                UD_trans, UD_trans_unc = VSANS_CalcABSTrans_BlockBeamList(UDFile, BBList, DetectorPanel) #Masking done within this step
+                SM_trans, SM_trans_unc = VSANS_CalcABSTrans_BlockBeamList(SMFile, BBList, DetectorPanel) #Masking done within this step
+                if 'Trans' not in Pol_Trans[Samp]['T_UU']:
+                    Pol_Trans[Samp]['T_UU']['Trans'] = [UU_trans/SM_trans]
+                    Pol_Trans[Samp]['T_DU']['Trans'] = [DU_trans/SM_trans]
+                    Pol_Trans[Samp]['T_DD']['Trans'] = [DD_trans/SM_trans]
+                    Pol_Trans[Samp]['T_UD']['Trans'] = [UD_trans/SM_trans]
+                    Pol_Trans[Samp]['T_SM']['Trans_Cts'] = [SM_trans]
                 else:
-                    UU = path + "sans" + str(UUFile) + ".nxs.ngv"
-                    DU = path + "sans" + str(DUFile) + ".nxs.ngv"
-                    DD = path + "sans" + str(DDFile) + ".nxs.ngv"
-                    UD = path + "sans" + str(UDFile) + ".nxs.ngv"
-                    SM = path + "sans" + str(SMFile) + ".nxs.ngv"
-                    f = h5py.File(UU)
-                    UUMon = f['entry/control/monitor_counts'][0]
-                    UU_counts = f['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
-                    UUCount_time = f['entry/collection_time'][0]
-                    g = h5py.File(DU)
-                    DUMon = g['entry/control/monitor_counts'][0]
-                    DU_counts = g['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
-                    DUCount_time = g['entry/collection_time'][0]
-                    h = h5py.File(DD)
-                    DDMon = h['entry/control/monitor_counts'][0]
-                    DD_counts = h['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
-                    DDCount_time = h['entry/collection_time'][0]
-                    j = h5py.File(UD)
-                    UDMon = j['entry/control/monitor_counts'][0]
-                    UD_counts = j['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
-                    UDCount_time = j['entry/collection_time'][0]
-                    k = h5py.File(SM)
-                    SMMon = k['entry/control/monitor_counts'][0]
-                    SM_counts = k['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
-                    SMCount_time = k['entry/collection_time'][0]
-                    if BBFile == 0:
-                        BB_counts = 0.0
-                        BBCount_time = 1.0
-                    else:
-                        BB = path + "sans" + str(BBFile) + ".nxs.ngv"
-                        l = h5py.File(BB)
-                        BBCount_time = l['entry/collection_time'][0]
-                        BB_counts = l['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
-                    trans_UU = (UU_counts - BB_counts*(UUCount_time/BBCount_time))
-                    trans_DU = (DU_counts - BB_counts*(DUCount_time/BBCount_time))
-                    trans_DD = (DD_counts - BB_counts*(DDCount_time/BBCount_time))
-                    trans_UD = (UD_counts - BB_counts*(UDCount_time/BBCount_time))
-                    trans_SM = (SM_counts - BB_counts*(SMCount_time/BBCount_time))
-                    UU_value = (trans_UU/trans_SM)*(SMMon / UUMon)
-                    UD_value = (trans_DU/trans_SM)*(SMMon / UDMon)
-                    DD_value = (trans_DD/trans_SM)*(SMMon / DDMon)
-                    DU_value = (trans_UD/trans_SM)*(SMMon / DUMon)
-                    SM_value = trans_SM*1E8/SMMon
-                    if 'Trans' not in Pol_Trans[Samp]['T_UU']:
-                        Pol_Trans[Samp]['T_UU']['Trans'] = [UU_value]
-                        Pol_Trans[Samp]['T_DU']['Trans'] = [DU_value]
-                        Pol_Trans[Samp]['T_DD']['Trans'] = [DD_value]
-                        Pol_Trans[Samp]['T_UD']['Trans'] = [UD_value]
-                        Pol_Trans[Samp]['T_SM']['Trans_Cts'] = [SM_value]
-                    else:
-                        Pol_Trans[Samp]['T_UU']['Trans'].append(UU_value)
-                        Pol_Trans[Samp]['T_DU']['Trans'].append(DU_value)
-                        Pol_Trans[Samp]['T_DD']['Trans'].append(DD_value)
-                        Pol_Trans[Samp]['T_UD']['Trans'].append(UD_value)
-                        Pol_Trans[Samp]['T_SM']['Trans_Cts'].append(SM_value)
-                counter += 1
-
-    for Samp in Trans:
-        for Config in Trans[Samp]['Config(s)']:
-            if Config in BlockBeam:
-                if 'NA' not in BlockBeam[Config]['Trans']['File']:
-                    BBFile = BlockBeam[Config]['Trans']['File'][0]
-                elif 'NA' not in BlockBeam[Config]['Scatt']['File']:
-                    BBFile = BlockBeam[Config]['Scatt']['File'][0]
-                else:
-                    BBFile = 0
-                if Config in Masks and 'NA' not in Masks[Config]['Trans']:
-                    mask_it = np.array(Masks[Config]['Trans'][TransPanel])
-                    if BBFile == 0:
-                        example_file = Configs[Config]
-                        BB = path + "sans" + str(example_file) + ".nxs.ngv"
-                        l = h5py.File(BB)
-                        Example_data = np.array(l['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
-                        BB_data = np.zeros_like(Example_data)
-                        BBCount_time = 1.0
-                    else:
-                        BB = path + "sans" + str(BBFile) + ".nxs.ngv"
-                        l = h5py.File(BB)
-                        BBMon = l['entry/control/monitor_counts'][0]
-                        BBCount_time = l['entry/collection_time'][0]
-                        BB_data = np.array(l['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
-                    if 'NA' not in Trans[Samp]['Config(s)'][Config]['Unpol_Files']:
-                        for UNF in Trans[Samp]['Config(s)'][Config]['Unpol_Files']:
-                            UN_file = path + "sans" + str(UNF) + ".nxs.ngv"
-                            f = h5py.File(UN_file)
-                            UNMon = f['entry/control/monitor_counts'][0]
-                            UN_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
-                            UNCount_time = f['entry/collection_time'][0]
-                            UNTrans = (UN_data - BB_data*(UNCount_time/BBCount_time))*mask_it
-                            UN_Trans = np.sum(UNTrans)*1E8/UNMon
-                            if 'NA' in Trans[Samp]['Config(s)'][Config]['Unpol_Trans_Cts']:
-                                Trans[Samp]['Config(s)'][Config]['Unpol_Trans_Cts'] = [UN_Trans]
-                            else:
-                                Trans[Samp]['Config(s)'][Config]['Unpol_Trans_Cts'].append(UN_Trans)        
-                    if 'NA' not in Trans[Samp]['Config(s)'][Config]['U_Files']:
-                        for UF in Trans[Samp]['Config(s)'][Config]['U_Files']:
-                            U_file = path + "sans" + str(UF) + ".nxs.ngv"
-                            f = h5py.File(U_file)
-                            UMon = f['entry/control/monitor_counts'][0]
-                            U_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=TransPanel)])
-                            UCount_time = f['entry/collection_time'][0]
-                            UTrans = (U_data - BB_data*(UCount_time/BBCount_time))*mask_it
-                            U_Trans = np.sum(UTrans)*1E8/UMon
-                            if 'NA' in Trans[Samp]['Config(s)'][Config]['U_Trans_Cts']:
-                                Trans[Samp]['Config(s)'][Config]['U_Trans_Cts'] = [U_Trans]
-                            else:
-                                Trans[Samp]['Config(s)'][Config]['U_Trans_Cts'].append(U_Trans)
-                else:
-                    if BBFile == 0:
-                        BB_counts = 0.0
-                        BBCount_time = 1.0
-                    else:
-                        BB = path + "sans" + str(BBFile) + ".nxs.ngv"
-                        l = h5py.File(BB)
-                        BBCount_time = l['entry/collection_time'][0]
-                        BB_counts = l['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
-                    if 'NA' not in Trans[Samp]['Config(s)'][Config]['Unpol_Files']:
-                        for UNF in Trans[Samp]['Config(s)'][Config]['Unpol_Files']:
-                            UN_file = path + "sans" + str(UNF) + ".nxs.ngv"
-                            f = h5py.File(UN_file)
-                            UNMon = f['entry/control/monitor_counts'][0]
-                            UN_counts = f['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
-                            UNCount_time = f['entry/collection_time'][0]
-                            UNTrans = (UN_counts - BB_counts*(UNCount_time/BBCount_time))
-                            UN_Trans = UNTrans * 1E8 / UNMon
-                            if 'NA' in Trans[Samp]['Config(s)'][Config]['Unpol_Trans_Cts']:
-                                Trans[Samp]['Config(s)'][Config]['Unpol_Trans_Cts'] = [UN_Trans]
-                            else:
-                                Trans[Samp]['Config(s)'][Config]['Unpol_Trans_Cts'].append(UN_Trans)
-                    if 'NA' not in Trans[Samp]['Config(s)'][Config]['U_Files']:
-                        for UF in Trans[Samp]['Config(s)'][Config]['U_Files']:
-                            U_file = path + "sans" + str(UF) + ".nxs.ngv"
-                            f = h5py.File(U_file)
-                            UMon = f['entry/control/monitor_counts'][0]
-                            U_counts = f['entry/instrument/detector_{ds}/integrated_count'.format(ds=TransPanel)][0]
-                            UCount_time = f['entry/collection_time'][0]
-                            UTrans = (U_counts - BB_counts*(UCount_time/BBCount_time))
-                            U_Trans = UTrans * 1E8 / UMon
-                            if 'NA' in Trans[Samp]['Config(s)'][Config]['U_Trans_Cts']:
-                                Trans[Samp]['Config(s)'][Config]['U_Trans_Cts'] = [U_Trans]
-                            else:
-                                Trans[Samp]['Config(s)'][Config]['U_Trans_Cts'].append(U_Trans)
-                                         
+                    Pol_Trans[Samp]['T_UU']['Trans'].append(UU_trans/SM_trans)
+                    Pol_Trans[Samp]['T_DU']['Trans'].append(DU_trans/SM_trans)
+                    Pol_Trans[Samp]['T_DD']['Trans'].append(DD_trans/SM_trans)
+                    Pol_Trans[Samp]['T_UD']['Trans'].append(UD_trans/SM_trans)
+                    Pol_Trans[Samp]['T_SM']['Trans_Cts'].append(SM_trans)
+                counter += 1   
     return
 
-def Process_ScattFiles():
+def VSANS_ProcessTransCatalog(Trans, BlockBeam, DetectorPanel):
+    #Uses VSANS_CalcABSTrans_BlockBeamList(trans_filenumber, BlockBeam, DetectorPanel) which uses
+    #VSANS_MakeTransMask(filenumber, Config, DetectorPanel) and
+    #VSANS_BlockedBeamCountsPerSecond_ListOfFiles(filelist, Config) and 
+    #VSANS_AttenuatorTable(wavelength, attenuation)
+    for Samp in Trans:
+        for Config in Trans[Samp]['Config(s)']:
+            BBList = [0]
+            if Config in BlockBeam:
+                if 'NA' not in BlockBeam[Config]['Trans']['File']:
+                    BBList = BlockBeam[Config]['Trans']['File']
+                elif 'NA' not in BlockBeam[Config]['Scatt']['File']:
+                    BBList = BlockBeam[Config]['Scatt']['File']
+
+            if 'NA' not in Trans[Samp]['Config(s)'][Config]['Unpol_Files']:
+                for UNF in Trans[Samp]['Config(s)'][Config]['Unpol_Files']:
+                    Unpol_trans, Unpol_trans_unc = VSANS_CalcABSTrans_BlockBeamList(UNF, BBList, DetectorPanel)
+                    if 'NA' in Trans[Samp]['Config(s)'][Config]['Unpol_Trans_Cts']:
+                        Trans[Samp]['Config(s)'][Config]['Unpol_Trans_Cts'] = [Unpol_trans]
+                    else:
+                        Trans[Samp]['Config(s)'][Config]['Unpol_Trans_Cts'].append(Unpol_trans)   
+            if 'NA' not in Trans[Samp]['Config(s)'][Config]['U_Files']:
+                    for UF in Trans[Samp]['Config(s)'][Config]['U_Files']:
+                        Halfpol_trans, Halfpol_trans_unc = VSANS_CalcABSTrans_BlockBeamList(UF, BBList, DetectorPanel)
+                        if 'NA' in Trans[Samp]['Config(s)'][Config]['U_Trans_Cts']:
+                            Trans[Samp]['Config(s)'][Config]['U_Trans_Cts'] = [Halfpol_trans]
+                        else:
+                            Trans[Samp]['Config(s)'][Config]['U_Trans_Cts'].append(Halfpol_trans)
+    return
+
+def VSANS_ShareEmptyPolBeamScattCatalog(Scatt):
 
     for Sample_Name in Scatt:
         if str(Scatt[Sample_Name]['Intent']).find("Empty") != -1:
@@ -957,11 +912,9 @@ def Process_ScattFiles():
                     
     return
 
-
 def Plex_File(start_number):
 
     PlexData = {}
-
     filename = '0'
     Plex_file = [fn for fn in os.listdir("./") if fn.startswith("PLEX")]
     if len(Plex_file) >= 1:
@@ -977,9 +930,9 @@ def Plex_File(start_number):
                     data_subset = data[HighResMinX:HighResMaxX+1,HighResMinY:HighResMaxY+1]
                     PlexData[dshort] = data_subset
                 else:
-                    PlexData[dshort] = data #.flatten()
+                    PlexData[dshort] = data
             else:
-               PlexData[dshort] = data #.flatten() 
+               PlexData[dshort] = data
     else:
         filenumber = start_number
         filename = path + "sans" + str(filenumber) + ".nxs.ngv"
@@ -992,88 +945,14 @@ def Plex_File(start_number):
                 if ConvertHighResToSubset > 0:
                     if dshort == 'B':
                         data_subset = data_filler[HighResMinX:HighResMaxX+1,HighResMinY:HighResMaxY+1]
-                        #print('B reduced is', np.shape(data_subset))
                         PlexData[dshort] = data_subset
                     else:
-                        PlexData[dshort] = data_filler #.flatten()
+                        PlexData[dshort] = data_filler
                 else:
-                    PlexData[dshort] = data_filler #.flatten()
+                    PlexData[dshort] = data_filler
         print('Plex file not found; populated with ones instead')   
             
     return filename, PlexData
-
-def BlockedBeamScattCountsPerSecond(Config, representative_filenumber):
-
-    relevant_detectors = short_detectors
-    if str(Config).find('CvB') != -1:
-        relevant_detectors = all_detectors
-        
-    BB_per_second = {}
-    print('BlockBeams(s) for', Config, ':')
-
-    if Config in BlockBeam:
-        if 'NA' not in BlockBeam[Config]['Trans']['File']:
-            BBFile = BlockBeam[Config]['Trans']['File'][0]
-            BB = path + "sans" + str(BBFile) + ".nxs.ngv"
-            filename = str(BB)
-            config = Path(filename)
-            if config.is_file():
-                f = h5py.File(filename)
-                Count_time = f['entry/collection_time'][0]
-                for dshort in relevant_detectors:
-                    bb_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
-                    if ConvertHighResToSubset > 0 and dshort == 'B':
-                        data_holder = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
-                        bb_data = data_holder[HighResMinX:HighResMaxX+1,HighResMinY:HighResMaxY+1]/HighResGain
-                    BB_per_second[dshort] = bb_data / Count_time
-                print('Trans BB', BBFile)
-        if 'NA' not in BlockBeam[Config]['Scatt']['File']:
-            BBFile = BlockBeam[Config]['Scatt']['File'][0]
-            BB = path + "sans" + str(BBFile) + ".nxs.ngv"
-            filename = str(BB)
-            config = Path(filename)
-            if config.is_file():
-                f = h5py.File(filename)
-                Count_time = f['entry/collection_time'][0]
-                for dshort in relevant_detectors:
-                    bb_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
-                    if ConvertHighResToSubset > 0 and dshort == 'B':
-                        data_holder = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
-                        bb_data = data_holder[HighResMinX:HighResMaxX+1,HighResMinY:HighResMaxY+1]/HighResGain
-                    BB_per_second[dshort] = bb_data / Count_time
-                print('Scatt BB', BBFile)
-        if 'NA' in BlockBeam[Config]['Trans']['File'] and 'NA' in BlockBeam[Config]['Scatt']['File']:
-            BB = path + "sans" + str(representative_filenumber) + ".nxs.ngv"
-            filename = str(BB)
-            config = Path(filename)
-            if config.is_file():
-                f = h5py.File(filename)
-                for dshort in relevant_detectors:
-                    bb_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
-                    zero_data = np.zeros_like(bb_data)
-                    if ConvertHighResToSubset > 0 and dshort == 'B':
-                        data_holder = np.zeros_like(bb_data)
-                        zero_data = data_holder[HighResMinX:HighResMaxX+1,HighResMinY:HighResMaxY+1]/HighResGain
-                    BB_per_second[dshort] = zero_data
-            print('No BB')
-    else:
-        BB = path + "sans" + str(representative_filenumber) + ".nxs.ngv"
-        filename = str(BB)
-        config = Path(filename)
-        if config.is_file():
-            f = h5py.File(filename)
-            for dshort in relevant_detectors:
-                bb_data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
-                zero_data = np.zeros_like(bb_data)
-                if ConvertHighResToSubset > 0 and dshort == 'B':
-                        data_holder = np.zeros_like(bb_data)
-                        zero_data = data_holder[HighResMinX:HighResMaxX+1,HighResMinY:HighResMaxY+1]/HighResGain
-                BB_per_second[dshort] = zero_data
-        print('BB set to be zero')    
-
-    return BB_per_second
-
-
 
 def SolidAngle_AllDetectors(representative_filenumber, Config):
 
@@ -1094,7 +973,6 @@ def SolidAngle_AllDetectors(representative_filenumber, Config):
                 setback = f['entry/instrument/detector_{ds}/setback'.format(ds=dshort)][0]
             else:
                 setback = 0
-                
             realDistZ = detector_distance + setback
             theta_x_step = x_pixel_size / realDistZ
             theta_y_step = y_pixel_size / realDistZ
@@ -1324,18 +1202,15 @@ def QCalculation_AllDetectors(representative_filenumber, Config):
 def SectorMask_AllDetectors(InPlaneAngleMap, PrimaryAngle, AngleWidth, BothSides):
 
     SectorMask = {}
-
     relevant_detectors = short_detectors
     if str(Config).find('CvB') != -1:
         relevant_detectors = all_detectors
-
     for dshort in relevant_detectors:
         Angles = InPlaneAngleMap[dshort]
         SM = np.zeros_like(Angles)
         SM[np.absolute(Angles - PrimaryAngle) <= AngleWidth] = 1.0
         SM[np.absolute(Angles + 360 - PrimaryAngle) <= AngleWidth] = 1.0
         SM[np.absolute(Angles - 360 - PrimaryAngle) <= AngleWidth] = 1.0
-
         if BothSides > 0:
             SecondaryAngle = PrimaryAngle + 180
         else:
@@ -1345,9 +1220,7 @@ def SectorMask_AllDetectors(InPlaneAngleMap, PrimaryAngle, AngleWidth, BothSides
         SM[np.absolute(Angles - SecondaryAngle) <= AngleWidth] = 1.0
         SM[np.absolute(Angles + 360 - SecondaryAngle) <= AngleWidth] = 1.0
         SM[np.absolute(Angles - 360 - SecondaryAngle) <= AngleWidth] = 1.0
-
         SectorMask[dshort] = SM
-
     return SectorMask
             
 def He3Decay_func(t, p, gamma):
@@ -1358,7 +1231,6 @@ def HE3_Pol_AtGivenTime(entry_time, HE3_Cell_Summary):
     #Predefine HE3_Cell_Summary[HE3_Trans[entry]['Insert_time']] = {'Atomic_P0' : P0, 'Gamma(hours)' : gamma, 'Mu' : Mu, 'Te' : Te}
     #He3Decay_func must be predefined
     '''
-
     counter = 0
     for time in HE3_Cell_Summary:
         if counter == 0:
@@ -1368,7 +1240,6 @@ def HE3_Pol_AtGivenTime(entry_time, HE3_Cell_Summary):
             holder_time = time
         if entry_time < time:
             break
-        
     delta_time = entry_time - holder_time     
     P0 = HE3_Cell_Summary[holder_time]['Atomic_P0']
     gamma = HE3_Cell_Summary[holder_time]['Gamma(hours)']
@@ -1387,10 +1258,8 @@ def HE3_DecayCurves(HE3_Trans):
     #Uses predefined He3Decay_func
     #Creates and returns HE3_Cell_Summary
     '''
-
     HE3_Cell_Summary = {}
     entry_number = 0
-    
     for entry in HE3_Trans:
         entry_number += 1
         Mu = HE3_Trans[entry]['Mu']
@@ -1398,17 +1267,18 @@ def HE3_DecayCurves(HE3_Trans):
         xdata = np.array(HE3_Trans[entry]['Elasped_time'])
         trans_data = np.array(HE3_Trans[entry]['Transmission'])
         ydata = np.arccosh(np.array(trans_data)/(np.e**(-Mu)*Te))/Mu
-
         if xdata.size < 2:
             P0 = ydata[0]
             gamma = 1000.0
             '''#assumes no appreciable time decay until more data obtained'''
             PCell0 = np.tanh(Mu * P0)
+            P0_Unc = 'NA'
+            gamma_Unc = 'NA'
+            PCell0_Unc = 'NA'
         else:
             popt, pcov = curve_fit(He3Decay_func, xdata, ydata)
             P0, gamma = popt
             P0_Unc, gamma_Unc = np.sqrt(np.diag(pcov))
-            
             PCell0 = np.tanh(Mu * P0)
             PCell0_Max = np.tanh(Mu * (P0+P0_Unc))
             PCell0_Min = np.tanh(Mu * (P0-P0_Unc))
@@ -1436,8 +1306,7 @@ def HE3_DecayCurves(HE3_Trans):
             plt.ylabel('3He atomic polarization')
             plt.title('He3 Cell Decay')
             plt.legend()
-            fig.savefig('He3Curve_AtomicPolarization_Cell{cell}.png'.format(cell = entry))
-            #plt.show()
+            fig.savefig(save_path + 'He3Curve_AtomicPolarization_Cell{cell}.png'.format(cell = entry))
             plt.pause(2)
             plt.close()
 
@@ -1467,25 +1336,17 @@ def HE3_DecayCurves(HE3_Trans):
             plt.ylabel('Spin Transmission')
             plt.title('Predicted He3 Cell Transmission')
             plt.legend()
-            fig.savefig('He3PredictedDecayCurve_{cell}.png'.format(cell = entry))
-            #plt.show()
+            fig.savefig(save_path + 'He3PredictedDecayCurve_{cell}.png'.format(cell = entry))
             plt.pause(2)
             plt.close()
 
-        '''    
-        #NeutronPol = np.tanh(Mu * AtomicPol)
-        #UnpolHE3Trans = Te * np.exp(-Mu)*np.cosh(Mu * AtomicPol)
-        #T_MAJ = Te * np.exp(-Mu*(1.0 - AtomicPol))
-        #T_MIN = Te * np.exp(-Mu*(1.0 + AtomicPol))
-        '''
-
     return HE3_Cell_Summary
 
-def Pol_SuppermirrorAndFlipper(Pol_Trans, HE3_Cell_Summary):
-    '''#Uses time of measurement from Pol_Trans,
-    #saves PSM and PF values into Pol_Trans.
+def vSANS_PolarizationSupermirrorAndFlipper(Pol_Trans, HE3_Cell_Summary, UsePolCorr):
+    #Uses time of measurement from Pol_Trans and cell history from HE3_Cell_Summary.
+    #Saves PSM and PF values into Pol_Trans.
     #Uses prefefined HE3_Pol_AtGivenTime function.
-    '''
+    #Note: The vSANS RF Flipper polarization has been measured at 1.0 and is, thus, set.
     
     for ID in Pol_Trans:
         if 'Meas_Time' in Pol_Trans[ID]['T_UU']:
@@ -1521,7 +1382,6 @@ def Pol_SuppermirrorAndFlipper(Pol_Trans, HE3_Cell_Summary):
                 else:
                     Pol_Trans[ID]['T_UD']['Neutron_Pol'].append(NP)
                     Pol_Trans[ID]['T_UD']['Unpol_Trans'].append(UT)
-            
 
     for ID in Pol_Trans:
         if 'Neutron_Pol' in Pol_Trans[ID]['T_UU']:
@@ -1542,11 +1402,10 @@ def Pol_SuppermirrorAndFlipper(Pol_Trans, HE3_Cell_Summary):
             DU_NeutronPol = np.array(Pol_Trans[ID]['T_DU']['Neutron_Pol'])
             print('  ')
             print(ID)
-            print('UU_Cell', UU_NeutronPol, UU_UnpolHe3Trans)
-            print('DU_Cell', DU_NeutronPol, DU_UnpolHe3Trans)
-            print('DD_Cell', DD_NeutronPol, DD_UnpolHe3Trans)
-            print('UD_Cell', UD_NeutronPol, UD_UnpolHe3Trans)
-
+            print('UU, DU, DD, UD Trans:', int(np.average(UU)*10000)/10000, " " , int(np.average(DU)*10000)/10000, " ", int(np.average(DD)*10000)/10000, " ", int(np.average(UD)*10000)/10000)
+            NPAve = 0.25*(np.average(UU_NeutronPol) + np.average(DU_NeutronPol) + np.average(DD_NeutronPol) + np.average(UD_NeutronPol))
+            print('3He Pol (Ave.)', NPAve)
+            
             PF = 1.00
             Pol_Trans[ID]['P_F'] = np.average(PF)
             PSMUU = (UU/UU_UnpolHe3Trans - 1.0)/(UU_NeutronPol)
@@ -1555,15 +1414,16 @@ def Pol_SuppermirrorAndFlipper(Pol_Trans, HE3_Cell_Summary):
             PSMDU = (1.0 - DU/DU_UnpolHe3Trans)/(DU_NeutronPol)
             PSM_Ave = 0.25*(np.average(PSMUU) + np.average(PSMDD) + np.average(PSMUD) + np.average(PSMDU))
             Pol_Trans[ID]['P_SM'] = np.average(PSM_Ave)
-            print('PSM', Pol_Trans[ID]['P_SM'])
+            print('Sample Depol * PSM', Pol_Trans[ID]['P_SM'])
+            print('Flipping ratios (UU/DU, DD/UD):', int(10000*np.average(UU)/np.average(DU))/10000, int(10000*np.average(DD)/np.average(UD))/10000)
             
-
             if UsePolCorr == 0:
                 '''#0 Means no, turn it off'''
                 Pol_Trans[ID]['P_SM'] = 1.0
                 Pol_Trans[ID]['P_F'] = 1.0
                 print('Manually reset P_SM and P_F to unity')
 
+    print(" ")
     return
 
 def AbsScale(ScattType, Sample, Config, BlockBeam_per_second, Solid_Angle, Plex, Scatt, Trans):
@@ -1665,7 +1525,20 @@ def AbsScale(ScattType, Sample, Config, BlockBeam_per_second, Solid_Angle, Plex,
                 
     return Scaled_Data, UncScaled_Data
 
-def PolCorrScattFiles(dimXX, dimYY, Sample, Config, UUScaledData, DUScaledData, DDScaledData, UDScaledData, UUScaledData_Unc, DUScaledData_Unc, DDScaledData_Unc, UDScaledData_Unc):
+def vSANS_BestSuperMirrorPolarizationValue(Starting_PSM, YesNoBypassBestGuessPSM, Pol_Trans):
+    
+    Measured_PSM = [Starting_PSM]
+    if YesNoBypassBestGuessPSM > 0:
+        for Sample in Pol_Trans:              
+            if 'P_SM' in Pol_Trans[Sample]:
+                Measured_PSM.append(Pol_Trans[Sample]['P_SM'])
+    Truest_PSM = np.amax(Measured_PSM)
+    print('Best PSM value is', Truest_PSM)
+    print(" ")
+
+    return Truest_PSM
+
+def vSANS_PolCorrScattFiles(BestPSM, dimXX, dimYY, Sample, Config, Scatt, Trans, Pol_Trans, UUScaledData, DUScaledData, DDScaledData, UDScaledData, UUScaledData_Unc, DUScaledData_Unc, DDScaledData_Unc, UDScaledData_Unc):
 
     Scaled_Data = np.zeros((8,4,6144))
     UncScaled_Data = np.zeros((8,4,6144))
@@ -1749,7 +1622,7 @@ def PolCorrScattFiles(dimXX, dimYY, Sample, Config, UUScaledData, DUScaledData, 
                     entry = Scatt[Sample]['Config(s)'][Config][type_time][filenumber_counter]
                     NP, UT, T_MAJ, T_MIN = HE3_Pol_AtGivenTime(entry, HE3_Cell_Summary)
                     C = NP
-                    S = 0.9985
+                    S = BestPSM #0.9985
                     '''#0.9985 is the highest I've recently gotten at 5.5 Ang from EuSe 60 nm 0.95 V and 2.0 K'''
                     X = np.sqrt(PSM/S)
                     if type == "UU":
@@ -2146,7 +2019,7 @@ def ASCIIlike_Output(Type, ID, Config, Data_AllDetectors, Unc_Data_AllDetectors,
         print('Outputting {TP} 2D data, {idnum}, {CF} '.format(TP=Type, idnum=ID, CF=Config))        
         ASCII_Combined = np.array([QXData_Combined, QYData_Combined, Int_Combined, DeltaInt_Combined, QZData_Combined, QParlUnc_Combined, QPerpUnc_Combined, Shadow_Combined])
         ASCII_Combined = ASCII_Combined.T
-        np.savetxt('Dim2Scatt_{Samp}_{CF}_{TP}.DAT'.format(Samp=ID, CF=Config, TP=Type,), ASCII_Combined, delimiter = ' ', comments = ' ', header = 'ASCII data created Mon, Jan 13, 2020 2:39:54 PM')
+        np.savetxt(save_path + 'Dim2Scatt_{Samp}_{CF}_{TP}.DAT'.format(Samp=ID, CF=Config, TP=Type,), ASCII_Combined, delimiter = ' ', comments = ' ', header = 'ASCII data created Mon, Jan 13, 2020 2:39:54 PM')
 
     return
 
@@ -2160,7 +2033,28 @@ def SaveTextData(Type, Slice, Sample, Config, DataMatrix):
     Shadow = np.ones_like(Q)
     text_output = np.array([Q, Int, IntUnc, Q_mean, Q_Unc, Shadow])
     text_output = text_output.T
-    np.savetxt('SixCol_{samp},{cf}_{key}{cut}.txt'.format(samp=Sample, cf = Config, key = Type, cut = Slice), text_output, delimiter = ' ', comments = ' ', header= 'Q, I, DelI, Q_mean, Q_Unc, Shadow', fmt='%1.4e')
+    np.savetxt(save_path + 'SixCol_{samp},{cf}_{key}{cut}.txt'.format(samp=Sample, cf = Config, key = Type, cut = Slice), text_output, delimiter = ' ', comments = ' ', header= 'Q, I, DelI, Q_mean, Q_Unc, Shadow', fmt='%1.4e')
+  
+    return
+
+def SaveTextDataFourCrossSections(Type, Slice, Sample, Config, UUMatrix, DUMatrix, DDMatrix, UDMatrix):
+
+    Q = UUMatrix['Q']
+    UU = UUMatrix['I']
+    UU_Unc = UUMatrix['I_Unc']
+    DU = DUMatrix['I']
+    DU_Unc = DUMatrix['I_Unc']
+    DD = DDMatrix['I']
+    DD_Unc = DDMatrix['I_Unc']
+    UD = UDMatrix['I']
+    UD_Unc = UDMatrix['I_Unc']
+    Q_mean = UUMatrix['Q_Mean']
+    Q_Unc = UUMatrix['Q_Uncertainty']
+    Shadow = np.ones_like(Q)
+    text_output = np.array([Q, UU, UU_Unc, DU, DU_Unc, DD, DD_Unc, UD, UD_Unc, Q_mean, Q_Unc, Shadow])
+    text_output = text_output.T
+    np.savetxt(save_path + 'MultiCol_{samp},{cf}_{key}{cut}.txt'.format(samp=Sample, cf = Config, key = Type, cut = Slice), text_output,
+               delimiter = ' ', comments = ' ', header= 'Q, UU, DelUU, DU, DelDU, DD, DelDD, UD, DelUD, Q_mean, Q_Unc, Shadow', fmt='%1.4e')
   
     return
 
@@ -2190,11 +2084,10 @@ def PlotAndSaveFullPolSlices(PolCorrDegree, Sample, Config, InPlaneAngleMap, Q_m
             PolCorrDD[dshort][:][:] = PolCorrDD[dshort][:][:] - MTPolCorrDD[dshort][:][:]
             PolCorrUD[dshort][:][:] = PolCorrUD[dshort][:][:] - MTPolCorrUD[dshort][:][:]
         
-    
     BothSides = 1
     PlotYesNo = 0
     HorzMask = SectorMask_AllDetectors(InPlaneAngleMap, 0, SectorCutAngles, BothSides)
-    VertMask = SectorMask_AllDetectors(InPlaneAngleMap, 180, SectorCutAngles, BothSides)
+    VertMask = SectorMask_AllDetectors(InPlaneAngleMap, 90, SectorCutAngles, BothSides)
     CircMask = SectorMask_AllDetectors(InPlaneAngleMap, 0, 180, BothSides)
 
     Vert_Data = {}
@@ -2218,6 +2111,8 @@ def PlotAndSaveFullPolSlices(PolCorrDegree, Sample, Config, InPlaneAngleMap, Q_m
         DU = TwoDimToOneDim(slice_key[0], Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, local_mask, PolCorrDU, PolCorrDU_Unc, Sample, Config, PlotYesNo, AverageQRanges)
         DD = TwoDimToOneDim(slice_key[0], Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, local_mask, PolCorrDD, PolCorrDD_Unc, Sample, Config, PlotYesNo, AverageQRanges)
         UD = TwoDimToOneDim(slice_key[0], Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, local_mask, PolCorrUD, PolCorrUD_Unc, Sample, Config, PlotYesNo, AverageQRanges)
+
+        SaveTextDataFourCrossSections('{corr}{sub}'.format(corr = Corr, sub = Sub), slice_key[0], Sample, Config, UU, DU, DD, UD)
 
         if slices == "Vert":
             HaveVertData = 1
@@ -2246,27 +2141,48 @@ def PlotAndSaveFullPolSlices(PolCorrDegree, Sample, Config, InPlaneAngleMap, Q_m
             Horz_Data['DD_Unc'] = DD['I_Unc']
             Horz_Data['UD'] = UD['I']
             Horz_Data['UD_Unc'] = UD['I_Unc']
-            
-        SaveTextData('{corr}UU{sub}'.format(corr = Corr, sub = Sub), slice_key[0], Sample, Config, UU)
-        SaveTextData('{corr}DU{sub}'.format(corr = Corr, sub = Sub), slice_key[0], Sample, Config, DU)
-        SaveTextData('{corr}DD{sub}'.format(corr = Corr, sub = Sub), slice_key[0], Sample, Config, DD)
-        SaveTextData('{corr}UD{sub}'.format(corr = Corr, sub = Sub), slice_key[0], Sample, Config, UD)
 
-        fig = plt.figure()
-        ax = plt.axes()
-        ax.set_xscale("log")
-        ax.set_yscale("log")
-        ax.errorbar(UU['Q'], UU['I'], yerr=UU['I_Unc'], fmt = 'b*', label='UU')
-        ax.errorbar(DU['Q'], DU['I'], yerr=DU['I_Unc'], fmt = 'g*', label='DU')
-        ax.errorbar(DD['Q'], DD['I'], yerr=DD['I_Unc'], fmt = 'r*', label='DD')
-        ax.errorbar(UD['Q'], UD['I'], yerr=UD['I_Unc'], fmt = 'm*', label='UD')
-        plt.xlabel('Q')
-        plt.ylabel('Intensity')
-        plt.title('{slice_type}{sub}_{idnum},{cf}'.format(slice_type = slice_key[0], sub = Sub, idnum=Sample, cf = Config))
-        plt.legend()
-        fig.savefig('Plot_{idnum},{cf}_{corr}{sub}{slice_type}.png'.format(idnum=Sample, cf = Config, corr = Corr, sub = Sub, slice_type = slice_key[0]))
-        plt.pause(2)
-        plt.close()
+        #Reinstate in slightly different form:    
+        #SaveTextData('{corr}UU{sub}'.format(corr = Corr, sub = Sub), slice_key[0], Sample, Config, UU)
+        #SaveTextData('{corr}DU{sub}'.format(corr = Corr, sub = Sub), slice_key[0], Sample, Config, DU)
+        #SaveTextData('{corr}DD{sub}'.format(corr = Corr, sub = Sub), slice_key[0], Sample, Config, DD)
+        #SaveTextData('{corr}UD{sub}'.format(corr = Corr, sub = Sub), slice_key[0], Sample, Config, UD)
+
+        if slices == "Vert":
+            fig = plt.figure()
+            ax = plt.axes()
+            ax.set_xscale("log")
+            ax.set_yscale("log")
+            ax.errorbar(UU['Q'], UU['I'], yerr=UU['I_Unc'], fmt = 'b*', label='UU')
+            ax.errorbar(DU['Q'], DU['I'], yerr=DU['I_Unc'], fmt = 'g*', label='DU')
+            ax.errorbar(DD['Q'], DD['I'], yerr=DD['I_Unc'], fmt = 'r*', label='DD')
+            ax.errorbar(UD['Q'], UD['I'], yerr=UD['I_Unc'], fmt = 'm*', label='UD')
+            plt.xlabel('Q')
+            plt.ylabel('Intensity')
+            plt.title('{slice_type}{sub}_{idnum},{cf}'.format(slice_type = slice_key[0], sub = Sub, idnum=Sample, cf = Config))
+            plt.legend()
+            fig.savefig(save_path + 'Plot_{idnum},{cf}_{corr}{sub}{slice_type}.png'.format(idnum=Sample, cf = Config, corr = Corr, sub = Sub, slice_type = slice_key[0]))
+            if YesNoShowPlots > 0:
+                plt.pause(2)
+            plt.close()
+
+        if slices == "Horz":
+            fig = plt.figure()
+            ax = plt.axes()
+            ax.set_xscale("log")
+            ax.set_yscale("log")
+            ax.errorbar(UU['Q'], UU['I'], yerr=UU['I_Unc'], fmt = 'b*', label='UU')
+            ax.errorbar(DU['Q'], DU['I'], yerr=DU['I_Unc'], fmt = 'g*', label='DU')
+            ax.errorbar(DD['Q'], DD['I'], yerr=DD['I_Unc'], fmt = 'r*', label='DD')
+            ax.errorbar(UD['Q'], UD['I'], yerr=UD['I_Unc'], fmt = 'm*', label='UD')
+            plt.xlabel('Q')
+            plt.ylabel('Intensity')
+            plt.title('{slice_type}{sub}_{idnum},{cf}'.format(slice_type = slice_key[0], sub = Sub, idnum=Sample, cf = Config))
+            plt.legend()
+            fig.savefig(save_path + 'Plot_{idnum},{cf}_{corr}{sub}{slice_type}.png'.format(idnum=Sample, cf = Config, corr = Corr, sub = Sub, slice_type = slice_key[0]))
+            if YesNoShowPlots > 0:
+                plt.pause(2)
+            plt.close()
 
         NSFSum = {}
         NSFDiff = {}
@@ -2292,7 +2208,7 @@ def PlotAndSaveFullPolSlices(PolCorrDegree, Sample, Config, InPlaneAngleMap, Q_m
             UnpolEquiv_Unc[dshort] = np.sqrt(np.power(np.array(PolCorrUU_Unc[dshort]),2) + np.power(np.array(PolCorrDU_Unc[dshort]),2) + np.power(np.array(PolCorrDD_Unc[dshort]),2) + np.power(np.array(PolCorrUD_Unc[dshort]),2))
 
         AllCS = TwoDimToOneDim(slice_key[0], Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, local_mask, UnpolEquiv, UnpolEquiv_Unc, Sample, Config, PlotYesNo, AverageQRanges)
-        SaveTextData('{corr}SumAllCrossSections{sub}'.format(corr = Corr, sub = Sub), slice_key[0], Sample, Config, AllCS)
+        #SaveTextData('{corr}SumAllCrossSections{sub}'.format(corr = Corr, sub = Sub), slice_key[0], Sample, Config, AllCS)
         '''
         if slices == "Circ":
             slice_key = ["CircAve", "CircU", "CircD", "CircDminU"]
@@ -2367,6 +2283,13 @@ def PlotAndSaveFullPolSlices(PolCorrDegree, Sample, Config, InPlaneAngleMap, Q_m
         #print('Length of Horz Data is', len(Horz_Data['Q']))
         #print('Length of Vert Data is', len(Vert_Data['Q']))
 
+        Num = Horz_Data['DU'] + Horz_Data['UD']
+        Denom = Vert_Data['DU'] + Vert_Data['UD']
+        Ratio = Num / Denom
+        Num_Unc = np.sqrt(np.power(Horz_Data['DU_Unc'],2) + np.power(Horz_Data['UD_Unc'],2))
+        Denom_Unc = np.sqrt(np.power(Vert_Data['DU_Unc'],2) + np.power(Vert_Data['UD_Unc'],2))
+        Ratio_Unc = Ratio * np.sqrt( np.power(Num_Unc,2)/np.power(Num,2) + np.power(Denom_Unc,2)/np.power(Denom,2))
+
         M_Perp = Horz_Data['DU'] + Horz_Data['UD'] + Vert_Data['DU'] + Vert_Data['UD']
         M_Perp_Unc = np.sqrt(np.power(Horz_Data['DU_Unc'],2) + np.power(Horz_Data['UD_Unc'],2) + np.power(Vert_Data['DU_Unc'],2) + np.power(Vert_Data['UD_Unc'],2))
 
@@ -2385,18 +2308,56 @@ def PlotAndSaveFullPolSlices(PolCorrDegree, Sample, Config, InPlaneAngleMap, Q_m
 
         fig = plt.figure()
         ax = plt.axes()
-        ax.set_xscale("log")
-        ax.set_yscale("log")
-        ax.errorbar(Horz_Data['Q'], M_Perp, yerr=M_Perp_Unc, fmt = 'b*', label='M_Perp')
-        ax.errorbar(Horz_Data['Q'], M_Parl, yerr=M_Parl_Unc, fmt = 'g*', label='M_Parl')
-        ax.errorbar(Horz_Data['Q'], Struc, yerr=Struc_Unc, fmt = 'r*', label='Strucutural')
+        ax.errorbar(Horz_Data['Q'], Ratio, yerr=Ratio_Unc, fmt = 'b*-', label='{idnum}'.format(idnum=Sample))
+        plt.ylim(0.5, 2.5)
         plt.xlabel('Q')
-        plt.ylabel('Intensity')
-        plt.title('AMagnetism')
+        plt.ylabel('Ratio')
+        plt.title('Horizontal to Vertical Spin Flip Ratio')
         plt.legend()
-        fig.savefig('Plot{idnum},{cf}_FullPolManetism{sub}Deg.png'.format(idnum=Sample, cf = Config, sub = Sub))
-        plt.pause(2)
+        if PolCorrDegree >= 2:
+            fig.savefig(save_path + 'SFRatio{idnum}_FullPolMagnetism{sub}Deg.png'.format(idnum=Sample, sub = Sub))
+        else:
+            fig.savefig(save_path + 'SFRatio{idnum}_{sub}Deg.png'.format(idnum=Sample, sub = Sub))
+        if YesNoShowPlots > 0:
+            plt.pause(2)
         plt.close()
+
+        if PolCorrDegree >= 2:
+            fig = plt.figure()
+            ax = plt.axes()
+            ax.set_xscale("log")
+            ax.set_yscale("log")
+            ax.errorbar(Horz_Data['Q'], M_Perp, yerr=M_Perp_Unc, fmt = 'b*', label='M_Perp')
+            ax.errorbar(Horz_Data['Q'], M_Parl, yerr=M_Parl_Unc, fmt = 'g*', label='M_Parl')
+            ax.errorbar(Horz_Data['Q'], Struc, yerr=Struc_Unc, fmt = 'r*', label='Structural')
+            plt.xlabel('Q')
+            plt.ylabel('Intensity')
+            plt.title('Magnetic and Structural Scattering of {idnum}'.format(idnum=Sample))
+            plt.legend()
+            fig.savefig(save_path + 'Plot{idnum},{cf}_FullPolMagnetism{sub}Deg.png'.format(idnum=Sample, cf = Config, sub = Sub))
+            if YesNoShowPlots > 0:
+                plt.pause(2)
+            plt.close()
+
+            Results = {}
+            Results['Q'] = Horz_Data['Q']
+            Results['Q_Mean'] = Horz_Data['Q_Mean']
+            Results['Q_Uncertainty'] = Horz_Data['Q_Unc']
+
+            Results['I'] = Struc
+            Results['I_Unc'] = Struc_Unc
+            CutNote = "Cut"+str(SectorCutAngles)
+            SaveTextData('Struc', CutNote, Sample, Config, Results)
+
+            Results['I'] = M_Parl
+            Results['I_Unc'] = M_Parl_Unc
+            CutNote = "Cut"+str(SectorCutAngles)
+            SaveTextData('MParl', CutNote, Sample, Config, Results)
+
+            Results['I'] = M_Perp
+            Results['I_Unc'] = M_Perp_Unc
+            CutNote = "AveCut"+str(SectorCutAngles)
+            SaveTextData('MPerp', CutNote, Sample, Config, Results) 
 
     return UnpolEquiv, UnpolEquiv_Unc
 
@@ -2454,14 +2415,13 @@ def PlotAndSaveHalfPolSlices(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bi
         ax.errorbar(D['Q'], D['I'], yerr=D['I_Unc'], fmt = 'g*', label='D')
         ax.errorbar(Diff['Q'], Diff['I'], yerr=Diff['I_Unc'], fmt = 'r*', label='D-U')
         ax.errorbar(OtherDiff['Q'], OtherDiff['I'], yerr=Diff['I_Unc'], fmt = 'm*', label='U-D')
-        #ax.errorbar(Sum['Q'], Sum['I'], yerr=Sum['I_Unc'], fmt = 'c*', label='U+D')
         plt.xlabel('Q')
         plt.ylabel('Intensity')
         plt.title('{slice_type} for {idnum}_{cf}'.format(slice_type = slice_key[0], idnum=Sample, cf = Config))
         plt.legend()
-        fig.savefig('Plot{idnum},{cf}_HalfPol{slice_type}.png'.format(idnum=Sample, cf = Config, slice_type = slice_key[0]))
-        #plt.show()
-        plt.pause(2)
+        fig.savefig(save_path + 'Plot{idnum},{cf}_HalfPol{slice_type}.png'.format(idnum=Sample, cf = Config, slice_type = slice_key[0]))
+        if YesNoShowPlots > 0:
+            plt.pause(2)
         plt.close()
 
     return DiffData, NSF2_Unc, SumData, NSF2_Unc
@@ -2504,17 +2464,68 @@ def PlotAndSaveUnpolSlices(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bins
         plt.ylabel('Intensity')
         plt.title('{slice_type} for {idnum}_{cf}'.format(slice_type = slice_key[0], idnum=Sample, cf = Config))
         plt.legend()
-        fig.savefig('Plot{idnum},{cf}_Unpol{slice_type}.png'.format(idnum=Sample, cf = Config, slice_type = slice_key[0]))
-        #plt.show()
-        plt.pause(2)
+        fig.savefig(save_path + 'Plot{idnum},{cf}_Unpol{slice_type}.png'.format(idnum=Sample, cf = Config, slice_type = slice_key[0]))
+        if YesNoShowPlots > 0:
+            plt.pause(2)
         plt.close()
 
     return
 
-def Record_DataProcessing(Plex_Name, Mask_Record, Scatt, BlockBeam, Trans, Pol_Trans, HE3_Cell_Summary):
+def vSANS_Record_DataProcessing(Plex_Name, Mask_Record, Scatt, BlockBeam, Trans, Pol_Trans, HE3_Cell_Summary):
 
-    file1 = open("DataReductionSummary.txt","w+")
+    file1 = open(save_path + "DataReductionSummary.txt","w+")
     file1.write("Record of Data Reduction \n")
+    file1.write('\n')
+    file1.write("User-defined Inputs: \n")
+    file1.write("path = " + "'" + path + "'"+ "\n")
+    file1.write("save_path = " + "'" + save_path + "'" + "\n")
+    file1.write("TransPanel = " + "'" + TransPanel + "'" + "\n")
+    file1.write("SectorCutAngles = " + str(SectorCutAngles) + "\n")
+    file1.write("Absolute_Q_min = " + str(Absolute_Q_min) + "\n")
+    file1.write("Absolute_Q_max = " + str(Absolute_Q_max) + "\n")
+    file1.write("YesNo_2DCombinedFiles = " + str(YesNo_2DCombinedFiles) + "\n")
+    file1.write("YesNo_2DFilesPerDetector = " + str(YesNo_2DFilesPerDetector) + "\n")
+    file1.write("Slices = ")
+    for x in Slices:
+        file1.write(str(x) + ' ')
+    file1.write('\n')
+
+    file1.write("AutoSubtractEmpty = " + str(AutoSubtractEmpty) + "\n")
+
+    file1.write("Excluded_Filenumbers = [")
+    for x in Excluded_Filenumbers:
+        file1.write(str(x) + ',' + ' ')
+    file1.write('] \n')
+
+    file1.write("ReAssignBlockBeam = ")
+    for x in ReAssignBlockBeam:
+        file1.write(str(x) + ' ')
+    file1.write('\n')
+    file1.write("PSM_Guess value = " + str(PSM_Guess) + "\n")
+    file1.write("YesNoBypassBestGuessPSM = " + str(YesNoBypassBestGuessPSM) + "\n")
+    '''
+    #High Res Detector kicks in when using Converging Beam (at 6.7 angstroms)
+    HighResMinX = 240 #Default 240
+    HighResMaxX = 474 #Default 474
+    HighResMinY = 667 #Default 667
+    HighResMaxY = 917 #Default 917
+    ConvertHighResToSubset = 1 #Default = 1 for yes (uses only a small subset of the million plus pixels for approximately an 18 x's savings in computing power).
+    HighResGain = 320.0 #Experimentally determined.
+    '''
+    file1.write("YesNoManualHe3Entry = " + str(YesNoManualHe3Entry) + "\n")
+    if YesNoManualHe3Entry >= 1:
+        file1.write("New_HE3_Files = ")
+        for x in New_HE3_Files:
+            file1.write(str(x) + ' ')
+        file1.write('\n')
+        file1.write("MuValues = ")
+        for x in MuValues:
+            file1.write(str(x) + ' ')
+        file1.write('\n')
+        file1.write("TeValues = ")
+        for x in TeValues:
+            file1.write(str(x) + ' ')
+        file1.write('\n')
     file1.write('\n')
     file1.write('Plex file is ' + str(Plex_Name) + '\n')
     file1.write('\n')
@@ -2635,7 +2646,7 @@ def Annular_Average(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_total, Gene
     plt.ylabel('Summed Counts')
     plt.title('Annular Average_{qmin}to{qmax}invang'.format(qmin = Q_min, qmax = Q_max))
     plt.legend()
-    fig.savefig('AnnularAverage_{idnum},{cf}.png'.format(idnum=Sample, cf = Config))
+    fig.savefig(save_path + 'AnnularAverage_{idnum},{cf}.png'.format(idnum=Sample, cf = Config))
     plt.pause(2)
     plt.close()
     
@@ -2644,25 +2655,24 @@ def Annular_Average(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_total, Gene
 #*************************************************
 #***        Start of 'The Program'             ***
 #*************************************************
-       
-Sample_Names, Configs, BlockBeam, Scatt, Trans, Pol_Trans, HE3_Trans, start_number, filenumberlisting = SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues)
+if not os.path.exists(save_path):
+    os.makedirs(save_path)
 
-ShareSampleBaseTransmissions(Trans)
-
-Process_ScattFiles()
-
+'''System based on categorizing/grouping files:'''
+Sample_Names, Configs, BlockBeamCatalog, ScattCatalog, TransCatalog, Pol_TransCatalog, HE3_TransCatalog, start_number, filenumberlisting = VSANS_SortDataAutomatic(YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues)
+VSANS_ShareSampleBaseTransCatalog(TransCatalog, ScattCatalog)
+VSANS_ShareEmptyPolBeamScattCatalog(ScattCatalog)
+VSANS_ProcessHe3TransCatalog(HE3_TransCatalog, BlockBeamCatalog, TransPanel)
+VSANS_ProcessPolTransCatalog(Pol_TransCatalog, BlockBeamCatalog, TransPanel)
+VSANS_ProcessTransCatalog(TransCatalog, BlockBeamCatalog, TransPanel)
+#Make sure blockbeam subtraction is working correctly...
 UserDefinedMasks, Mask_Record = ReadIn_IGORMasks(filenumberlisting)
-
-Process_Transmissions(BlockBeam, UserDefinedMasks, HE3_Trans, Pol_Trans, Trans)
-
 Plex_Name, Plex = Plex_File(start_number)
+HE3_Cell_Summary = HE3_DecayCurves(HE3_TransCatalog)
+vSANS_PolarizationSupermirrorAndFlipper(Pol_TransCatalog, HE3_Cell_Summary, UsePolCorr)
+Truest_PSM = vSANS_BestSuperMirrorPolarizationValue(PSM_Guess, YesNoBypassBestGuessPSM, Pol_TransCatalog)
+vSANS_Record_DataProcessing(Plex_Name, Mask_Record, ScattCatalog, BlockBeamCatalog, TransCatalog, Pol_TransCatalog, HE3_Cell_Summary)
 
-HE3_Cell_Summary = HE3_DecayCurves(HE3_Trans)
-
-Pol_SuppermirrorAndFlipper(Pol_Trans, HE3_Cell_Summary)
-
-Record_DataProcessing(Plex_Name, Mask_Record, Scatt, BlockBeam, Trans, Pol_Trans, HE3_Cell_Summary)
- 
 GeneralMaskWOSolenoid = {}
 GeneralMaskWSolenoid = {}
 QValues_All = {}
@@ -2670,7 +2680,13 @@ for Config in Configs:
     representative_filenumber = Configs[Config]
     if representative_filenumber != 0: #and str(Config).find('CvB') != -1:
         Solid_Angle = SolidAngle_AllDetectors(representative_filenumber, Config)
-        BB_per_second = BlockedBeamScattCountsPerSecond(Config, representative_filenumber)
+        BBList = [0]
+        if Config in BlockBeamCatalog:
+            if 'NA' not in BlockBeamCatalog[Config]['Trans']['File']:
+                BBList = BlockBeamCatalog[Config]['Trans']['File']
+            elif 'NA' not in BlockBeamCatalog[Config]['Scatt']['File']:
+                BBList = BlockBeamCatalog[Config]['Scatt']['File']
+        BB_per_second, BBUnc_per_second = VSANS_BlockedBeamCountsPerSecond_ListOfFiles(BBList, Config, representative_filenumber)
         Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, InPlaneAngleMap, dimXX, dimYY, Shadow_Mask = QCalculation_AllDetectors(representative_filenumber, Config)
         QValues_All = {'QX':Qx,'QY':Qy,'QZ':Qz,'Q_total':Q_total,'Q_perp_unc':Q_perp_unc,'Q_parl_unc':Q_parl_unc}
         Q_min, Q_max, Q_bins = MinMaxQ(Q_total, Config)
@@ -2690,7 +2706,6 @@ for Config in Configs:
                 for dshort in relevant_detectors:
                     GeneralMaskWOSolenoid[dshort] = Shadow_Mask[dshort]*UserDefinedMasks[Config]['Scatt_Standard'][dshort]
                     
-        #for slices in Slices:
         MTUU = {}
         MTUU_Unc = {}
         MTDU = {}
@@ -2703,19 +2718,20 @@ for Config in Configs:
         HaveFullPolEmptySubtract = 0
         
         for Sample in Sample_Names:
-            if Sample in Scatt:                
-                if str(Scatt[Sample]['Intent']).find('Empty') != -1:
+            if Sample in ScattCatalog:
+                #if 'Empty' in str(ScattCatalog[Sample]['Intent']):
+                if str(ScattCatalog[Sample]['Intent']).find('Empty') != -1:
 
-                    MTUUScaledData, MTUUScaledData_Unc = AbsScale('UU', Sample, Config, BB_per_second, Solid_Angle, Plex, Scatt, Trans)
-                    MTDUScaledData, MTDUScaledData_Unc = AbsScale('DU', Sample, Config, BB_per_second, Solid_Angle, Plex, Scatt, Trans)
-                    MTDDScaledData, MTDDScaledData_Unc = AbsScale('DD', Sample, Config, BB_per_second, Solid_Angle, Plex, Scatt, Trans)
-                    MTUDScaledData, MTUDScaledData_Unc = AbsScale('UD', Sample, Config, BB_per_second, Solid_Angle, Plex, Scatt, Trans)
+                    MTUUScaledData, MTUUScaledData_Unc = AbsScale('UU', Sample, Config, BB_per_second, Solid_Angle, Plex, ScattCatalog, TransCatalog)
+                    MTDUScaledData, MTDUScaledData_Unc = AbsScale('DU', Sample, Config, BB_per_second, Solid_Angle, Plex, ScattCatalog, TransCatalog)
+                    MTDDScaledData, MTDDScaledData_Unc = AbsScale('DD', Sample, Config, BB_per_second, Solid_Angle, Plex, ScattCatalog, TransCatalog)
+                    MTUDScaledData, MTUDScaledData_Unc = AbsScale('UD', Sample, Config, BB_per_second, Solid_Angle, Plex, ScattCatalog, TransCatalog)
                     MTFullPolGo = 0
                     if 'NA' not in MTUUScaledData and 'NA' not in MTDUScaledData and 'NA' not in MTDDScaledData and 'NA' not in MTUDScaledData:
-                        representative_filenumber = Scatt[Sample]['Config(s)'][Config]['UU'][0]
+                        representative_filenumber = ScattCatalog[Sample]['Config(s)'][Config]['UU'][0]
                         Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, InPlaneAngleMap, dimXX, dimYY, Shadow_Mask = QCalculation_AllDetectors(representative_filenumber, Config)
                         QValues_All = {'QX':Qx,'QY':Qy,'QZ':Qz,'Q_total':Q_total,'Q_perp_unc':Q_perp_unc,'Q_parl_unc':Q_parl_unc}
-                        MTFullPolGo, MTPolCorrUU, MTPolCorrDU, MTPolCorrDD, MTPolCorrUD, MTPolCorrUU_Unc, MTPolCorrDU_Unc, MTPolCorrDD_Unc, MTPolCorrUD_Unc = PolCorrScattFiles(dimXX, dimYY, Sample, Config, MTUUScaledData, MTDUScaledData, MTDDScaledData, MTUDScaledData, MTUUScaledData_Unc, MTDUScaledData_Unc, MTDDScaledData_Unc, MTUDScaledData_Unc)
+                        MTFullPolGo, MTPolCorrUU, MTPolCorrDU, MTPolCorrDD, MTPolCorrUD, MTPolCorrUU_Unc, MTPolCorrDU_Unc, MTPolCorrDD_Unc, MTPolCorrUD_Unc = vSANS_PolCorrScattFiles(Truest_PSM, dimXX, dimYY, Sample, Config, ScattCatalog, TransCatalog, Pol_TransCatalog, MTUUScaledData, MTDUScaledData, MTDDScaledData, MTUDScaledData, MTUUScaledData_Unc, MTDUScaledData_Unc, MTDDScaledData_Unc, MTUDScaledData_Unc)
                         if AutoSubtractEmpty == 0:
                             MTUnpolEquiv, MTUnpolEquiv_Unc = PlotAndSaveFullPolSlices(MTFullPolGo, Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, MTPolCorrUU, MTPolCorrUU_Unc, MTPolCorrDU, MTPolCorrDU_Unc, MTPolCorrDD, MTPolCorrDD_Unc, MTPolCorrUD, MTPolCorrUD_Unc, EmptySubtract, MTUU, MTUU_Unc, MTDU, MTDU_Unc, MTDD, MTDD_Unc, MTUD, MTUD_Unc)
                             if MTFullPolGo >= 1:
@@ -2734,10 +2750,6 @@ for Config in Configs:
                                     ASCIIlike_Output('PolCorrDU', Sample, Config, MTPolCorrDU, MTPolCorrDU_Unc, QValues_All, GeneralMaskWSolenoid)
                                     ASCIIlike_Output('PolCorrDD', Sample, Config, MTPolCorrDD, MTPolCorrDD_Unc, QValues_All, GeneralMaskWSolenoid)
                                     ASCIIlike_Output('PolCorrUD', Sample, Config, MTPolCorrUD, MTPolCorrUD_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    #ASCIIlike_Output('PolCorrNSFSum', Sample, Config, MTNSFSum, MTNSF_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    #ASCIIlike_Output('PolCorrNSFDiff', Sample, Config, MTNSFDiff, MTNSF_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    #ASCIIlike_Output('PolCorrSFSum', Sample, Config, MTSFSum, MTSF_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    #ASCIIlike_Output('PolCorrSFDiff', Sample, Config, MTSFDiff, MTSF_Unc, QValues_All, GeneralMaskWSolenoid)
                                     ASCIIlike_Output('PolCorrSumAllCS', Sample, Config, MTUnpolEquiv, MTUnpolEquiv_Unc, QValues_All, GeneralMaskWSolenoid)
                                 elif FullPolGo >= 1:
                                     HaveEmptySubtract = 1
@@ -2745,10 +2757,6 @@ for Config in Configs:
                                     ASCIIlike_Output('He3CorrDU', Sample, Config, MTPolCorrDU, MTPolCorrDU_Unc, QValues_All, GeneralMaskWSolenoid)
                                     ASCIIlike_Output('He3CorrDD', Sample, Config, MTPolCorrDD, MTPolCorrDD_Unc, QValues_All, GeneralMaskWSolenoid)
                                     ASCIIlike_Output('He3CorrUD', Sample, Config, MTPolCorrUD, MTPolCorrUD_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    #ASCIIlike_Output('He3CorrNSFSum', Sample, Config, MTNSFSum, MTNSF_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    #ASCIIlike_Output('He3CorrNSFDiff', Sample, Config, MTNSFDiff, MTNSF_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    #ASCIIlike_Output('He3CorrSFSum', Sample, Config, MTSFSum, MTSF_Unc, QValues_All, GeneralMaskWSolenoid)
-                                    #ASCIIlike_Output('He3CorrSFDiff', Sample, Config, MTSFDiff, MTSF_Unc, QValues_All, GeneralMaskWSolenoid)
                                     ASCIIlike_Output('He3CorrSumAllCS', Sample, Config, MTUnpolEquiv, MTUnpolEquiv_Unc, QValues_All, GeneralMaskWSolenoid)
                                 else:
                                     HaveEmptySubtract = 0
@@ -2757,8 +2765,8 @@ for Config in Configs:
                                     ASCIIlike_Output('NotCorrDD', Sample, Config, MTDDScaledData, MTDDScaledData_Unc, QValues_All, GeneralMaskWSolenoid)
                                     ASCIIlike_Output('NotCorrUD', Sample, Config, MTUDScaledData, MTUDScaledData_Unc, QValues_All, GeneralMaskWSolenoid)
                     
-                    MTUScaledData, MTUScaledData_Unc = AbsScale('U', Sample, Config, BB_per_second, Solid_Angle, Plex, Scatt, Trans)
-                    MTDScaledData, MTDScaledData_Unc = AbsScale('D', Sample, Config, BB_per_second, Solid_Angle, Plex, Scatt, Trans)
+                    MTUScaledData, MTUScaledData_Unc = AbsScale('U', Sample, Config, BB_per_second, Solid_Angle, Plex, ScattCatalog, TransCatalog)
+                    MTDScaledData, MTDScaledData_Unc = AbsScale('D', Sample, Config, BB_per_second, Solid_Angle, Plex, ScattCatalog, TransCatalog)
                     if 'NA' not in MTUScaledData and 'NA' in MTDScaledData:
                         MTDScaledData = MTUScaledData
                         MTDScaledData_Unc = MTUScaledData_Unc
@@ -2767,33 +2775,33 @@ for Config in Configs:
                         MTUScaledData_Unc = MTDScaledData_Unc
                     if 'NA' not in MTUScaledData and 'NA' not in MTDScaledData:
                         if AutoSubtractEmpty == 0:
-                            MTDiffData, MTDiffData_Unc, MTSumData, MTSumData_Unc = PlotAndSaveHalfPolSlices(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWOSolenoid, MTUScaledData, MTDScaledData, MTUScaledData_Unc, MTDScaledData_Unc)
+                            MTDiffData, MTDiffData_Unc, MTSumData, MTSumData_Unc = PlotAndSaveHalfPolSlices(Sample, Config, ScattCatalog, TransCatalog, Pol_TransCatalog, InPlaneAngleMap, Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWOSolenoid, MTUScaledData, MTDScaledData, MTUScaledData_Unc, MTDScaledData_Unc)
                             if YesNo_2DCombinedFiles > 0:
-                                representative_filenumber = Scatt[Sample]['Config(s)'][Config]['U'][0]
+                                representative_filenumber = ScattCatalog[Sample]['Config(s)'][Config]['U'][0]
                                 Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, InPlaneAngleMap, dimXX, dimYY, Shadow_Mask = QCalculation_AllDetectors(representative_filenumber, Config)
                                 QValues_All = {'QX':Qx,'QY':Qy,'QZ':Qz,'Q_total':Q_total,'Q_perp_unc':Q_perp_unc,'Q_parl_unc':Q_parl_unc}
                                 ASCIIlike_Output('U', Sample, Config, MTUScaledData, MTUScaledData_Unc, QValues_All, GeneralMaskWOSolenoid)
                                 ASCIIlike_Output('D', Sample, Config, MTDScaledData, MTDScaledData_Unc, QValues_All, GeneralMaskWOSolenoid)
-                            
-                    MTUnpolScaledData, MTUnpolScaledData_Unc = AbsScale('Unpol', Sample, Config, BB_per_second, Solid_Angle, Plex, Scatt, Trans)
+       
+                    MTUnpolScaledData, MTUnpolScaledData_Unc = AbsScale('Unpol', Sample, Config, BB_per_second, Solid_Angle, Plex, ScattCatalog, TransCatalog)
                     if 'NA' not in MTUnpolScaledData:
                         if AutoSubtractEmpty == 0:
                             PlotAndSaveUnpolSlices(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWOSolenoid, MTUnpolScaledData, MTUnpolScaledData_Unc)
                             if YesNo_2DCombinedFiles > 0:
-                                representative_filenumber = Scatt[Sample]['Config(s)'][Config]['Unpol'][0]
+                                representative_filenumber = ScattCatalog[Sample]['Config(s)'][Config]['Unpol'][0]
                                 Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, InPlaneAngleMap, dimXX, dimYY, Shadow_Mask = QCalculation_AllDetectors(representative_filenumber, Config)
                                 QValues_All = {'QX':Qx,'QY':Qy,'QZ':Qz,'Q_total':Q_total,'Q_perp_unc':Q_perp_unc,'Q_parl_unc':Q_parl_unc}
                                 ASCIIlike_Output('Unpol', Sample, Config, MTUnpolScaledData, MTUnpolScaledData_Unc, QValues_All, GeneralMaskWOSolenoid)
 
         
         for Sample in Sample_Names:
-            if Sample in Scatt:                
-                if str(Scatt[Sample]['Intent']).find('Sample') != -1:
+            if Sample in ScattCatalog:                
+                if str(ScattCatalog[Sample]['Intent']).find('Sample') != -1:
 
-                    UUScaledData, UUScaledData_Unc = AbsScale('UU', Sample, Config, BB_per_second, Solid_Angle, Plex, Scatt, Trans)
-                    DUScaledData, DUScaledData_Unc = AbsScale('DU', Sample, Config, BB_per_second, Solid_Angle, Plex, Scatt, Trans)
-                    DDScaledData, DDScaledData_Unc = AbsScale('DD', Sample, Config, BB_per_second, Solid_Angle, Plex, Scatt, Trans)
-                    UDScaledData, UDScaledData_Unc = AbsScale('UD', Sample, Config, BB_per_second, Solid_Angle, Plex, Scatt, Trans)
+                    UUScaledData, UUScaledData_Unc = AbsScale('UU', Sample, Config, BB_per_second, Solid_Angle, Plex, ScattCatalog, TransCatalog)
+                    DUScaledData, DUScaledData_Unc = AbsScale('DU', Sample, Config, BB_per_second, Solid_Angle, Plex, ScattCatalog, TransCatalog)
+                    DDScaledData, DDScaledData_Unc = AbsScale('DD', Sample, Config, BB_per_second, Solid_Angle, Plex, ScattCatalog, TransCatalog)
+                    UDScaledData, UDScaledData_Unc = AbsScale('UD', Sample, Config, BB_per_second, Solid_Angle, Plex, ScattCatalog, TransCatalog)
                     QQ_min = 0.05
                     QQ_max = 0.11
                     FullPolGo = 0
@@ -2803,10 +2811,10 @@ for Config in Configs:
                             EmptySubtract = 1
                         else:
                             EmptySubtract = 0
-                        representative_filenumber = Scatt[Sample]['Config(s)'][Config]['UU'][0]
+                        representative_filenumber = ScattCatalog[Sample]['Config(s)'][Config]['UU'][0]
                         Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, InPlaneAngleMap, dimXX, dimYY, Shadow_Mask = QCalculation_AllDetectors(representative_filenumber, Config)
                         QValues_All = {'QX':Qx,'QY':Qy,'QZ':Qz,'Q_total':Q_total,'Q_perp_unc':Q_perp_unc,'Q_parl_unc':Q_parl_unc}
-                        FullPolGo, PolCorrUU, PolCorrDU, PolCorrDD, PolCorrUD, PolCorrUU_Unc, PolCorrDU_Unc, PolCorrDD_Unc, PolCorrUD_Unc = PolCorrScattFiles(dimXX, dimYY, Sample, Config, UUScaledData, DUScaledData, DDScaledData, UDScaledData, UUScaledData_Unc, DUScaledData_Unc, DDScaledData_Unc, UDScaledData_Unc)
+                        FullPolGo, PolCorrUU, PolCorrDU, PolCorrDD, PolCorrUD, PolCorrUU_Unc, PolCorrDU_Unc, PolCorrDD_Unc, PolCorrUD_Unc = vSANS_PolCorrScattFiles(Truest_PSM, dimXX, dimYY, Sample, Config, ScattCatalog, TransCatalog, Pol_TransCatalog, UUScaledData, DUScaledData, DDScaledData, UDScaledData, UUScaledData_Unc, DUScaledData_Unc, DDScaledData_Unc, UDScaledData_Unc)
                         UnpolEquiv, UnpolEquiv_Unc = PlotAndSaveFullPolSlices(FullPolGo, Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWSolenoid, PolCorrUU, PolCorrUU_Unc, PolCorrDU, PolCorrDU_Unc, PolCorrDD, PolCorrDD_Unc, PolCorrUD, PolCorrUD_Unc, EmptySubtract, MTUU, MTUU_Unc, MTDU, MTDU_Unc, MTDD, MTDD_Unc, MTUD, MTUD_Unc)
                         if YesNo_2DCombinedFiles > 0:
                             if FullPolGo >= 2:
@@ -2814,20 +2822,12 @@ for Config in Configs:
                                 ASCIIlike_Output('PolCorrDU', Sample, Config, PolCorrDU, PolCorrDU_Unc, QValues_All, GeneralMaskWSolenoid)
                                 ASCIIlike_Output('PolCorrDD', Sample, Config, PolCorrDD, PolCorrDD_Unc, QValues_All, GeneralMaskWSolenoid)
                                 ASCIIlike_Output('PolCorrUD', Sample, Config, PolCorrUD, PolCorrUD_Unc, QValues_All, GeneralMaskWSolenoid)
-                                #ASCIIlike_Output('PolCorrNSFSum', Sample, Config, NSFSum, NSF_Unc, QValues_All, GeneralMaskWSolenoid)
-                                #ASCIIlike_Output('PolCorrNSFDiff', Sample, Config, NSFDiff, NSF_Unc, QValues_All, GeneralMaskWSolenoid)
-                                #ASCIIlike_Output('PolCorrSFSum', Sample, Config, SFSum, SF_Unc, QValues_All, GeneralMaskWSolenoid)
-                                #ASCIIlike_Output('PolCorrSFDiff', Sample, Config, SFDiff, SF_Unc, QValues_All, GeneralMaskWSolenoid)
                                 ASCIIlike_Output('PolCorrSumAllCS', Sample, Config, UnpolEquiv, UnpolEquiv_Unc, QValues_All, GeneralMaskWSolenoid)
                             elif FullPolGo >= 1 and FullPolGo < 2:
                                 ASCIIlike_Output('He3CorrUU', Sample, Config, PolCorrUU, PolCorrUU_Unc, QValues_All, GeneralMaskWSolenoid)
                                 ASCIIlike_Output('He3CorrDU', Sample, Config, PolCorrDU, PolCorrDU_Unc, QValues_All, GeneralMaskWSolenoid)
                                 ASCIIlike_Output('He3CorrDD', Sample, Config, PolCorrDD, PolCorrDD_Unc, QValues_All, GeneralMaskWSolenoid)
                                 ASCIIlike_Output('He3CorrUD', Sample, Config, PolCorrUD, PolCorrUD_Unc, QValues_All, GeneralMaskWSolenoid)
-                                #ASCIIlike_Output('He3CorrNSFSum', Sample, Config, NSFSum, NSF_Unc, QValues_All, GeneralMaskWSolenoid)
-                                #ASCIIlike_Output('He3CorrNSFDiff', Sample, Config, NSFDiff, NSF_Unc, QValues_All, GeneralMaskWSolenoid)
-                                #ASCIIlike_Output('He3CorrSFSum', Sample, Config, SFSum, SF_Unc, QValues_All, GeneralMaskWSolenoid)
-                                #ASCIIlike_Output('He3CorrSFDiff', Sample, Config, SFDiff, SF_Unc, QValues_All, GeneralMaskWSolenoid)
                                 ASCIIlike_Output('He3CorrSumAllCS', Sample, Config, UnpolEquiv, UnpolEquiv_Unc, QValues_All, GeneralMaskWSolenoid)
                             else:
                                 ASCIIlike_Output('NotCorrUU', Sample, Config, UUScaledData, UUScaledData_Unc, QValues_All, GeneralMaskWSolenoid)
@@ -2835,8 +2835,8 @@ for Config in Configs:
                                 ASCIIlike_Output('NotCorrDD', Sample, Config, DDScaledData, DDScaledData_Unc, QValues_All, GeneralMaskWSolenoid)
                                 ASCIIlike_Output('NotCorrUD', Sample, Config, UDScaledData, UDScaledData_Unc, QValues_All, GeneralMaskWSolenoid)
                     
-                    UScaledData, UScaledData_Unc = AbsScale('U', Sample, Config, BB_per_second, Solid_Angle, Plex, Scatt, Trans)
-                    DScaledData, DScaledData_Unc = AbsScale('D', Sample, Config, BB_per_second, Solid_Angle, Plex, Scatt, Trans)
+                    UScaledData, UScaledData_Unc = AbsScale('U', Sample, Config, BB_per_second, Solid_Angle, Plex, ScattCatalog, TransCatalog)
+                    DScaledData, DScaledData_Unc = AbsScale('D', Sample, Config, BB_per_second, Solid_Angle, Plex, ScattCatalog, TransCatalog)
                     if 'NA' not in UScaledData and 'NA' not in DScaledData:
                         DiffData, DiffData_Unc, SumData, SumData_Unc = PlotAndSaveHalfPolSlices(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWOSolenoid, UScaledData, DScaledData, UScaledData_Unc, DScaledData_Unc)
                         if YesNo_2DCombinedFiles > 0:
@@ -2848,14 +2848,15 @@ for Config in Configs:
                             ASCIIlike_Output('DMinusU', Sample, Config, DiffData, DiffData_Unc, QValues_All, GeneralMaskWOSolenoid)
                             ASCIIlike_Output('DPlusU', Sample, Config, SumData, SumData_Unc, QValues_All, GeneralMaskWOSolenoid)
                             
-                    UnpolScaledData, UnpolScaledData_Unc = AbsScale('Unpol', Sample, Config, BB_per_second, Solid_Angle, Plex, Scatt, Trans)
+                    UnpolScaledData, UnpolScaledData_Unc = AbsScale('Unpol', Sample, Config, BB_per_second, Solid_Angle, Plex, ScattCatalog, TransCatalog)
                     if 'NA' not in UnpolScaledData:
                         PlotAndSaveUnpolSlices(Sample, Config, InPlaneAngleMap, Q_min, Q_max, Q_bins, QValues_All, GeneralMaskWOSolenoid, UnpolScaledData, UnpolScaledData_Unc)
                         if YesNo_2DCombinedFiles > 0:
-                            representative_filenumber = Scatt[Sample]['Config(s)'][Config]['Unpol'][0]
+                            representative_filenumber = ScattCatalog[Sample]['Config(s)'][Config]['Unpol'][0]
                             Qx, Qy, Qz, Q_total, Q_perp_unc, Q_parl_unc, InPlaneAngleMap, dimXX, dimYY, Shadow_Mask = QCalculation_AllDetectors(representative_filenumber, Config)
                             QValues_All = {'QX':Qx,'QY':Qy,'QZ':Qz,'Q_total':Q_total,'Q_perp_unc':Q_perp_unc,'Q_parl_unc':Q_parl_unc}
                             ASCIIlike_Output('Unpol', Sample, Config, UnpolScaledData, UnpolScaledData_Unc, QValues_All, GeneralMaskWOSolenoid)
+
 
 #*************************************************
 #***           End of 'The Program'            ***
