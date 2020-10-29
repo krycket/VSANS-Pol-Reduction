@@ -26,7 +26,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install --no-warn-script-location numpy scipy matplotlib h5py pypiwin32 pyinstaller requests
+        pip install --no-warn-script-location numpy scipy matplotlib==3.1.0 h5py pypiwin32 pyinstaller requests
         pyinstaller VSANS_ReductionHighRes.py
         pyinstaller -F get_ncnr_files.py
 
