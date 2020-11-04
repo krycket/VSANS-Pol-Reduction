@@ -72,18 +72,18 @@ jobs:
         pyinstaller -F get_ncnr_files.py
 
     - name: Run a script
-      run: zip dist_osx.zip dist\VSANS_ReductionHighRes
+      run: zip dist_osx.zip dist/VSANS_ReductionHighRes
       shell: bash
 
     - name: Archive production artifacts
       uses: actions/upload-artifact@v1
       with:
         name: test.dmg
-        path: dist\get_ncnr_files.dmg
+        path: dist/get_ncnr_files.dmg
     - name: Update release
       uses: johnwbyrd/update-release@v1.0.0
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         release: prerelease
         tag: alpha
-        files: dist_osx.zip dist\get_ncnr_files.dmg
+        files: dist_osx.zip dist/get_ncnr_files.dmg
