@@ -68,12 +68,18 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install --no-warn-script-location numpy scipy matplotlib==3.1.0 h5py pyinstaller requests
-        pyinstaller VSANS_ReductionHighRes.py
+        pyinstaller VSANS_ReductionHighRes.py --windowed
         pyinstaller -F get_ncnr_files.py --windowed
 
     - name: Run a script
-      run: zip dist_osx.zip dist/VSANS_ReductionHighRes/*
+      run: tar -zcvf dist_osx.tar.gz dist/VSANS_ReductionHighRes/
       shell: bash
+
+    - name: Archive production artifacts
+      uses: actions/upload-artifact@v1
+      with:
+        name: test.tar.gz
+        path: dist_osx.tar.gz
 
     - name: Archive production artifacts
       uses: actions/upload-artifact@v1
@@ -86,4 +92,4 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
         release: prerelease
         tag: alpha
-        files: dist_osx.zip dist/get_ncnr_files.app
+        files: dist_osx.tar.gz dist/get_ncnr_files.app
