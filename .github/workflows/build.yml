@@ -71,25 +71,28 @@ jobs:
         pyinstaller VSANS_ReductionHighRes.py --windowed
         pyinstaller -F get_ncnr_files.py --windowed
 
-    - name: Run a script
+    - name: Tar the reduction package
       run: tar -zcvf dist_osx.tar.gz dist/VSANS_ReductionHighRes/
       shell: bash
+
+    - name: Tar the app
+      run: tar -zcvf get_ncnr_files.tar.gz dist/get_ncnr_files.app
 
     - name: Archive production artifacts
       uses: actions/upload-artifact@v1
       with:
-        name: test.tar.gz
+        name: dist_osx.tar.gz
         path: dist_osx.tar.gz
 
     - name: Archive production artifacts
       uses: actions/upload-artifact@v1
       with:
-        name: test.app
-        path: dist/get_ncnr_files.app
+        name: get_ncnr_files.tar.gz
+        path: get_ncnr_files.tar.gz
     - name: Update release
       uses: johnwbyrd/update-release@v1.0.0
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         release: prerelease
         tag: alpha
-        files: dist_osx.tar.gz dist/get_ncnr_files.app
+        files: dist_osx.tar.gz get_ncnr_files.tar.gz
