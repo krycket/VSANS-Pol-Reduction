@@ -41,7 +41,7 @@ jobs:
       uses: actions/upload-artifact@v1
       with:
         name: test.exe
-        path: dist\get_ncnr_files.exe
+        path: dist/get_ncnr_files.exe
 
     - name: Update release
       uses: johnwbyrd/update-release@v1.0.0
@@ -49,7 +49,7 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
         release: prerelease
         tag: alpha
-        files: dist.zip
+        files: ./dist.zip
 
     - name: Update release
       uses: johnwbyrd/update-release@v1.0.0
@@ -57,7 +57,7 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
         release: prerelease
         tag: alpha
-        files: dist\get_ncnr_files.exe
+        files: dist/get_ncnr_files.exe
      
   macos-build:
     runs-on: macos-latest
@@ -99,7 +99,7 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
         release: prerelease
         tag: alpha
-        files: dist_osx.tar.gz
+        files: ./dist_osx.tar.gz
 
     - name: Update release
       uses: johnwbyrd/update-release@v1.0.0
@@ -107,4 +107,4 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
         release: prerelease
         tag: alpha
-        files: get_ncnr_files.tar.gz
+        files: ./get_ncnr_files.tar.gz
