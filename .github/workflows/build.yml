@@ -8,8 +8,7 @@ on:
     branches: [ master ]
 
 jobs:
-  build:
-
+  windows-build:
     runs-on: windows-latest
 
     strategy:
@@ -29,12 +28,11 @@ jobs:
         pip install --no-warn-script-location numpy scipy matplotlib==3.1.0 msvc-runtime h5py pypiwin32 pyinstaller requests
         pyinstaller VSANS_ReductionHighRes.py
         pyinstaller -F get_ncnr_files.py
-
     - name: Run a script
       run: |
         Compress-Archive -Path dist\VSANS_ReductionHighRes -DestinationPath dist.zip
       shell: powershell
-    
+
     - name: Archive production artifacts
       uses: actions/upload-artifact@v1
       with:
@@ -48,3 +46,41 @@ jobs:
         tag: alpha
         files: dist.zip dist\get_ncnr_files.exe
      
+  macos-build:
+    runs-on: macos-latest
+
+    strategy:
+      matrix:
+        python-version: [3.7]
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -U https://github.com/pyinstaller/pyinstaller/archive/develop.zip
+        pip install --no-warn-script-location numpy scipy matplotlib h5py pyinstaller requests
+        pyinstaller --add-binary='/System/Library/Frameworks/Tk.framework/Tk':'tk' --add-binary='/System/Library/Frameworks/Tcl.framework/Tcl':'tcl' --name VSANSPolReduce VSANS_ReductionHighRes.py
+        pyinstaller --onefile --name get_ncnr_files get_ncnr_files.py
+
+    - name: Tar the reduction package
+      run: tar -zcvf dist_osx.tar.gz build/VSANSPolReduce/
+      shell: bash
+
+    - name: Archive production artifacts
+      uses: actions/upload-artifact@v1
+      with:
+        name: get_ncnr_files
+        path: dist/get_ncnr_files
+    - name: Update release
+      uses: johnwbyrd/update-release@v1.0.0
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        release: prerelease
+        tag: alpha
+        files: dist_osx.tar.gz dist/get_ncnr_files
