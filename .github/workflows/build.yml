@@ -78,11 +78,11 @@ jobs:
       uses: actions/upload-artifact@v1
       with:
         name: get_ncnr_files
-        path: get_ncnr_files
+        path: dist/get_ncnr_files
     - name: Update release
       uses: johnwbyrd/update-release@v1.0.0
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         release: prerelease
         tag: alpha
-        files: dist_osx.tar.gz get_ncnr_files
+        files: dist_osx.tar.gz dist/get_ncnr_files
