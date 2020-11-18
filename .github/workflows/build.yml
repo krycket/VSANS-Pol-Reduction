@@ -71,7 +71,7 @@ jobs:
         pyinstaller --onefile --name get_ncnr_files get_ncnr_files.py
 
     - name: Tar the reduction package
-      run: tar -zcvf dist_osx.tar.gz dist/VSANS_ReductionHighRes/
+      run: tar -zcvf dist_osx.tar.gz build/VSANSPolReduce/
       shell: bash
 
     - name: Archive production artifacts
