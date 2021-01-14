@@ -2919,8 +2919,8 @@ def vSANS_ProcessFullPolSlices(Slices, SectorCutAngles, save_path, YesNoShowPlot
         if Sample != 'Empty':
             ax.errorbar(Horz_Data['Q'], M_Parl_NSF, yerr=M_Parl_NSF_Unc, fmt = 'g*', label='(Sum M_Parl)^2, non spin-flip')
             ax.errorbar(Horz_Data['Q'], M_Parl_NSFAllVert, yerr=M_Parl_NSFAllVert_Unc, fmt = 'c*', label='(Sum M_Parl)^2, non spin-flip, all vertical')
-            if HaveDiagData == 1:
-                ax.errorbar(Diag_Data['Q'], M_Parl_SF, yerr=M_Parl_SF_Unc, fmt = 'm*', label='Sum(M_Parl)^2, spin-flip')
+            #if HaveDiagData == 1:
+                #ax.errorbar(Diag_Data['Q'], M_Parl_SF, yerr=M_Parl_SF_Unc, fmt = 'm*', label='Sum(M_Parl)^2, spin-flip')
         ax.errorbar(Horz_Data['Q'], Struc, yerr=Struc_Unc, fmt = 'r*', label='Sum(N^2), non spin-flip')
         plt.xlabel('Q (inverse angstroms)')
         plt.ylabel('Intensity')
@@ -3131,8 +3131,8 @@ def vSANS_ProcessHalfPolSlices(Slices, SectorCutAngles, save_path, YesNoShowPlot
         Struc = (Horz_Data['D'] + Horz_Data['U'])/2.0
         Struc_Unc = np.sqrt(np.power(Horz_Data['D_Unc'],2) + np.power(Horz_Data['U_Unc'],2))/2.0
 
-        Diff = Horz_Data['D'] - Horz_Data['U']
-        Diff_Unc = np.sqrt(np.power(Horz_Data['D_Unc'],2) + np.power(Horz_Data['U_Unc'],2))
+        Diff = Vert_Data['D'] - Vert_Data['U']
+        Diff_Unc = np.sqrt(np.power(Vert_Data['D_Unc'],2) + np.power(Vert_Data['U_Unc'],2))
         Num = np.power((Diff),2)
         Num_Unc = np.sqrt(2.0)*Diff*Diff_Unc
         Denom = (4.0*(Horz_Data['D'] + Horz_Data['U']))
@@ -3164,7 +3164,7 @@ def vSANS_ProcessHalfPolSlices(Slices, SectorCutAngles, save_path, YesNoShowPlot
         plt.ylabel('Intensity')
         plt.title('Half-Pol Magnetic and Structural Scattering of {samp}'.format(samp=Sample))
         plt.legend()
-        fig.savefig(save_path + 'Horz_ResultsHalfPol_{samp},{cf}_{width}{sub}.png'.format(samp=Sample, cf = Config, width = Width, sub = Sub))
+        fig.savefig(save_path + 'ResultsHalfPol_{samp},{cf}_{width}{sub}.png'.format(samp=Sample, cf = Config, width = Width, sub = Sub))
         if YesNoShowPlots > 0:
             plt.pause(2)
         plt.close()              
@@ -3176,7 +3176,22 @@ def vSANS_ProcessHalfPolSlices(Slices, SectorCutAngles, save_path, YesNoShowPlot
         text_output = np.array([Q, Struc, Struc_Unc, M_Parl_Div, M_Parl_Div_Unc, M_Parl_Sub, M_Parl_Sub_Unc, Q_Unc, Q_mean, Shadow])
         text_output = text_output.T
         np.savetxt(save_path + 'ResultsHalfPol_{samp},{cf}_{width}{sub}.txt'.format(samp=Sample, cf = Config, width = Width, sub = Sub), text_output,
-               delimiter = ' ', comments = '', header= 'Q, Struc, DelStruc, M_Parl_Div, DelM_Parl_Div, M_Parl_Sub, DelM_Parl_Sub, Q_Unc, Q_mean, Shadow', fmt='%1.4e')
+        delimiter = ' ', comments = '', header= 'Q, Struc, DelStruc, M_Parl_Div, DelM_Parl_Div, M_Parl_Sub, DelM_Parl_Sub, Q_Unc, Q_mean, Shadow', fmt='%1.4e')
+
+        text_output2 = np.array([Q, M_Parl_Div, M_Parl_Div_Unc, Q_Unc, Q_mean, Shadow])
+        text_output2 = text_output2.T
+        np.savetxt(save_path + 'PlotableHalfPolMparlDiv_{samp},{cf}_{key}{width}{sub}.txt'.format(samp=Sample, cf = Config, key = PolType, width = Width, sub = Sub), text_output2,
+        delimiter = ' ', comments = '', header= 'Q, M_Parl_Div, DelM_Parl_Div, Q_Unc, Q_mean, Shadow', fmt='%1.4e')
+        
+        text_output3 = np.array([Q, M_Parl_Sub, M_Parl_Sub_Unc, Q_Unc, Q_mean, Shadow])
+        text_output3 = text_output3.T
+        np.savetxt(save_path + 'PlotableHalfPolMparlSub_{samp},{cf}_{key}{width}{sub}.txt'.format(samp=Sample, cf = Config, key = PolType, width = Width, sub = Sub), text_output3,
+        delimiter = ' ', comments = '', fmt='%1.4e')
+
+        text_output4 = np.array([Q, Struc, Struc_Unc, Q_Unc, Q_mean, Shadow])
+        text_output4 = text_output4.T
+        np.savetxt(save_path + 'PlotableHalfPolStruc_{samp},{cf}_{key}{width}{sub}.txt'.format(samp=Sample, cf = Config, key = PolType, width = Width, sub = Sub), text_output4,
+        delimiter = ' ', comments = '', header= 'Q, M_Parl_Sub, DelM_Parl_Sub, Q_Unc, Q_mean, Shadow', fmt='%1.4e')
 
     Results = {}
     if 'Circ' in Slices:
@@ -3344,9 +3359,9 @@ def vSANS_ProcessUnpolSlices(Slices, SectorCutAngles, save_path, YesNoShowPlots,
             ax.set_ylim(bottom = PlotYmin, top = PlotYmax)
         if YesNoSetPlotXRange > 0:
             ax.set_xlim(left = PlotXmin, right = PlotXmax)
-        if Sample != 'Empty':
+        #if Sample != 'Empty':
             #ax.errorbar(Horz_Data['Q'], M_Parl_Sub, yerr=M_Parl_Sub_Unc, fmt = 'b*', label='M_Parl (subtraction)')
-            ax.errorbar(Diag_Data['Q'], StrucD, yerr=StrucD_Unc, fmt = 'b*', label='Structural (diagonal)')
+        #ax.errorbar(Diag_Data['Q'], StrucD, yerr=StrucD_Unc, fmt = 'b*', label='Structural (diagonal)')
         ax.errorbar(Horz_Data['Q'], Struc, yerr=Struc_Unc, fmt = 'r*', label='Structural (horizontal)')
         ax.errorbar(Vert_Data['Q'], StrucV, yerr=StrucV_Unc, fmt = 'g*', label='Structural (vertical)')
         plt.xlabel('Q (inverse angstroms)')
@@ -3366,6 +3381,17 @@ def vSANS_ProcessUnpolSlices(Slices, SectorCutAngles, save_path, YesNoShowPlots,
         text_output = text_output.T
         np.savetxt(save_path + 'ResultsUnpol_{samp},{cf}_{width}{sub}.txt'.format(samp=Sample, cf = Config, width = Width, sub = Sub), text_output,
                delimiter = ' ', comments = '', header= 'Q, Struc, DelStruc, M_Parl_Sub, DelM_Parl_Sub, Q_Unc, Q_mean, Shadow', fmt='%1.4e')
+
+        text_output3 = np.array([Q, M_Parl_Sub, M_Parl_Sub_Unc, Q_Unc, Q_mean, Shadow])
+        text_output3 = text_output3.T
+        np.savetxt(save_path + 'PlotableUnpolMparlSub_{samp},{cf}_{key}{width}{sub}.txt'.format(samp=Sample, cf = Config, key = PolType, width = Width, sub = Sub), text_output3,
+        delimiter = ' ', comments = '', fmt='%1.4e')
+
+        text_output4 = np.array([Q, Struc, Struc_Unc, Q_Unc, Q_mean, Shadow])
+        text_output4 = text_output4.T
+        np.savetxt(save_path + 'PlotableUnpolStruc_{samp},{cf}_{key}{width}{sub}.txt'.format(samp=Sample, cf = Config, key = PolType, width = Width, sub = Sub), text_output4,
+        delimiter = ' ', comments = '', header= 'Q, Struc, DelStruc, Q_Unc, Q_mean, Shadow', fmt='%1.4e')
+
 
     Results = {}
     if 'Circ' in Slices:

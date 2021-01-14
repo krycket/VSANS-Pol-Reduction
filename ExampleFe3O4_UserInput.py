@@ -1,6 +1,5 @@
-#This is set to for summer school 2020 VSANS data
-input_path = r'VSANS26903_Fe3O4NPData'
-#Long form example: input_path = r'C:/Users/klkry/Desktop/VSANS-Pol-Reduction-alpha/VSANS26903_Fe3O4NPData'
+#This is set to for summer school 2020 VSANS data.
+input_path = r'C:/Users/klkry/Desktop/VSANS26903_Fe3O4NP_Data'
 save_path = input_path +'/ReducedData/'
 
 He3Only_Check = 0 #Default 0 = No (runs full reduction), 1 = Yes (for helium team's use)
@@ -38,7 +37,7 @@ PlotYmax = 5E3 #Only used if YesNoSetPlotYRange = 1
 #********************************************************************
 PreSebtractOpen = 0 #Default is 0 for no; 1 for yes. Subtracts trans-scaled open (if available) from pol-full in attempt to remove main beam spillover.
 Calc_Q_From_Trans = 1 #Default is 1 for yes; 0 for no
-AverageQRanges = 1 #0 for no; 1 for yes
+AverageQRanges = 0 #0 for no; 1 for yes
 
 YesNoShowPlots = 0 #0 = No and simply saves plots; 1 = yes and displays plots when code is run
 CompareUnpolCirc = 1

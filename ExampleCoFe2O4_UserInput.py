@@ -1,6 +1,5 @@
-#This is set to for summer school 2020 VSANS data
-input_path = r'VSANS27633_CoFe2O4NPData'
-#Long form example: input_path = r'C:/Users/klkry/Desktop/VSANS-Pol-Reduction-alpha/VSANS27633_CoFe2O4NPData'
+#This is set to for summer school 2020 VSANS data.
+input_path = r'C:/Users/klkry/Desktop/VSANS27633_CoFe2O4NP_Data'
 save_path = input_path +'/ReducedData/'
 
 He3Only_Check = 0 #Default 0 = No (runs full reduction), 1 = Yes (for helium team's use)
