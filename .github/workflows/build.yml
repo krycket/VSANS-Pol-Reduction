@@ -31,6 +31,7 @@ jobs:
     - name: Run a script
       run: |
         Compress-Archive -Path dist\VSANS_ReductionHighRes -DestinationPath dist.zip
+        Compress-Archive -Path dist\get_ncnr_files.exe -DestinationPath get_ncnr_files.zip
       shell: powershell
 
     - name: Archive production artifacts
@@ -44,7 +45,7 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
         release: prerelease
         tag: alpha
-        files: dist.zip dist\get_ncnr_files.exe
+        files: dist.zip get_ncnr_files.zip dist\get_ncnr_files.exe
      
   macos-build:
     runs-on: macos-latest
