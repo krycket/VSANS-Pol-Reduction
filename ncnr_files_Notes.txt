@@ -1,0 +1,9 @@
+Open Windows PowerShell
+
+cd .\Desktop\github\VSANS-Pol-Reduction\
+
+python .\get_ncnr_files.py vsans/201905/26578/data -l 26578_data
+
+or
+
+python .\get_ncnr_files.py vsans/202009/27168/data -l 27168_data

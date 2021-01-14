@@ -1,0 +1,37 @@
+A) Dowload Code From Github:
+
+	1) https://github.com/krycket/VSANS-Pol-Reduction/tree/alpha
+
+	2) Select Download Code (green buttton), extract to your Desktop (folder will be called VSANS-Pol-Reduction-alpha)
+
+B) Retrive files of interest
+
+	1) You can find your exact data path and all the accompanying data metafiles at 
+	https://ncnr.nist.gov/ncnrdata/view/nexus-hdf-viewer.html.
+
+	2) Open Windows PowerShell
+
+	2) cd .\Desktop\VSANS-Pol-Reduction-alpha\
+
+	2) python .\get_ncnr_files.py vsans/202007/27633/data -l VSANS27633_CoFe2O4NPData	(for CoFe2O4 SS Data, files 64954 onward)
+
+	    or
+
+	   python .\get_ncnr_files.py vsans/201911/26903/data -l VSANS26903_Fe3O4NPData		(for Fe3O4 SS Data, files 51284 to 51351)
+
+
+C) Reduce Data
+
+	1) Copy Example_UserInput.py to User_Input.py, and then modify so that it points to your data, etc.
+
+	2) Open Windows PowerShell
+
+	2) cd .\Desktop\VSANS-Pol-Reduction-alpha\
+
+	3) pip install -r requirements.txt
+
+	4) python VSANS_ReductionHighRes.py
+
+	You can now view the results in your save_path. The "Plotable" files can be directly opened and fit using SasView 4.2.2.
+
+D) Analyze data using Sasview 4.2.2 from https://www.sasview.org/. We will mainly be using Sphere, CoreShell, and FCC_Paracrystal models.
