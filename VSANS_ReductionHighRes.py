@@ -14,6 +14,7 @@ from scipy import ndimage
 from UserInput import *
 
 '''
+Updated 15/1/2021.
 Note about User-Defined Masks (which are added in additiona to the detector shadowing already accounted for):
 Must be in form #####_VSANS_TRANS_MASK.h5, #####_VSANS_SOLENOID_MASK.h5, or #####_VSANS_NOSOLENOID_MASK.h5, where ##### is the assocated filenumber and
 the data with that filenumber must be in the data folder (used to match configurations). These masks can be made using IGOR.
@@ -3144,8 +3145,6 @@ def vSANS_ProcessHalfPolSlices(Slices, SectorCutAngles, save_path, YesNoShowPlot
         else:
             M_Parl_Div = np.zeros_like(Num)
             M_Parl_Div_Unc = np.zeros_like(Num)
-        
-        
 
         Width = str(SectorCutAngles) + "Deg"
         fig = plt.figure()
@@ -3158,7 +3157,7 @@ def vSANS_ProcessHalfPolSlices(Slices, SectorCutAngles, save_path, YesNoShowPlot
             ax.set_xlim(left = PlotXmin, right = PlotXmax)
         ax.errorbar(Horz_Data['Q'], M_Parl_Sub, yerr=M_Parl_Sub_Unc, fmt = 'b*', label='M_Parl (subtraction)')
         if Sample != 'Empty':
-            ax.errorbar(Horz_Data['Q'], M_Parl_Div, yerr=M_Parl_Div_Unc, fmt = 'g*', label='M_Parl (dividion)')
+            ax.errorbar(Horz_Data['Q'], M_Parl_Div, yerr=M_Parl_Div_Unc, fmt = 'g*', label='M_Parl (*dividion)')
         ax.errorbar(Horz_Data['Q'], Struc, yerr=Struc_Unc, fmt = 'r*', label='Structural (horizontal)')
         plt.xlabel('Q (inverse angstroms)')
         plt.ylabel('Intensity')
