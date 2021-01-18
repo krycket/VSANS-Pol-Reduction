@@ -1159,8 +1159,8 @@ def QCalculation_AllDetectors(SampleDescriptionKeywordsToExclude, input_path, Ca
     if f is not None:
         for dshort in relevant_detectors:
             data = np.array(f['entry/instrument/detector_{ds}/data'.format(ds=dshort)])
-            Wavelength = f['entry/instrument/beam/monochromator/wavelength'][0]
-            Wavelength_spread = f['entry/instrument/beam/monochromator/wavelength_spread'][0]
+            Wavelength = f['entry/instrument/beam/monochromator/wavelength'][0] # Angstroms
+            Wavelength_spread = f['entry/instrument/beam/monochromator/wavelength_spread'][0] # fraction of Wavelength (dL/L)
             dimX = f['entry/instrument/detector_{ds}/pixel_num_x'.format(ds=dshort)][0]
             dimY = f['entry/instrument/detector_{ds}/pixel_num_y'.format(ds=dshort)][0]
             dimXX[dshort] = f['entry/instrument/detector_{ds}/pixel_num_x'.format(ds=dshort)][0]
@@ -1303,7 +1303,6 @@ def QCalculation_AllDetectors(SampleDescriptionKeywordsToExclude, input_path, Ca
                 
             InPlane0_pos = np.sqrt(x0_pos**2 + y0_pos**2)
             twotheta = np.arctan2(InPlane0_pos,realDistZ)
-            phi = np.arctan2(y0_pos,x0_pos)
             twotheta_x[dshort] = np.arctan2(x0_pos,realDistZ)
             twotheta_y[dshort] = np.arctan2(y0_pos,realDistZ)
             twotheta_xmin[dshort] = np.arctan2(x_min,realDistZ)
@@ -1312,37 +1311,44 @@ def QCalculation_AllDetectors(SampleDescriptionKeywordsToExclude, input_path, Ca
             twotheta_ymax[dshort] = np.arctan2(y_max,realDistZ)
             '''#Q resolution from J. of Appl. Cryst. 44, 1127-1129 (2011) and file:///C:/Users/kkrycka/Downloads/SANS_2D_Resolution.pdf where
             #there seems to be an extra factor of wavelength listed that shouldn't be there in (delta_wavelength/wavelength):'''
-            carriage_key = dshort[0]
-            if carriage_key == 'F':
-                L2 = FrontDetToSample
-            elif carriage_key == 'M':
-                L2 = MiddleDetToSample
-            elif dshort == 'B':
-                L2 = RearDetToSample
+            # carriage_key = dshort[0]
+            # if carriage_key == 'F':
+            #     L2 = FrontDetToSample
+            # elif carriage_key == 'M':
+            #     L2 = MiddleDetToSample
+            # elif dshort == 'B':
+            #     L2 = RearDetToSample
+            g = 981 #in cm/s^2
+            m_div_h = 252.77 #in s cm^-2
+            acc = 3.956e5 # velocity [cm/s] of 1 A neutron
+            L2 = realDistZ
             L1 = SampleToSourceAp
             Pix = 0.82
             R1 = SourceAp #source aperture radius in cm
             R2 = SampleApExternal #sample aperture radius in cm
             Inv_LPrime = 1.0/L1 + 1.0/L2
             k = 2*np.pi/Wavelength
-            Sigma_D_Perp = np.sin(phi)*x_pixel_size + np.cos(phi)*y_pixel_size
-            Sigma_D_Parl = np.cos(phi)*x_pixel_size + np.sin(phi)*y_pixel_size
+            YG_d = -0.5*g*L2*(L1+L2)*(Wavelength/acc)**2
+            phi = np.mod(np.arctan2(y0_pos + 2.0*YG_d,x0_pos), 2.0*np.pi) # constrain to [0, 2pi]
+            Sigma_D_Perp = np.abs(np.sin(phi)*x_pixel_size) + np.abs(np.cos(phi)*y_pixel_size)
+            Sigma_D_Parl = np.abs(np.cos(phi)*x_pixel_size) + np.abs(np.sin(phi)*y_pixel_size)
             SigmaQPerpSqr = (k*k/12.0)*(3*np.power(R1/L1,2) + 3.0*np.power(R2*Inv_LPrime,2)+ np.power(Sigma_D_Perp/L2,2))
             SigmaQParlSqr = (k*k/12.0)*(3*np.power(R1/L1,2) + 3.0*np.power(R2*Inv_LPrime,2)+ np.power(Sigma_D_Parl/L2,2))
-            R = np.sqrt(np.power(x0_pos,2)+np.power(y0_pos,2))
+            R = np.sqrt(np.power(x0_pos,2)+np.power(y0_pos + 2.0*YG_d,2))
             Q0 = k*R/L2
             '''
             #If no gravity correction:
             #SigmaQParlSqr = SigmaQParlSqr + np.power(Q0,2)*np.power(Wavelength_spread/np.sqrt(6.0),2)
             #Else, if adding gravity correction:
             '''
-            g = 981 #in cm/s^2
-            m_div_h = 252.77 #in s cm^-2
-            A = -0.5*981*L2*(L1+L2)*np.power(m_div_h , 2)
-            WL = Wavelength*1E-8
-            SigmaQParlSqr = SigmaQParlSqr + np.power(Wavelength_spread*k/(L2),2)*(R*R -4*A*np.sin(phi)*WL*WL + 4*A*A*np.power(WL,4))/6.0 #gravity correction makes vary little difference for wavelength spread < 20%
+            
+            A = -0.5*g*L2*(L1+L2)*np.power(m_div_h , 2) # in units 1/cm
+            #A *= 1e-16 # now in units of cm/(A^2)
+            WL = Wavelength*1E-8 # in cm
+            SigmaQParlSqr = SigmaQParlSqr + np.power(Wavelength_spread*k/(L2),2)*(R*R - 4*R*A*np.sin(phi)*WL*WL + 4*A*A*np.power(WL,4))/6.0 #gravity correction makes vary little difference for wavelength spread < 20%
             '''VSANS IGOR 2D ASCII delta_Q seems to be way off the mark, but this 2D calculaation matches the VSANS circular average closely when pixels are converted to circular average...'''
             
+
             Q_total[dshort] = (4.0*np.pi/Wavelength)*np.sin(twotheta/2.0)
             QQ_total = (4.0*np.pi/Wavelength)*np.sin(twotheta/2.0)
             Qx[dshort] = QQ_total*np.cos(twotheta/2.0)*np.cos(phi)
