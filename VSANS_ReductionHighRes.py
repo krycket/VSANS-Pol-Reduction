@@ -2140,12 +2140,13 @@ def TwoDimToOneDim(Key, Q_min, Q_max, Q_bins, QGridPerDetector, generalmask, sec
             "M": np.logical_and(Histograms["M"]["nonzero_mask"], np.logical_not(Histograms["F"]["nonzero_mask"])),
             "F": Histograms["F"]["nonzero_mask"]
         }
+        overlaps = sum([final_masks["B"].astype("float"), final_masks["M"].astype("float"), final_masks["F"].astype("float")])
         
         for k in ["I", "I_Unc", "Q_Mean", "MeanQ_Unc"]:
             Output[k] = zeros_like_Q.copy()
             for carriage_key in carriage_keys:
                 mask = final_masks[carriage_key]
-                Output[k][mask] = Histograms[carriage_key][k][mask] / CombinedPixels[mask]
+                Output[k][mask] = Histograms[carriage_key][k][mask] / overlaps[mask]
 
         Output["I_Unc"] = np.sqrt(Output["I_Unc"]) * CombinedPixels
         # This is correct: with no overlap, there is no averaging of uncertainties  
@@ -2163,12 +2164,13 @@ def TwoDimToOneDim(Key, Q_min, Q_max, Q_bins, QGridPerDetector, generalmask, sec
             "M": nonzero_combined_mask,
             "F": nonzero_combined_mask
         }
+        overlaps = sum([final_masks["B"].astype("float"), final_masks["M"].astype("float"), final_masks["F"].astype("float")])
 
         for k in ["I", "I_Unc", "Q_Mean", "MeanQ_Unc"]:
             Output[k] = zeros_like_Q.copy()
             for carriage_key in carriage_keys:
                 mask = final_masks[carriage_key]
-                Output[k][mask] += Histograms[carriage_key][k][mask] / CombinedPixels[mask]
+                Output[k][mask] += Histograms[carriage_key][k][mask] / overlaps[mask]
 
         Output["I_Unc"] = np.sqrt(Output["I_Unc"]) * CombinedPixels
         # This is wrong: needs to be fixed.  
