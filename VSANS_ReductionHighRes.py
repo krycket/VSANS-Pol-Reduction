@@ -2074,11 +2074,11 @@ def TwoDimToOneDim(Key, Q_min, Q_max, Q_bins, QGridPerDetector, generalmask, sec
         nonzero_mask = CurrentHistogram["Pixels"] > 0
         CurrentHistogram["nonzero_mask"] = nonzero_mask
         CurrentHistogram["Q"] = Q_Values[nonzero_mask]
-        CurrentHistogram["Q_Mean"][nonzero_mask] /= CurrentHistogram["Pixels"][nonzero_mask]
-        CurrentHistogram["I"][nonzero_mask] /= CurrentHistogram["Pixels"][nonzero_mask]
+        #CurrentHistogram["Q_Mean"][nonzero_mask]
+        #CurrentHistogram["I"][nonzero_mask] 
         CurrentHistogram["Sigma_UU"][nonzero_mask] = np.sqrt(CurrentHistogram["I_Unc"][nonzero_mask]) / CurrentHistogram["Pixels"][nonzero_mask]
-        CurrentHistogram["I_Unc"][nonzero_mask] /= CurrentHistogram["Pixels"][nonzero_mask]
-    
+        #CurrentHistogram["I_Unc"][nonzero_mask]
+
     # now that we have MeanQ, we can calculate sigmaQ statistically:
     for dshort in relevant_detectors:
         carriage_key = dshort[0]
@@ -2092,11 +2092,12 @@ def TwoDimToOneDim(Key, Q_min, Q_max, Q_bins, QGridPerDetector, generalmask, sec
         Q_lookup = Q_lookups[dshort]
         Q_lookup_mask = (Q_lookup < len(Q_Values))
         # Get the MeanQ for that bin:
-        MeanQ = CurrentHistogram["Q_Mean"]
+        MeanQ = CurrentHistogram["Q_Mean"].copy()
+        MeanQ[nonzero_mask] /= CurrentHistogram["Pixels"][nonzero_mask]
         Q_mean_center = MeanQ[Q_lookup[Q_lookup_mask]]
         Q_var_contrib = (Q_mean_center - Q_tot[Q_lookup_mask])**2 + (Q_unc[Q_lookup_mask])**2 
         Q_var, _ = np.histogram(Q_tot[Q_lookup_mask], bins=Exp_bins, weights=Q_var_contrib)
-        CurrentHistogram["MeanQ_Unc"][nonzero_mask] += (Q_var[nonzero_mask] / CurrentHistogram["Pixels"][nonzero_mask])    
+        CurrentHistogram["MeanQ_Unc"][nonzero_mask] += Q_var[nonzero_mask]
 
     ErrorBarsYesNo = 0
     if PlotYesNo == 1:
@@ -2140,17 +2141,21 @@ def TwoDimToOneDim(Key, Q_min, Q_max, Q_bins, QGridPerDetector, generalmask, sec
             "M": np.logical_and(Histograms["M"]["nonzero_mask"], np.logical_not(Histograms["F"]["nonzero_mask"])),
             "F": Histograms["F"]["nonzero_mask"]
         }
-        overlaps = sum([final_masks["B"].astype("float"), final_masks["M"].astype("float"), final_masks["F"].astype("float")])
+        # overlaps = sum([final_masks["B"].astype("float"), final_masks["M"].astype("float"), final_masks["F"].astype("float")])
         
-        for k in ["I", "I_Unc", "Q_Mean", "MeanQ_Unc"]:
+        for k in ["I", "I_Unc", "Q_Mean", "MeanQ_Unc", "Pixels"]:
             Output[k] = zeros_like_Q.copy()
             for carriage_key in carriage_keys:
                 mask = final_masks[carriage_key]
-                Output[k][mask] = Histograms[carriage_key][k][mask] / overlaps[mask]
+                Output[k][mask] += Histograms[carriage_key][k][mask] # / overlaps[mask]
 
-        Output["I_Unc"] = np.sqrt(Output["I_Unc"]) * CombinedPixels
+        Output["I_Unc"] = np.sqrt(Output["I_Unc"])
+        Output["I_Unc"][nonzero_combined_mask] /= Output["Pixels"][nonzero_combined_mask]
+        Output["I"][nonzero_combined_mask] /= Output["Pixels"][nonzero_combined_mask]
+
         # This is correct: with no overlap, there is no averaging of uncertainties  
-        Output["Q_Uncertainty"] = np.sqrt(Output["MeanQ_Unc"]) * CombinedPixels
+        Output["Q_Uncertainty"] = np.sqrt(Output["MeanQ_Unc"])
+        Output["Q_Uncertainty"][nonzero_combined_mask] /= CombinedPixels[nonzero_combined_mask]
 
         # e.g.:        
         # Q_Mean = zeros_like_Q.copy()
@@ -2164,18 +2169,21 @@ def TwoDimToOneDim(Key, Q_min, Q_max, Q_bins, QGridPerDetector, generalmask, sec
             "M": nonzero_combined_mask,
             "F": nonzero_combined_mask
         }
-        overlaps = sum([final_masks["B"].astype("float"), final_masks["M"].astype("float"), final_masks["F"].astype("float")])
+        # overlaps = sum([final_masks["B"].astype("float"), final_masks["M"].astype("float"), final_masks["F"].astype("float")])
 
-        for k in ["I", "I_Unc", "Q_Mean", "MeanQ_Unc"]:
+        for k in ["I", "I_Unc", "Q_Mean", "MeanQ_Unc", "Pixels"]:
             Output[k] = zeros_like_Q.copy()
             for carriage_key in carriage_keys:
                 mask = final_masks[carriage_key]
-                Output[k][mask] += Histograms[carriage_key][k][mask] / overlaps[mask]
+                Output[k][mask] += Histograms[carriage_key][k][mask] # / overlaps[mask]
 
-        Output["I_Unc"] = np.sqrt(Output["I_Unc"]) * CombinedPixels
+        Output["I_Unc"] = np.sqrt(Output["I_Unc"])
+        Output["I_Unc"][nonzero_combined_mask] /= Output["Pixels"][nonzero_combined_mask]
+        Output["I"][nonzero_combined_mask] /= Output["Pixels"][nonzero_combined_mask]
+
         # This is wrong: needs to be fixed.  
-        # Q_uncertainty is not the average of the Q_uncertaintes from all carriages!!
-        Output["Q_Uncertainty"] = np.sqrt(Output["MeanQ_Unc"]) * CombinedPixels
+        # Q_uncertainty is not the average of the Q_uncertaintes from all carriages!!        Output["Q_Uncertainty"] = np.sqrt(Output["MeanQ_Unc"])
+        Output["Q_Uncertainty"][nonzero_combined_mask] /= CombinedPixels[nonzero_combined_mask]
      
     return Output
 
