@@ -2035,84 +2035,68 @@ def TwoDimToOneDim(Key, Q_min, Q_max, Q_bins, QGridPerDetector, generalmask, sec
 
     Q_Values = np.linspace(Q_min, Q_max, Q_bins, endpoint=True)
     Q_step = (Q_max - Q_min) / Q_bins
-    
-    FrontUU = np.zeros_like(Q_Values)
-    FrontUU_Unc = np.zeros_like(Q_Values)
-    FrontMeanQ = np.zeros_like(Q_Values)
-    FrontMeanQUnc = np.zeros_like(Q_Values)
-    FrontPixels = np.zeros_like(Q_Values)
-    
-    MiddleUU = np.zeros_like(Q_Values)
-    MiddleUU_Unc = np.zeros_like(Q_Values)
-    MiddleMeanQ = np.zeros_like(Q_Values)
-    MiddleMeanQUnc = np.zeros_like(Q_Values)
-    MiddlePixels = np.zeros_like(Q_Values)
 
-    BackUU = np.zeros_like(Q_Values)
-    BackUU_Unc = np.zeros_like(Q_Values)
-    BackMeanQ = np.zeros_like(Q_Values)
-    BackMeanQUnc = np.zeros_like(Q_Values)
-    BackPixels = np.zeros_like(Q_Values)
-    
+    Histograms = {} # store results by carriage_key
+    zeros_like_Q = np.zeros_like(Q_Values)
+    carriage_keys = ["F", "M", "B"]
+    result_keys = ["I", "I_Unc", "Q_Mean", "MeanQ_Unc", "Pixels", "Sigma_UU"]
+    for carriage_key in carriage_keys:
+        Histograms[carriage_key] = {}
+        for k in result_keys:
+            Histograms[carriage_key][k] = zeros_like_Q.copy()
+
+    Q_lookups = {}
+    Exp_bins = np.linspace(Q_min, Q_max + Q_step, Q_bins + 1, endpoint=True)
     for dshort in relevant_detectors:
+        carriage_key = dshort[0]
+        CurrentHistogram = Histograms[carriage_key]
         Q_tot = QGridPerDetector['Q_total'][dshort][:][:]
-        Q_unc = np.sqrt(np.power(QGridPerDetector['Q_perp_unc'][dshort][:][:],2) + np.power(QGridPerDetector['Q_parl_unc'][dshort][:][:],2))
         UU = PolCorr_AllDetectors[dshort][:][:]
         UU_Unc = Unc_PolCorr_AllDetectors[dshort][:][:]
 
-        Exp_bins = np.linspace(Q_min, Q_max + Q_step, Q_bins + 1, endpoint=True)
+        Q_lookup = np.digitize(Q_tot[masks[dshort] > 0], bins=Exp_bins)
+        Q_lookups[dshort] = Q_lookup
         countsUU, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=UU[masks[dshort] > 0])
-        
-        UncUU, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=np.power(UU_Unc[masks[dshort] > 0],2))
-        
+        UncUU, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=np.power(UU_Unc[masks[dshort] > 0],2))        
         MeanQSum, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=Q_tot[masks[dshort] > 0])
-        MeanQUnc, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=np.power(Q_unc[masks[dshort] > 0],2)) 
         pixels, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=np.ones_like(UU)[masks[dshort] > 0])
-        
-        carriage_key = dshort[0]
-        if carriage_key == 'F':
-            FrontUU += countsUU
-            FrontUU_Unc += UncUU
-            FrontMeanQ += MeanQSum
-            FrontMeanQUnc += MeanQUnc
-            FrontPixels += pixels
-        elif carriage_key == 'M':
-            MiddleUU += countsUU
-            MiddleUU_Unc += UncUU
-            MiddleMeanQ += MeanQSum
-            MiddleMeanQUnc += MeanQUnc
-            MiddlePixels += pixels
-        else:
-            BackUU += countsUU
-            BackUU_Unc += UncUU
-            BackMeanQ += MeanQSum
-            BackMeanQUnc += MeanQUnc
-            BackPixels += pixels
 
-    CombinedPixels = FrontPixels + MiddlePixels + BackPixels
-    nonzero_front_mask = (FrontPixels > 0) #True False map
-    nonzero_middle_mask = (MiddlePixels > 0) #True False map
-    nonzero_back_mask = (BackPixels > 0) #True False map
+        CurrentHistogram["I"] += countsUU
+        CurrentHistogram["I_Unc"] += UncUU
+        CurrentHistogram["Q_Mean"] += MeanQSum
+        CurrentHistogram["Pixels"] += pixels
+
+    CombinedPixels = sum(Histograms[k]["Pixels"] for k in carriage_keys)
     nonzero_combined_mask = (CombinedPixels > 0) #True False map
     
-    Q_Front = Q_Values[nonzero_front_mask]
-    MeanQ_Front = FrontMeanQ[nonzero_front_mask] / FrontPixels[nonzero_front_mask]
-    MeanQUnc_Front = np.sqrt(FrontMeanQUnc[nonzero_front_mask]) / FrontPixels[nonzero_front_mask]
-    UUF = FrontUU[nonzero_front_mask] / FrontPixels[nonzero_front_mask]
+    for carriage_key in carriage_keys:
+        CurrentHistogram = Histograms[carriage_key]
+        nonzero_mask = CurrentHistogram["Pixels"] > 0
+        CurrentHistogram["nonzero_mask"] = nonzero_mask
+        CurrentHistogram["Q"] = Q_Values[nonzero_mask]
+        CurrentHistogram["Q_Mean"][nonzero_mask] /= CurrentHistogram["Pixels"][nonzero_mask]
+        CurrentHistogram["I"][nonzero_mask] /= CurrentHistogram["Pixels"][nonzero_mask]
+        CurrentHistogram["Sigma_UU"][nonzero_mask] = np.sqrt(CurrentHistogram["I_Unc"][nonzero_mask]) / CurrentHistogram["Pixels"][nonzero_mask]
+        CurrentHistogram["I_Unc"][nonzero_mask] /= CurrentHistogram["Pixels"][nonzero_mask]
     
-    Q_Middle = Q_Values[nonzero_middle_mask]
-    MeanQ_Middle = MiddleMeanQ[nonzero_middle_mask] / MiddlePixels[nonzero_middle_mask]
-    MeanQUnc_Middle = np.sqrt(MiddleMeanQUnc[nonzero_middle_mask]) / MiddlePixels[nonzero_middle_mask]
-    UUM = MiddleUU[nonzero_middle_mask] / MiddlePixels[nonzero_middle_mask]
-
-    Q_Back = Q_Values[nonzero_back_mask]
-    MeanQ_Back = BackMeanQ[nonzero_back_mask] / BackPixels[nonzero_back_mask]
-    MeanQUnc_Back = np.sqrt(BackMeanQUnc[nonzero_back_mask]) / BackPixels[nonzero_back_mask]
-    UUB = BackUU[nonzero_back_mask] / BackPixels[nonzero_back_mask]
-
-    Sigma_UUF = np.sqrt(FrontUU_Unc[nonzero_front_mask]) / FrontPixels[nonzero_front_mask]
-    Sigma_UUM = np.sqrt(MiddleUU_Unc[nonzero_middle_mask]) / MiddlePixels[nonzero_middle_mask]
-    Sigma_UUB = np.sqrt(BackUU_Unc[nonzero_back_mask]) / BackPixels[nonzero_back_mask]
+    # now that we have MeanQ, we can calculate sigmaQ statistically:
+    for dshort in relevant_detectors:
+        carriage_key = dshort[0]
+        CurrentHistogram = Histograms[carriage_key]
+        nonzero_mask = CurrentHistogram["nonzero_mask"]
+        # Only the projection of dQ(single_pixel) parallel to Q is important in this calculation:
+        Q_unc = (QGridPerDetector['Q_parl_unc'][dshort][:][:])[masks[dshort] > 0]
+        # This is the Q value for the pixel
+        Q_tot = (QGridPerDetector['Q_total'][dshort][:][:])[masks[dshort] > 0]
+        # Get the lookup table for which bin we're in:
+        Q_lookup = Q_lookups[dshort]
+        Q_lookup_mask = (Q_lookup < len(Q_Values))
+        # Get the MeanQ for that bin:
+        MeanQ = CurrentHistogram["Q_Mean"]
+        Q_mean_center = MeanQ[Q_lookup[Q_lookup_mask]]
+        Q_var_contrib = (Q_mean_center - Q_tot[Q_lookup_mask])**2 + (Q_unc[Q_lookup_mask])**2 
+        Q_var, _ = np.histogram(Q_tot[Q_lookup_mask], bins=Exp_bins, weights=Q_var_contrib)
+        CurrentHistogram["MeanQ_Unc"][nonzero_mask] += (Q_var[nonzero_mask] / CurrentHistogram["Pixels"][nonzero_mask])    
 
     ErrorBarsYesNo = 0
     if PlotYesNo == 1:
@@ -2121,15 +2105,21 @@ def TwoDimToOneDim(Key, Q_min, Q_max, Q_bins, QGridPerDetector, generalmask, sec
             ax = plt.axes()
             ax.set_xscale("log")
             ax.set_yscale("log")
-            ax.errorbar(Q_Front, UUF, yerr=Sigma_UUF, fmt = 'b*', label='Front')
-            ax.errorbar(Q_Middle, UUM, yerr=Sigma_UUM, fmt = 'g*', label='Middle')
+            hist = Histograms["F"]
+            ax.errorbar(hist["Q"], hist["I"][hist["nonzero_mask"]], yerr=hist["Sigma_UU"][hist["nonzero_mask"]], fmt = 'b*', label='Front')
+            hist = Histograms["M"]
+            ax.errorbar(hist["Q"], hist["I"][hist["nonzero_mask"]], yerr=hist["Sigma_UU"][hist["nonzero_mask"]], fmt = 'g*', label='Middle')
             if str(Config).find('CvB') != -1:
-                ax.errorbar(Q_Back, UUB, yerr=Sigma_UUB, fmt = 'r*', label='HighRes')
+                hist = Histograms["B"]
+                ax.errorbar(hist["Q"], hist["I"][hist["nonzero_mask"]], yerr=hist["Sigma_UU"][hist["nonzero_mask"]], fmt = 'r*', label='HighRes')
         else:
-            plt.loglog(Q_Front, UUF, 'b*', label='Front')
-            plt.loglog(Q_Middle, UUM, 'g*', label='Middle')
+            hist = Histograms["F"]
+            plt.loglog(hist["Q"], hist["I"][hist["nonzero_mask"]], 'b*', label='Front')
+            hist = Histograms["M"]
+            plt.loglog(hist["Q"], hist["I"][hist["nonzero_mask"]], 'g*', label='Middle')
             if str(Config).find('CvB') != -1:
-                plt.loglog(Q_Back, UUB, 'r*', label='High Res')
+                hist = Histograms["B"]
+                plt.loglog(hist["Q"], hist["I"][hist["nonzero_mask"]], 'r*', label='High Res')
                 
         plt.xlabel('Q')
         plt.ylabel('Intensity')
@@ -2137,60 +2127,53 @@ def TwoDimToOneDim(Key, Q_min, Q_max, Q_bins, QGridPerDetector, generalmask, sec
         plt.legend()
         fig.savefig('{keyword}_{idnum},CF{cf}.png'.format(keyword=Key, idnum=ID, cf = Config))
         plt.show()
-
+        
+    Q_Common = Q_Values[nonzero_combined_mask]
+    Output = {        
+        "Q": Q_Values,
+        "Shadow": np.ones_like(Q_Values),
+    }
     if AverageQRanges == 0:
         '''Remove points overlapping in Q space before joining'''
-        for entry in Q_Back:
-            if entry in Q_Middle:
-                index_position = np.where(Q_Back == entry)
-                Q_Back_Temp = np.delete(Q_Back, [index_position])
-                Q_Back = Q_Back_Temp
-                MeanQ_Back_Temp = np.delete(MeanQ_Back, [index_position])
-                MeanQ_Back = MeanQ_Back_Temp
-                MeanQUnc_Back_Temp = np.delete(MeanQUnc_Back, [index_position])
-                MeanQUnc_Back = MeanQUnc_Back_Temp
-                UUB_Temp = np.delete(UUB, [index_position])
-                UUB = UUB_Temp
-                Sigma_UUB_Temp =  np.delete(Sigma_UUB, [index_position])
-                Sigma_UUB = Sigma_UUB_Temp
-        for entry in Q_Middle:
-            if entry in Q_Front:
-                index_position = np.where(Q_Middle == entry)
-                Q_Middle_Temp = np.delete(Q_Middle, [index_position])
-                Q_Middle = Q_Middle_Temp
-                MeanQ_Middle_Temp = np.delete(MeanQ_Middle, [index_position])
-                MeanQ_Middle = MeanQ_Middle_Temp
-                MeanQUnc_Middle_Temp = np.delete(MeanQUnc_Middle, [index_position])
-                MeanQUnc_Middle = MeanQUnc_Middle_Temp
-                UUM_Temp = np.delete(UUM, [index_position])
-                UUM = UUM_Temp
-                Sigma_UUM_Temp =  np.delete(Sigma_UUM, [index_position])
-                Sigma_UUM = Sigma_UUM_Temp  
-        Q_Common = np.concatenate((Q_Back, Q_Middle, Q_Front), axis=0)
-        Q_Mean = np.concatenate((MeanQ_Back, MeanQ_Middle, MeanQ_Front), axis=0)
-        Q_Uncertainty = np.concatenate((MeanQUnc_Back, MeanQUnc_Middle, MeanQUnc_Front), axis=0)
-        UU = np.concatenate((UUB, UUM, UUF), axis=0)
-        SigmaUU = np.concatenate((Sigma_UUB, Sigma_UUM, Sigma_UUF), axis=0)
-        Shadow = np.ones_like(Q_Common)
-    else:
-        Q_Common = Q_Values[nonzero_combined_mask]
-        CombinedMeanQ = BackMeanQ + MiddleMeanQ + FrontMeanQ
-        CombinedMeanQUnc = BackMeanQUnc + MiddleMeanQUnc + FrontMeanQUnc
-        Q_Mean = CombinedMeanQ[nonzero_combined_mask] / CombinedPixels[nonzero_combined_mask]
-        Q_Uncertainty = np.sqrt(CombinedMeanQUnc[nonzero_combined_mask]) / CombinedPixels[nonzero_combined_mask]
-        CombinedUU = BackUU + MiddleUU + FrontUU
-        UU = CombinedUU[nonzero_combined_mask] / CombinedPixels[nonzero_combined_mask]
-        UU_UncC = BackUU_Unc + MiddleUU_Unc + FrontUU_Unc
-        SigmaUU = np.sqrt(UU_UncC[nonzero_combined_mask]) / CombinedPixels[nonzero_combined_mask]
-        Shadow = np.ones_like(Q_Common)
+        final_masks = {
+            "B": np.logical_and(Histograms["B"]["nonzero_mask"], np.logical_not(Histograms["M"]["nonzero_mask"])),
+            "M": np.logical_and(Histograms["M"]["nonzero_mask"], np.logical_not(Histograms["F"]["nonzero_mask"])),
+            "F": Histograms["F"]["nonzero_mask"]
+        }
+        
+        for k in ["I", "I_Unc", "Q_Mean", "MeanQ_Unc"]:
+            Output[k] = zeros_like_Q.copy()
+            for carriage_key in carriage_keys:
+                mask = final_masks[carriage_key]
+                Output[k][mask] = Histograms[carriage_key][k][mask] / CombinedPixels[mask]
 
-    Output = {}
-    Output['Q'] = Q_Common
-    Output['Q_Mean'] = Q_Mean
-    Output['I'] = UU
-    Output['I_Unc'] = SigmaUU
-    Output['Q_Uncertainty'] = Q_Uncertainty
-    Output['Shadow'] = Shadow
+        Output["I_Unc"] = np.sqrt(Output["I_Unc"]) * CombinedPixels
+        # This is correct: with no overlap, there is no averaging of uncertainties  
+        Output["Q_Uncertainty"] = np.sqrt(Output["MeanQ_Unc"]) * CombinedPixels
+
+        # e.g.:        
+        # Q_Mean = zeros_like_Q.copy()
+        # Q_Mean[back_mask] = Histograms["B"]["Q_Mean"][back_mask]
+        # Q_Mean[middle_mask] = Histograms["M"]["Q_Mean"][middle_mask]
+        # Q_Mean[front_mask] = Histograms["F"]["Q_Mean"][front_mask]
+    else:
+        # add all points for all carriages:
+        final_masks = {
+            "B": nonzero_combined_mask,
+            "M": nonzero_combined_mask,
+            "F": nonzero_combined_mask
+        }
+
+        for k in ["I", "I_Unc", "Q_Mean", "MeanQ_Unc"]:
+            Output[k] = zeros_like_Q.copy()
+            for carriage_key in carriage_keys:
+                mask = final_masks[carriage_key]
+                Output[k][mask] += Histograms[carriage_key][k][mask] / CombinedPixels[mask]
+
+        Output["I_Unc"] = np.sqrt(Output["I_Unc"]) * CombinedPixels
+        # This is wrong: needs to be fixed.  
+        # Q_uncertainty is not the average of the Q_uncertaintes from all carriages!!
+        Output["Q_Uncertainty"] = np.sqrt(Output["MeanQ_Unc"]) * CombinedPixels
      
     return Output
 
