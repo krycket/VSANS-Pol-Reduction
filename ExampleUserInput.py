@@ -13,6 +13,7 @@ Min_Scatt_Filenumber = Min_Filenumber
 Max_Scatt_Filenumber = Max_Filenumber
 Min_Trans_Filenumber = Min_Filenumber 
 Max_Trans_Filenumber = Max_Filenumber
+SampleDescriptionKeywordsToExclude = ['Align', 'Check']
 
 TransPanel = 'MR' #Default is 'MR'
 SectorCutAngles = 20.0 #Default is typically 10.0 to 20.0 (degrees)
@@ -58,3 +59,4 @@ YesNoManualHe3Entry = 0 #0 for no (default), 1 for yes; should not be needed for
 New_HE3_Files = [38139] #Default is []; These would be the starting files for each new cell IF YesNoManualHe3Entry = 1
 MuValues = [3.105] #Default is []; Values only used IF YesNoManualHe3Entry = 1; example [3.374, 3.105]=[Fras, Bur]; should not be needed after July 2019
 TeValues = [0.86] #Default is []; Values only used IF YesNoManualHe3Entry = 1; example [0.86, 0.86]=[Fras, Bur]; should not be needed after July 2019
+SampleApertureInMM = True
