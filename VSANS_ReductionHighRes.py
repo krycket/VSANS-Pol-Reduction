@@ -11,7 +11,6 @@ from numpy.linalg import inv
 import os
 import os.path
 from scipy import ndimage
-from UserInput import *
 
 '''
 Updated 15/1/2021.
@@ -3973,13 +3972,43 @@ def VSANS_SaveComparativePlots(Slices, SectorCutAngles, save_path, FullPol_BaseT
                     
     return
 
+def load_python_config(module_name="UserInput"):
+    import importlib
+    module = importlib.import_module(module_name)
+    names = {}
+    for name in module.__dict__:
+        if not name in module.__builtins__ and not name.startswith("__"):
+            names[name] = module.__dict__[name]
+    # this is a somewhat blunt instrument:
+    globals().update(names)
+    return names
+
+def load_json_config_file(filename):
+    import json
+    names = json.loads(open(filename, 'rt').read())
+    globals().update(names)
+    return names
+
+def main(python_config=None, json_config=None):
+    """
+    specify either a python module name
+    e.g. "UserInput" (corresponding to UserInput.py)
+    or a json filename, in order to set configuration values
+    """
+    if python_config is not None:
+        load_python_config(module_name=python_config)
+    elif json_config is not None:
+        load_json_config_file(filename=json_config)
+    else:
+        raise ValueError("must specify either python_config (module name, usually UserInput) or json_config (json filename)")
 
 
-def main():
     #*************************************************
     #***        Start of 'The Program'             ***
     #*************************************************
     #Contents = VSANS_ReadIn_UserInput()
+
+
     Contents = "not used"
     if not os.path.exists(save_path):
         os.makedirs(save_path)
@@ -4014,4 +4043,4 @@ def main():
     #*************************************************
 
 if __name__ == '__main__':
-    main()
+    main(python_config="UserInput")
