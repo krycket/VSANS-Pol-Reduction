@@ -1213,7 +1213,14 @@ def QCalculation_AllDetectors(SampleDescriptionKeywordsToExclude, input_path, Ca
                 panel_gap = f['entry/instrument/detector_{ds}/panel_gap'.format(ds=dshort)][0]/10.0
                 coeffs = f['entry/instrument/detector_{ds}/spatial_calibration'.format(ds=dshort)][0][0]/10.0
             SampleApInternal = f['/entry/DAS_logs/geometry/internalSampleApertureHeight'][0] #internal sample aperture in cm
-            SampleApExternal = f['/entry/DAS_logs/geometry/externalSampleApertureHeight'][0] #external sample aperture in cm
+            SampleApShape = f['/entry/DAS_logs/geometry/externalSampleApertureShape'][0]
+            if SampleApShape == 'CIRCLE':
+                SampleApExternal = f['/entry/DAS_logs/geometry/externalSampleAperture'][0] # in cm
+            else:
+                SampleApExternal = f['/entry/DAS_logs/geometry/externalSampleApertureHeight'][0] #external sample aperture in cm
+            if SampleApertureInMM:
+                SampleApExternal *= 0.1 # convert mm to cm
+            SampleApOffset = f['/entry/instrument/sample_aperture_2/distance'][0] # distance from sample to external sample aperture, in cm
             SourceAp = f['/entry/DAS_logs/geometry/sourceApertureHeight'][0] #source aperture in cm, assumes circular aperture(?) #0.75, 1.5, or 3 for guides; otherwise 6 cm for >= 1 guides
             FrontDetToGateValve = f['/entry/DAS_logs/carriage/frontTrans'][0] #400
             MiddleDetToGateValve = f['/entry/DAS_logs/carriage/middleTrans'][0] #1650
@@ -1318,14 +1325,14 @@ def QCalculation_AllDetectors(SampleDescriptionKeywordsToExclude, input_path, Ca
             #     L2 = MiddleDetToSample
             # elif dshort == 'B':
             #     L2 = RearDetToSample
-            g = 981 #in cm/s^2
+            g = 981.0 #in cm/s^2
             m_div_h = 252.77 #in s cm^-2
             acc = 3.956e5 # velocity [cm/s] of 1 A neutron
             L2 = realDistZ
             L1 = SampleToSourceAp
             Pix = 0.82
-            R1 = SourceAp #source aperture radius in cm
-            R2 = SampleApExternal #sample aperture radius in cm
+            R1 = SourceAp * 0.5 #source aperture diameter, to radius in cm
+            R2 = SampleApExternal * 0.5 #sample aperture diameter, to radius in cm
             Inv_LPrime = 1.0/L1 + 1.0/L2
             k = 2*np.pi/Wavelength
             YG_d = -0.5*g*L2*(L1+L2)*(Wavelength/acc)**2
@@ -1342,9 +1349,10 @@ def QCalculation_AllDetectors(SampleDescriptionKeywordsToExclude, input_path, Ca
             #Else, if adding gravity correction:
             '''
             
-            A = -0.5*g*L2*(L1+L2)*np.power(m_div_h , 2) # in units 1/cm
+            A = 0.5*g*L2*(L1+L2)*np.power(m_div_h , 2) # in units 1/cm
             #A *= 1e-16 # now in units of cm/(A^2)
             WL = Wavelength*1E-8 # in cm
+
             SigmaQParlSqr = SigmaQParlSqr + np.power(Wavelength_spread*k/(L2),2)*(R*R - 4*R*A*np.sin(phi)*WL*WL + 4*A*A*np.power(WL,4))/6.0 #gravity correction makes vary little difference for wavelength spread < 20%
             '''VSANS IGOR 2D ASCII delta_Q seems to be way off the mark, but this 2D calculaation matches the VSANS circular average closely when pixels are converted to circular average...'''
             
@@ -2054,7 +2062,7 @@ def TwoDimToOneDim(Key, Q_min, Q_max, Q_bins, QGridPerDetector, generalmask, sec
         UU = PolCorr_AllDetectors[dshort][:][:]
         UU_Unc = Unc_PolCorr_AllDetectors[dshort][:][:]
 
-        Q_lookup = np.digitize(Q_tot[masks[dshort] > 0], bins=Exp_bins)
+        Q_lookup = np.searchsorted(Exp_bins, Q_tot[masks[dshort] > 0], side="right") - 1
         Q_lookups[dshort] = Q_lookup
         countsUU, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=UU[masks[dshort] > 0])
         UncUU, _ = np.histogram(Q_tot[masks[dshort] > 0], bins=Exp_bins, weights=np.power(UU_Unc[masks[dshort] > 0],2))        
@@ -2090,12 +2098,14 @@ def TwoDimToOneDim(Key, Q_min, Q_max, Q_bins, QGridPerDetector, generalmask, sec
         Q_tot = (QGridPerDetector['Q_total'][dshort][:][:])[masks[dshort] > 0]
         # Get the lookup table for which bin we're in:
         Q_lookup = Q_lookups[dshort]
-        Q_lookup_mask = (Q_lookup < len(Q_Values))
+        Q_lookup_mask = np.logical_and((Q_lookup < Q_bins), (Q_lookup >= 0))
         # Get the MeanQ for that bin:
         MeanQ = CurrentHistogram["Q_Mean"].copy()
         MeanQ[nonzero_mask] /= CurrentHistogram["Pixels"][nonzero_mask]
         Q_mean_center = MeanQ[Q_lookup[Q_lookup_mask]]
-        Q_var_contrib = (Q_mean_center - Q_tot[Q_lookup_mask])**2 + (Q_unc[Q_lookup_mask])**2 
+        Q_pixel_center = Q_tot[Q_lookup_mask]
+        Q_pixel_uncertainty = Q_unc[Q_lookup_mask]
+        Q_var_contrib = (Q_mean_center - Q_pixel_center)**2 + (Q_unc[Q_lookup_mask])**2 
         Q_var, _ = np.histogram(Q_tot[Q_lookup_mask], bins=Exp_bins, weights=Q_var_contrib)
         CurrentHistogram["MeanQ_Unc"][nonzero_mask] += Q_var[nonzero_mask]
 
@@ -2152,10 +2162,11 @@ def TwoDimToOneDim(Key, Q_min, Q_max, Q_bins, QGridPerDetector, generalmask, sec
         Output["I_Unc"] = np.sqrt(Output["I_Unc"])
         Output["I_Unc"][nonzero_combined_mask] /= Output["Pixels"][nonzero_combined_mask]
         Output["I"][nonzero_combined_mask] /= Output["Pixels"][nonzero_combined_mask]
+        Output["Q_Mean"][nonzero_combined_mask] /= Output["Pixels"][nonzero_combined_mask]
 
         # This is correct: with no overlap, there is no averaging of uncertainties  
         Output["Q_Uncertainty"] = np.sqrt(Output["MeanQ_Unc"])
-        Output["Q_Uncertainty"][nonzero_combined_mask] /= CombinedPixels[nonzero_combined_mask]
+        Output["Q_Uncertainty"][nonzero_combined_mask] /= Output["Pixels"][nonzero_combined_mask]
 
         # e.g.:        
         # Q_Mean = zeros_like_Q.copy()
@@ -2184,7 +2195,10 @@ def TwoDimToOneDim(Key, Q_min, Q_max, Q_bins, QGridPerDetector, generalmask, sec
         # This is wrong: needs to be fixed.  
         # Q_uncertainty is not the average of the Q_uncertaintes from all carriages!!        Output["Q_Uncertainty"] = np.sqrt(Output["MeanQ_Unc"])
         Output["Q_Uncertainty"][nonzero_combined_mask] /= CombinedPixels[nonzero_combined_mask]
-     
+    
+    # fig = plt.figure()
+    # plt.plot(Output["Q_Mean"], Output["Q_Uncertainty"], 'r+')
+    # plt.show()
     return Output
 
 def Raw_Data(input_path, filenumber):
