@@ -2041,8 +2041,9 @@ def TwoDimToOneDim(Key, Q_min, Q_max, Q_bins, QGridPerDetector, generalmask, sec
     for dshort in relevant_detectors:
         masks[dshort] = generalmask[dshort]*sectormask[dshort]
 
-    Q_Values = np.linspace(Q_min, Q_max, Q_bins, endpoint=True)
     Q_step = (Q_max - Q_min) / Q_bins
+    #Kludge of adding half step 1/20/21
+    Q_Values = np.linspace(Q_min, Q_max, Q_bins, endpoint=True) + Q_step/2
 
     Histograms = {} # store results by carriage_key
     zeros_like_Q = np.zeros_like(Q_Values)
@@ -2191,9 +2192,12 @@ def TwoDimToOneDim(Key, Q_min, Q_max, Q_bins, QGridPerDetector, generalmask, sec
         Output["I_Unc"] = np.sqrt(Output["I_Unc"])
         Output["I_Unc"][nonzero_combined_mask] /= Output["Pixels"][nonzero_combined_mask]
         Output["I"][nonzero_combined_mask] /= Output["Pixels"][nonzero_combined_mask]
+        #Added this:
+        Output["Q_Mean"][nonzero_combined_mask] /= Output["Pixels"][nonzero_combined_mask]
 
         # This is wrong: needs to be fixed.  
-        # Q_uncertainty is not the average of the Q_uncertaintes from all carriages!!        Output["Q_Uncertainty"] = np.sqrt(Output["MeanQ_Unc"])
+        # Q_uncertainty is not the average of the Q_uncertaintes from all carriages!!
+        Output["Q_Uncertainty"] = np.sqrt(Output["MeanQ_Unc"])
         Output["Q_Uncertainty"][nonzero_combined_mask] /= CombinedPixels[nonzero_combined_mask]
     
     # fig = plt.figure()
@@ -2728,10 +2732,10 @@ def vSANS_ProcessFullPolSlices(Slices, SectorCutAngles, save_path, YesNoShowPlot
         Horz_Data['Q_Unc'] = PolSampleSlices[Sample][slice_details]['UU']['Q_Uncertainty']
         Horz_Data['Shadow'] = PolSampleSlices[Sample][slice_details]['UU']['Shadow']
 
-        if "Circ" in Slices:#Fix for Q
-            Horz_Data, CircMatchHorz_Data = MatchQ_PADataSets(Horz_Data, Circ_Data, 2)
-            Horz_Data['Q_Unc'] = CircMatchHorz_Data['Q_Unc']
-            Horz_Data['Q_Mean'] = CircMatchHorz_Data['Q_Mean']
+        #if "Circ" in Slices:#Fix for Q
+            #Horz_Data, CircMatchHorz_Data = MatchQ_PADataSets(Horz_Data, Circ_Data, 2)
+            #Horz_Data['Q_Unc'] = CircMatchHorz_Data['Q_Unc']
+            #Horz_Data['Q_Mean'] = CircMatchHorz_Data['Q_Mean']
             
 
         if 'Empty' in PolSampleSlices and AutoSubtractEmpty == 1:
@@ -2783,10 +2787,10 @@ def vSANS_ProcessFullPolSlices(Slices, SectorCutAngles, save_path, YesNoShowPlot
         Vert_Data['Q_Unc'] = PolSampleSlices[Sample][slice_details]['UU']['Q_Uncertainty']
         Vert_Data['Shadow'] = PolSampleSlices[Sample][slice_details]['UU']['Shadow']
 
-        if "Circ" in Slices:#Fix for Q
-            Vert_Data, CircMatchVert_Data = MatchQ_PADataSets(Vert_Data, Circ_Data, 2)
-            Vert_Data['Q_Unc'] = CircMatchVert_Data['Q_Unc']
-            Vert_Data['Q_Mean'] = CircMatchVert_Data['Q_Mean']
+        #if "Circ" in Slices:#Fix for Q
+            #Vert_Data, CircMatchVert_Data = MatchQ_PADataSets(Vert_Data, Circ_Data, 2)
+            #Vert_Data['Q_Unc'] = CircMatchVert_Data['Q_Unc']
+            #Vert_Data['Q_Mean'] = CircMatchVert_Data['Q_Mean']
 
         if 'Empty' in PolSampleSlices and AutoSubtractEmpty == 1:
             if PolType in PolSampleSlices['Empty'][slice_details]['PolType']:
@@ -2832,10 +2836,10 @@ def vSANS_ProcessFullPolSlices(Slices, SectorCutAngles, save_path, YesNoShowPlot
         Diag_Data['Q_Unc'] = PolSampleSlices[Sample][slice_details]['UU']['Q_Uncertainty']
         Diag_Data['Shadow'] = PolSampleSlices[Sample][slice_details]['UU']['Shadow']
 
-        if "Circ" in Slices:#Fix for Q
-            Diag_Data, CircMatchDiag_Data = MatchQ_PADataSets(Diag_Data, Circ_Data, 2)
-            Diag_Data['Q_Unc'] = CircMatchDiag_Data['Q_Unc']
-            Diag_Data['Q_Mean'] = CircMatchDiag_Data['Q_Mean']
+        #if "Circ" in Slices:#Fix for Q
+            #Diag_Data, CircMatchDiag_Data = MatchQ_PADataSets(Diag_Data, Circ_Data, 2)
+            #Diag_Data['Q_Unc'] = CircMatchDiag_Data['Q_Unc']
+            #Diag_Data['Q_Mean'] = CircMatchDiag_Data['Q_Mean']
 
         if 'Empty' in PolSampleSlices and AutoSubtractEmpty == 1:
             if PolType in PolSampleSlices['Empty'][slice_details]['PolType']:
@@ -3062,10 +3066,10 @@ def vSANS_ProcessHalfPolSlices(Slices, SectorCutAngles, save_path, YesNoShowPlot
         Horz_Data['Q_Unc'] = PolSampleSlices[Sample][slice_details]['U']['Q_Uncertainty']
         Horz_Data['Shadow'] = PolSampleSlices[Sample][slice_details]['U']['Shadow']
 
-        if "Circ" in Slices:#Fix for Q
-            Horz_Data, CircMatchHorz_Data = MatchQ_PADataSets(Horz_Data, Circ_Data, 1)
-            Horz_Data['Q_Unc'] = CircMatchHorz_Data['Q_Unc']
-            Horz_Data['Q_Mean'] = CircMatchHorz_Data['Q_Mean']
+        #if "Circ" in Slices:#Fix for Q
+            #Horz_Data, CircMatchHorz_Data = MatchQ_PADataSets(Horz_Data, Circ_Data, 1)
+            #Horz_Data['Q_Unc'] = CircMatchHorz_Data['Q_Unc']
+            #Horz_Data['Q_Mean'] = CircMatchHorz_Data['Q_Mean']
 
         if 'Empty' in PolSampleSlices and AutoSubtractEmpty == 1:
             if PolType in PolSampleSlices['Empty'][slice_details]['PolType']:
@@ -3103,10 +3107,10 @@ def vSANS_ProcessHalfPolSlices(Slices, SectorCutAngles, save_path, YesNoShowPlot
         Vert_Data['Q_Unc'] = PolSampleSlices[Sample][slice_details]['U']['Q_Uncertainty']
         Vert_Data['Shadow'] = PolSampleSlices[Sample][slice_details]['U']['Shadow']
 
-        if "Circ" in Slices:#Fix for Q
-            Vert_Data, CircMatchVert_Data = MatchQ_PADataSets(Vert_Data, Circ_Data, 1)
-            Vert_Data['Q_Unc'] = CircMatchVert_Data['Q_Unc']
-            Vert_Data['Q_Mean'] = CircMatchVert_Data['Q_Mean']
+        #if "Circ" in Slices:#Fix for Q
+            #Vert_Data, CircMatchVert_Data = MatchQ_PADataSets(Vert_Data, Circ_Data, 1)
+            #Vert_Data['Q_Unc'] = CircMatchVert_Data['Q_Unc']
+            #Vert_Data['Q_Mean'] = CircMatchVert_Data['Q_Mean']
 
         if 'Empty' in PolSampleSlices and AutoSubtractEmpty == 1:
             if PolType in PolSampleSlices['Empty'][slice_details]['PolType']:
@@ -3271,10 +3275,10 @@ def vSANS_ProcessUnpolSlices(Slices, SectorCutAngles, save_path, YesNoShowPlots,
         Horz_Data['Q_Unc'] = PolSampleSlices[Sample][slice_details]['Unpol']['Q_Uncertainty']
         Horz_Data['Shadow'] = PolSampleSlices[Sample][slice_details]['Unpol']['Shadow']
 
-        if "Circ" in Slices:#Fix for Q
-            Horz_Data, CircMatchHorz_Data = MatchQ_PADataSets(Horz_Data, Circ_Data, 0)
-            Horz_Data['Q_Unc'] = CircMatchHorz_Data['Q_Unc']
-            Horz_Data['Q_Mean'] = CircMatchHorz_Data['Q_Mean']
+        #if "Circ" in Slices:#Fix for Q
+            #Horz_Data, CircMatchHorz_Data = MatchQ_PADataSets(Horz_Data, Circ_Data, 0)
+            #Horz_Data['Q_Unc'] = CircMatchHorz_Data['Q_Unc']
+            #Horz_Data['Q_Mean'] = CircMatchHorz_Data['Q_Mean']
 
         if 'Empty' in PolSampleSlices and AutoSubtractEmpty == 1:
             if PolType in PolSampleSlices['Empty'][slice_details]['PolType']:
@@ -3304,10 +3308,10 @@ def vSANS_ProcessUnpolSlices(Slices, SectorCutAngles, save_path, YesNoShowPlots,
         Diag_Data['Q_Unc'] = PolSampleSlices[Sample][slice_details]['Unpol']['Q_Uncertainty']
         Diag_Data['Shadow'] = PolSampleSlices[Sample][slice_details]['Unpol']['Shadow']
 
-        if "Circ" in Slices:#Fix for Q
-            Diag_Data, CircMatchDiag_Data = MatchQ_PADataSets(Diag_Data, Circ_Data, 0)
-            Diag_Data['Q_Unc'] = CircMatchDiag_Data['Q_Unc']
-            Diag_Data['Q_Mean'] = CircMatchDiag_Data['Q_Mean']
+        #if "Circ" in Slices:#Fix for Q
+            #Diag_Data, CircMatchDiag_Data = MatchQ_PADataSets(Diag_Data, Circ_Data, 0)
+            #Diag_Data['Q_Unc'] = CircMatchDiag_Data['Q_Unc']
+            #Diag_Data['Q_Mean'] = CircMatchDiag_Data['Q_Mean']
 
     if "Vert" in Slices:
         slice_details = "Vert"+str(SectorCutAngles)
@@ -3320,10 +3324,10 @@ def vSANS_ProcessUnpolSlices(Slices, SectorCutAngles, save_path, YesNoShowPlots,
         Vert_Data['Q_Unc'] = PolSampleSlices[Sample][slice_details]['Unpol']['Q_Uncertainty']
         Vert_Data['Shadow'] = PolSampleSlices[Sample][slice_details]['Unpol']['Shadow']
 
-        if "Circ" in Slices:#Fix for Q
-            Vert_Data, CircMatchVert_Data = MatchQ_PADataSets(Vert_Data, Circ_Data, 0)
-            Vert_Data['Q_Unc'] = CircMatchVert_Data['Q_Unc']
-            Vert_Data['Q_Mean'] = CircMatchVert_Data['Q_Mean']
+        #if "Circ" in Slices:#Fix for Q
+            #Vert_Data, CircMatchVert_Data = MatchQ_PADataSets(Vert_Data, Circ_Data, 0)
+            #Vert_Data['Q_Unc'] = CircMatchVert_Data['Q_Unc']
+            #Vert_Data['Q_Mean'] = CircMatchVert_Data['Q_Mean']
 
         if 'Empty' in PolSampleSlices and AutoSubtractEmpty == 1:
             if PolType in PolSampleSlices['Empty'][slice_details]['PolType']:
@@ -3975,9 +3979,11 @@ def main():
     #*************************************************
     #***        Start of 'The Program'             ***
     #*************************************************
-    
     #Contents = VSANS_ReadIn_UserInput()
     Contents = "not used"
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+
     Sample_Names, Sample_Bases, Configs, BlockBeamCatalog, ScattCatalog, TransCatalog, Pol_TransCatalog, AlignDet_Trans, HE3_TransCatalog, start_number, filenumberlisting = VSANS_SortDataAutomaticAlt(SampleDescriptionKeywordsToExclude, TransPanel, input_path, YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues, Excluded_Filenumbers, Min_Filenumber, Max_Filenumber, Min_Scatt_Filenumber, Max_Scatt_Filenumber, Min_Trans_Filenumber, Max_Trans_Filenumber, ReAssignBlockBeam, ReAssignEmpty, ReAssignOpen, ReAssignSample, YesNoRenameEmpties)
 
     VSANS_ShareAlignDetTransCatalog(TempDiffAllowedForSharingTrans, AlignDet_Trans, ScattCatalog)
