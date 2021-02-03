@@ -11,9 +11,10 @@ from numpy.linalg import inv
 import os
 import os.path
 from scipy import ndimage
+from UserInput import *
 
 '''
-Updated 15/1/2021.
+Updated 2/315/1/2021. Don't include config in SASView Plotable data names.
 Note about User-Defined Masks (which are added in additiona to the detector shadowing already accounted for):
 Must be in form #####_VSANS_TRANS_MASK.h5, #####_VSANS_SOLENOID_MASK.h5, or #####_VSANS_NOSOLENOID_MASK.h5, where ##### is the assocated filenumber and
 the data with that filenumber must be in the data folder (used to match configurations). These masks can be made using IGOR.
@@ -2887,19 +2888,19 @@ def vSANS_ProcessFullPolSlices(Slices, SectorCutAngles, save_path, YesNoShowPlot
         Vert_NSFSum = Vert_Data['UU'] + Vert_Data['DD']
         Vert_NSFSum_Unc = np.sqrt(np.power(Vert_Data['UU_Unc'],2) + np.power(Vert_Data['DD_Unc'],2))
 
-        M_Perp = (Horz_Data['DU'] + Horz_Data['UD'] + Vert_Data['DU'] + Vert_Data['UD'])/2.0
-        M_Perp_Unc = (np.sqrt(np.power(Horz_Data['DU_Unc'],2) + np.power(Horz_Data['UD_Unc'],2) + np.power(Vert_Data['DU_Unc'],2) + np.power(Vert_Data['UD_Unc'],2)))/2.0
-
+        M_Perp = (2.0/3.0)*(Horz_Data['DU'] + Horz_Data['UD'] + Vert_Data['DU'] + Vert_Data['UD'])/2.0
+        M_Perp_Unc = (2.0/3.0)*(np.sqrt(np.power(Horz_Data['DU_Unc'],2) + np.power(Horz_Data['UD_Unc'],2) + np.power(Vert_Data['DU_Unc'],2) + np.power(Vert_Data['UD_Unc'],2)))/2.0
+        
         Diff = Vert_Data['DD'] - Vert_Data['UU']
         Diff_Unc = np.sqrt(np.power(Vert_Data['DD_Unc'],2) + np.power(Vert_Data['UU_Unc'],2))
         Num = np.power((Diff),2)
         Num_Unc = np.sqrt(2.0)*Diff*Diff_Unc
-        Denom = (4.0*(Horz_Data['DD'] + Horz_Data['UU']))
+        Denom = (8.0*(Horz_Data['DD'] + Horz_Data['UU']))
         Denom_Unc = np.sqrt(np.power(Horz_Data['DD_Unc'],2) + np.power(Horz_Data['UU_Unc'],2))
-        if Sample != 'Empty':
+        if Sample != 'Empty':            
             M_Parl_NSF = (Num / Denom)/2.0
             M_Parl_NSF_Unc = (M_Parl_NSF * np.sqrt( np.power(Num_Unc,2)/np.power(Num,2) + np.power(Denom_Unc,2)/np.power(Denom,2)))
-            DenomII = (4.0*(Vert_Data['DD'] + Vert_Data['UU']))
+            DenomII = 8.0*((Vert_Data['DD'] + Vert_Data['UU']))
             DenomII_Unc = np.sqrt(np.power(Vert_Data['DD_Unc'],2) + np.power(Vert_Data['UU_Unc'],2))
             M_Parl_NSFAllVert = (Num / DenomII)/2.0
             M_Parl_NSFAllVert_Unc = (M_Parl_NSFAllVert * np.sqrt( np.power(Num_Unc,2)/np.power(Num,2) + np.power(DenomII_Unc,2)/np.power(DenomII,2)))
@@ -2959,15 +2960,15 @@ def vSANS_ProcessFullPolSlices(Slices, SectorCutAngles, save_path, YesNoShowPlot
                    delimiter = ' ', comments = '', header= 'Q, Struc, DelStruc, M_Perp, DelM_Perp, M_Parl_NSF, DelM_Parl_NSF, M_Parl_NSFVert, DelM_Parl_NSFVert, M_Parl_SF, DelM_Parl_SF, Q_Unc, Q_mean, Shadow', fmt='%1.4e')
             text_output2 = np.array([Q, M_Parl_NSF, M_Parl_NSF_Unc, Q_Unc, Q_mean, Shadow])
             text_output2 = text_output2.T
-            np.savetxt(save_path + 'PlotableFullPolMparl_{samp},{cf}_{key}{width}{sub}.txt'.format(samp=Sample, cf = Config, key = PolType, width = Width, sub = Sub), text_output2,
+            np.savetxt(save_path + 'PlotFullPolMparl_{samp}_{key}{width}{sub}.txt'.format(samp=Sample, cf = Config, key = PolType, width = Width, sub = Sub), text_output2,
                    delimiter = ' ', comments = '', header= 'Q, M_Parl_NSF, DelM_Parl_NSF, Q_Unc, Q_mean, Shadow', fmt='%1.4e')
             text_output3 = np.array([Q, M_Perp, M_Perp_Unc, Q_Unc, Q_mean, Shadow])
             text_output3 = text_output3.T
-            np.savetxt(save_path + 'PlotableFullPolMperp_{samp},{cf}_{key}{width}{sub}.txt'.format(samp=Sample, cf = Config, key = PolType, width = Width, sub = Sub), text_output3,
+            np.savetxt(save_path + 'PlotFullPolMperp_{samp}_{key}{width}{sub}.txt'.format(samp=Sample, cf = Config, key = PolType, width = Width, sub = Sub), text_output3,
                    delimiter = ' ', comments = '', fmt='%1.4e')
             text_output4 = np.array([Q, Struc, Struc_Unc, Q_Unc, Q_mean, Shadow])
             text_output4 = text_output4.T
-            np.savetxt(save_path + 'PlotableFullPolStruc_{samp},{cf}_{key}{width}{sub}.txt'.format(samp=Sample, cf = Config, key = PolType, width = Width, sub = Sub), text_output4,
+            np.savetxt(save_path + 'PlotFullPolStruc_{samp}_{key}{width}{sub}.txt'.format(samp=Sample, cf = Config, key = PolType, width = Width, sub = Sub), text_output4,
                    delimiter = ' ', comments = '', header= 'Q, Struc, DelStruc, Q_Unc, Q_mean, Shadow', fmt='%1.4e')
             
         else:
@@ -3142,8 +3143,8 @@ def vSANS_ProcessHalfPolSlices(Slices, SectorCutAngles, save_path, YesNoShowPlot
         for entry in Vert_Data:
             Vert_Data[entry] = VertMatch[entry]
 
-        M_Parl_Sub = (Vert_Data['D'] + Vert_Data['U'] - (Horz_Data['D'] + Horz_Data['U']) )/2.0
-        M_Parl_Sub_Unc = np.sqrt(np.power(Vert_Data['D_Unc'],2) + np.power(Vert_Data['U_Unc'],2) + np.power(Horz_Data['D_Unc'],2) + np.power(Horz_Data['U_Unc'],2))/2.0
+        M_Parl_Sub = (Vert_Data['D'] + Vert_Data['U'] - (Horz_Data['D'] + Horz_Data['U']) )/4.0
+        M_Parl_Sub_Unc = np.sqrt(np.power(Vert_Data['D_Unc'],2) + np.power(Vert_Data['U_Unc'],2) + np.power(Horz_Data['D_Unc'],2) + np.power(Horz_Data['U_Unc'],2))/4.0
 
         Struc = (Horz_Data['D'] + Horz_Data['U'])/2.0
         Struc_Unc = np.sqrt(np.power(Horz_Data['D_Unc'],2) + np.power(Horz_Data['U_Unc'],2))/2.0
@@ -3152,7 +3153,7 @@ def vSANS_ProcessHalfPolSlices(Slices, SectorCutAngles, save_path, YesNoShowPlot
         Diff_Unc = np.sqrt(np.power(Vert_Data['D_Unc'],2) + np.power(Vert_Data['U_Unc'],2))
         Num = np.power((Diff),2)
         Num_Unc = np.sqrt(2.0)*Diff*Diff_Unc
-        Denom = (4.0*(Horz_Data['D'] + Horz_Data['U']))
+        Denom = (8.0*(Horz_Data['D'] + Horz_Data['U']))
         Denom_Unc = np.sqrt(np.power(Horz_Data['D_Unc'],2) + np.power(Horz_Data['U_Unc'],2))
         
         if Sample != 'Empty':
@@ -3195,17 +3196,17 @@ def vSANS_ProcessHalfPolSlices(Slices, SectorCutAngles, save_path, YesNoShowPlot
 
         text_output2 = np.array([Q, M_Parl_Div, M_Parl_Div_Unc, Q_Unc, Q_mean, Shadow])
         text_output2 = text_output2.T
-        np.savetxt(save_path + 'PlotableHalfPolMparlDiv_{samp},{cf}_{key}{width}{sub}.txt'.format(samp=Sample, cf = Config, key = PolType, width = Width, sub = Sub), text_output2,
+        np.savetxt(save_path + 'PlotHalfPolMparlDiv_{samp}_{key}{width}{sub}.txt'.format(samp=Sample, cf = Config, key = PolType, width = Width, sub = Sub), text_output2,
         delimiter = ' ', comments = '', header= 'Q, M_Parl_Div, DelM_Parl_Div, Q_Unc, Q_mean, Shadow', fmt='%1.4e')
         
         text_output3 = np.array([Q, M_Parl_Sub, M_Parl_Sub_Unc, Q_Unc, Q_mean, Shadow])
         text_output3 = text_output3.T
-        np.savetxt(save_path + 'PlotableHalfPolMparlSub_{samp},{cf}_{key}{width}{sub}.txt'.format(samp=Sample, cf = Config, key = PolType, width = Width, sub = Sub), text_output3,
+        np.savetxt(save_path + 'PlotHalfPolMparlSub_{samp}_{key}{width}{sub}.txt'.format(samp=Sample, cf = Config, key = PolType, width = Width, sub = Sub), text_output3,
         delimiter = ' ', comments = '', fmt='%1.4e')
 
         text_output4 = np.array([Q, Struc, Struc_Unc, Q_Unc, Q_mean, Shadow])
         text_output4 = text_output4.T
-        np.savetxt(save_path + 'PlotableHalfPolStruc_{samp},{cf}_{key}{width}{sub}.txt'.format(samp=Sample, cf = Config, key = PolType, width = Width, sub = Sub), text_output4,
+        np.savetxt(save_path + 'PlotHalfPolStruc_{samp}_{key}{width}{sub}.txt'.format(samp=Sample, cf = Config, key = PolType, width = Width, sub = Sub), text_output4,
         delimiter = ' ', comments = '', header= 'Q, M_Parl_Sub, DelM_Parl_Sub, Q_Unc, Q_mean, Shadow', fmt='%1.4e')
 
     Results = {}
@@ -3399,12 +3400,12 @@ def vSANS_ProcessUnpolSlices(Slices, SectorCutAngles, save_path, YesNoShowPlots,
 
         text_output3 = np.array([Q, M_Parl_Sub, M_Parl_Sub_Unc, Q_Unc, Q_mean, Shadow])
         text_output3 = text_output3.T
-        np.savetxt(save_path + 'PlotableUnpolMparlSub_{samp},{cf}_{key}{width}{sub}.txt'.format(samp=Sample, cf = Config, key = PolType, width = Width, sub = Sub), text_output3,
+        np.savetxt(save_path + 'PlotUnpolMparlSub_{samp}_{key}{width}{sub}.txt'.format(samp=Sample, cf = Config, key = PolType, width = Width, sub = Sub), text_output3,
         delimiter = ' ', comments = '', fmt='%1.4e')
 
         text_output4 = np.array([Q, Struc, Struc_Unc, Q_Unc, Q_mean, Shadow])
         text_output4 = text_output4.T
-        np.savetxt(save_path + 'PlotableUnpolStruc_{samp},{cf}_{key}{width}{sub}.txt'.format(samp=Sample, cf = Config, key = PolType, width = Width, sub = Sub), text_output4,
+        np.savetxt(save_path + 'PlotUnpolStruc_{samp}_{key}{width}{sub}.txt'.format(samp=Sample, cf = Config, key = PolType, width = Width, sub = Sub), text_output4,
         delimiter = ' ', comments = '', header= 'Q, Struc, DelStruc, Q_Unc, Q_mean, Shadow', fmt='%1.4e')
 
 
@@ -3972,47 +3973,17 @@ def VSANS_SaveComparativePlots(Slices, SectorCutAngles, save_path, FullPol_BaseT
                     
     return
 
-def load_python_config(module_name="UserInput"):
-    import importlib
-    module = importlib.import_module(module_name)
-    names = {}
-    for name in module.__dict__:
-        if not name in module.__builtins__ and not name.startswith("__"):
-            names[name] = module.__dict__[name]
-    # this is a somewhat blunt instrument:
-    globals().update(names)
-    return names
-
-def load_json_config_file(filename):
-    import json
-    names = json.loads(open(filename, 'rt').read())
-    globals().update(names)
-    return names
-
-def main(python_config=None, json_config=None):
-    """
-    specify either a python module name
-    e.g. "UserInput" (corresponding to UserInput.py)
-    or a json filename, in order to set configuration values
-    """
-    if python_config is not None:
-        load_python_config(module_name=python_config)
-    elif json_config is not None:
-        load_json_config_file(filename=json_config)
-    else:
-        raise ValueError("must specify either python_config (module name, usually UserInput) or json_config (json filename)")
 
 
+def main():
     #*************************************************
     #***        Start of 'The Program'             ***
     #*************************************************
     #Contents = VSANS_ReadIn_UserInput()
-
-
     Contents = "not used"
     if not os.path.exists(save_path):
         os.makedirs(save_path)
-
+        
     Sample_Names, Sample_Bases, Configs, BlockBeamCatalog, ScattCatalog, TransCatalog, Pol_TransCatalog, AlignDet_Trans, HE3_TransCatalog, start_number, filenumberlisting = VSANS_SortDataAutomaticAlt(SampleDescriptionKeywordsToExclude, TransPanel, input_path, YesNoManualHe3Entry, New_HE3_Files, MuValues, TeValues, Excluded_Filenumbers, Min_Filenumber, Max_Filenumber, Min_Scatt_Filenumber, Max_Scatt_Filenumber, Min_Trans_Filenumber, Max_Trans_Filenumber, ReAssignBlockBeam, ReAssignEmpty, ReAssignOpen, ReAssignSample, YesNoRenameEmpties)
 
     VSANS_ShareAlignDetTransCatalog(TempDiffAllowedForSharingTrans, AlignDet_Trans, ScattCatalog)
@@ -4035,7 +4006,7 @@ def main(python_config=None, json_config=None):
 
     AllFullPolResults, AllHalfPolResults, AllUnpolResults = vSANS_SaveSlices_And_Results(Slices, SectorCutAngles, save_path, YesNoShowPlots, YesNoSetPlotXRange, YesNoSetPlotYRange, PlotXmin, PlotXmax, PlotYmin, PlotYmax, AutoSubtractEmpty, UseMTCirc, He3Only_Check, Configs, Sample_Names, ScattCatalog, AllFullPolSlices, AllHalfPolSlices, AllUnpolSlices)
 
-    FullPol_BaseToSampleMap, HalfPol_BaseToSampleMap, Unpol_BaseToSampleMap = VSANS_CatergorizeSamplesAndBases(He3Only_Check, Configs, Sample_Bases, Sample_Names, ScattCatalog, AllFullPolSlices,AllHalfPolSlices, AllUnpolSlices)
+    #FullPol_BaseToSampleMap, HalfPol_BaseToSampleMap, Unpol_BaseToSampleMap = VSANS_CatergorizeSamplesAndBases(He3Only_Check, Configs, Sample_Bases, Sample_Names, ScattCatalog, AllFullPolSlices,AllHalfPolSlices, AllUnpolSlices)
     #VSANS_SaveComparativePlots(Slices, SectorCutAngles, save_path, FullPol_BaseToSampleMap, HalfPol_BaseToSampleMap, Unpol_BaseToSampleMap, AllFullPolSlices, AllHalfPolSlices, AllUnpolSlices, AllFullPolResults, AllHalfPolResults, AllUnpolResults, Configs, He3Only_Check, CompareUnpolCirc, CompareHalfPolSumCirc, CompareFullPolSumCirc, CompareFullPolStruc, CompareFullPolMagnetism)
 
     #*************************************************
@@ -4043,4 +4014,4 @@ def main(python_config=None, json_config=None):
     #*************************************************
 
 if __name__ == '__main__':
-    main(python_config="UserInput")
+    main()
