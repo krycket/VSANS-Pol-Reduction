@@ -2897,11 +2897,11 @@ def vSANS_ProcessFullPolSlices(Slices, SectorCutAngles, save_path, YesNoShowPlot
         Denom = (8.0*(Horz_Data['DD'] + Horz_Data['UU']))
         Denom_Unc = np.sqrt(np.power(Horz_Data['DD_Unc'],2) + np.power(Horz_Data['UU_Unc'],2))
         if Sample != 'Empty':            
-            M_Parl_NSF = (Num / Denom)/2.0
+            M_Parl_NSF = (Num / Denom)
             M_Parl_NSF_Unc = (M_Parl_NSF * np.sqrt( np.power(Num_Unc,2)/np.power(Num,2) + np.power(Denom_Unc,2)/np.power(Denom,2)))
             DenomII = 8.0*((Vert_Data['DD'] + Vert_Data['UU']))
             DenomII_Unc = np.sqrt(np.power(Vert_Data['DD_Unc'],2) + np.power(Vert_Data['UU_Unc'],2))
-            M_Parl_NSFAllVert = (Num / DenomII)/2.0
+            M_Parl_NSFAllVert = (Num / DenomII)
             M_Parl_NSFAllVert_Unc = (M_Parl_NSFAllVert * np.sqrt( np.power(Num_Unc,2)/np.power(Num,2) + np.power(DenomII_Unc,2)/np.power(DenomII,2)))
         else:
             M_Parl_NSF = np.zeros_like(Num)
@@ -3156,7 +3156,7 @@ def vSANS_ProcessHalfPolSlices(Slices, SectorCutAngles, save_path, YesNoShowPlot
         Denom_Unc = np.sqrt(np.power(Horz_Data['D_Unc'],2) + np.power(Horz_Data['U_Unc'],2))
         
         if Sample != 'Empty':
-            M_Parl_Div = (Num / Denom)/2.0
+            M_Parl_Div = (Num / Denom)
             M_Parl_Div_Unc = M_Parl_Div * np.sqrt( np.power(Num_Unc,2)/np.power(Num,2) + np.power(Denom_Unc,2)/np.power(Denom,2))
         else:
             M_Parl_Div = np.zeros_like(Num)
