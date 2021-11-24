@@ -25,9 +25,8 @@ The program will further reduce the data into structural and magnetic data, assu
 
 The polarization reduction is automatically taken care of for fully-polarized scattering, where empty needs only to have one non spin-flip and one spin-flip scattering file. See J. Appl. Cryst. 2012, 45, 546-553 (different from the previous reference) for details, with an updated version to be coming soon. You will need three He-3 measurements before a decay curve can be calculated – so take one as soon as possible when a fresh He3 cell is installed at the beamline and registered using NICE.
 
-# Parameters:
+# Parameters (commonly modified):
 
-* The commonly-modified parameters are:
 * input_path -- select where your data is located
 * save_path -- select where your reduced data should be stored (note if the listed folder doesn't exist, this program will make it for you).
 * Instrument -- select 'VSANS' or 'NG7SANS' (exactly as written here)
@@ -59,7 +58,8 @@ The polarization reduction is automatically taken care of for fully-polarized sc
 * PlotYmin – minimum Qy value in inverse angstroms, only used if YesNoSetPlotYRange = 1
 * PlotYmax – maximum Qy value in inverse angstroms, only used if YesNoSetPlotYRange = 1
 
-* The uncommonly-modified parameters are:
+# Parameters (rarely modified):
+
 * SampleApertureInMM – if the sample aperture was conventionally entered in cm choose False; if the sample aperture were incorrectly entered into the file collection system in mm, choose True to correct
 * PreSebtractOpen – Choice of 1 subtracts trans-scaled open (if available) from pol-full scattering files in attempt to remove main beam spillover before applying the polarization correction. Choice of 0 (the conventional method, default) does not do any pre-subtraction.
 * Calc_Q_From_Trans – 0 means the beam centers recorded at the time of data collection will be maintained in the calculation of Q per pixel. 1 means that if an appropriate sample transmission taken at the same instrument condition, temperature, pol-state, and sample name as the scattering file exists, then the transmission beam center will be recalculated from the transmission files. The benefit of selecting 1 is that if the sample position drifts over time (or with temperature), the program can automatically make the appropriate correction.
